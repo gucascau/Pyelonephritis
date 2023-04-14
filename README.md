@@ -5,3 +5,9 @@ Pyeplonephritis is a type of urinary tract infection that caused by bacteria or 
 
 ## Description
 In this project, we generated a comprehensively high resolution map of mouse kidney remodeling after bacteria infections within different dates.
+
+## Datasets
+1. Single cell RNAseq using PIPseq at 0dpi, 3dpi, 7dpi and 28dpi;
+2. Spatial transcriptomics at 0dpi, 1dpi(2), 3dpi(2), 5dpi(2), 7dpi(1), 28dpi(2), 56dpi(1).
+
+## Methods
