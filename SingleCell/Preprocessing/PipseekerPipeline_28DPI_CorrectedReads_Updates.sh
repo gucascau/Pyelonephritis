@@ -27,10 +27,10 @@ out=/home/gdbecknelllab/xxw004/Projects/Ruizrosado/Pyelonephritis/PIPseqResults/
 cd ${in}
 
 #gunzip *.gz
+
+perl ${script}/ExtractSequenceCorrectedBaseOnLength.pl -i 51 -f ${id}_S4_L001_R1_001.fastq -r ${id}_S4_L001_R2_001.fastq -o ${id}_Cfiltered_L001
 #
-# perl ${script}/ExtractSequenceCorrectedBaseOnLength.pl -i 51 -f ${id}_S4_L001_R1_001.fastq -r ${id}_S4_L001_R2_001.fastq -o ${id}_Cfiltered_L001
-#
-# perl ${script}/ExtractSequenceCorrectedBaseOnLength.pl  -i 51 -f ${id}_S4_L002_R1_001.fastq -r ${id}_S4_L002_R2_001.fastq -o ${id}_Cfiltered_L002
+perl ${script}/ExtractSequenceCorrectedBaseOnLength.pl  -i 51 -f ${id}_S4_L002_R1_001.fastq -r ${id}_S4_L002_R2_001.fastq -o ${id}_Cfiltered_L002
 #
 #
 # gzip *.fastq
