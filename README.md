@@ -11,3 +11,11 @@ In this project, we generated a comprehensively high resolution map of mouse kid
 2. Spatial transcriptomics at 0dpi, 1dpi(2), 3dpi(2), 5dpi(2), 7dpi(1), 28dpi(2), 56dpi(1).
 
 ## Methods
+
+
+## Copyright
+For more detail information, please feel free to contact: xin.wang@nationwidechildrens.org
+
+Copyright (c) 2023 Xin Wang
+
+Current version v1.0
