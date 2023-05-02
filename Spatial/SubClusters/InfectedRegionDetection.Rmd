@@ -1,0 +1,251 @@
+---
+title: "Subclustering Infection Regions"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org 
+Copyright (c) 2023 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2023-05-02"
+Description: 
+#   Illustration of infected areas in spatial
+#    - This areas is specific focused on the bacterial infected areas (2,5,10)
+
+#     Note:
+#     Quite often there are strong batch effects between different ST sections, so it may be a good idea to integrate the data across sections.
+#     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
+
+---
+
+```{r}
+# loading the library packages
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+library(scater)
+library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+library(SeuratDisk)
+library(tidyverse)
+library(cowplot)
+
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+library(L1pack)
+library(reshape)
+```
+
+
+```{r}
+# setting up the Enviroment: 
+outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/"
+indir= "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/PreProcess/V03222023_PreliminaryResults/"
+
+dir.create(outdir, showWarnings = F)
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/")
+
+
+### due to the integration take a long time, we ignore the previous and rea accordingly
+Pyelonephritis.integrated<-readRDS(file = paste0(indir, "PreliminaryIntegratedSptatil_Pyelonephritis.RDS"))
+## save the integrated 
+## change the order:
+
+levels(factor(Pyelonephritis.integrated$orig.ident))
+
+Pyelonephritis.integrated$orig.ident<-ordered(factor(Pyelonephritis.integrated$orig.ident), levels=c("PyeloD0_1","PyeloD1_1","PyeloD1_2","PyeloD3_1","PyeloD3_2","PyeloD5_1","PyeloD5_2","PyeloD7_1","PyeloD28_1","PyeloD28_2","PyeloD56_1"))
+levels(factor(Pyelonephritis.integrated$orig.ident))
+
+# pdf("SpatialFeaturePlots_Pyeloneprhitis_integrated_NOFeature_v0323.pdf", height = 4, width = 40)
+# PSpatialFeature_NO <-SpatialFeaturePlot(Pyelonephritis.integrated, features = NULL) + theme(legend.position = "top")
+# PSpatialFeature_NO
+# 
+# dev.off()
+# 
+# pdf("SpatialFeaturePlots_Pyeloneprhitis_integrated_NOFeature_2_v0323.pdf", height = 4, width = 40)
+# PSpatialFeature_NO <-SpatialFeaturePlot(Pyelonephritis.integrated, features = NULL, stroke = 0) + theme(legend.position = "top")
+# PSpatialFeature_NO
+
+# #dev.off()
+# Pyelonephritis.integrated@meta.data
+# Pyelonephritis.integrated <- RunPCA(Pyelonephritis.integrated, verbose = FALSE,npcs=15)
+# Pyelonephritis.integrated<- RunHarmony(Pyelonephritis.integrated, group.by.vars = "orig.ident")
+# 
+# Pyelonephritis.integrated <- RunUMAP(Pyelonephritis.integrated,reduction = "harmony", dims = 1:15)
+# Pyelonephritis.integrated <- FindNeighbors(Pyelonephritis.integrated, dims = 1:15, reduction="harmony")
+# Pyelonephritis.integrated <- FindClusters(Pyelonephritis.integrated, verbose = FALSE, resolution = 0.2)
+# 
+# 
+# SpatialDimPlot(Pyelonephritis.integrated)
+
+#### Run harmony to remove the 
+Pyelonephritis.integrated_harmony <- RunPCA(Pyelonephritis.integrated, verbose = FALSE, npcs=20)
+Pyelonephritis.integrated_harmony<- RunHarmony(Pyelonephritis.integrated_harmony, group.by.vars = "orig.ident")
+Pyelonephritis.integrated_harmony <- RunUMAP(Pyelonephritis.integrated_harmony,reduction = "harmony", dims = 1:15)
+Pyelonephritis.integrated_harmony <- FindNeighbors(Pyelonephritis.integrated_harmony,   dims = 1:15)
+Pyelonephritis.integrated_harmony <- FindClusters(Pyelonephritis.integrated_harmony, algorithm = 1,verbose = FALSE, resolution = 0.3)
+
+
+## find the graph nema
+names(Pyelonephritis.integrated_harmony@graphs)
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated_harmony, reduction = "umap", split.by ="orig.ident",label = TRUE )
+dev.off()
+
+?DimPlot
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels.pdf", height = 8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
+dev.off()
+
+Pyelonephritis.integrated_harmony_highresolution <- FindClusters(Pyelonephritis.integrated_harmony, algorithm = 1,verbose = FALSE, resolution = 1)
+
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate_highresolution.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated_harmony_highresolution, reduction = "umap", split.by ="orig.ident",label = TRUE )
+dev.off()
+
+?DimPlot
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_highresolution.pdf", height = 8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated_harmony_highresolution, label = TRUE,label.size=2.5)
+dev.off()
+
+
+Pyelonephritis.integrated_highersolution.Infection<- subset(Pyelonephritis.integrated_harmony_highresolution, idents = c(25,26))
+
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_highresolution.pdf", height =8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated_highersolution.Infection, crop = TRUE, label = TRUE)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_Seperated_highresolution.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated_highersolution.Infection, reduction = "umap", split.by ="orig.ident",label = TRUE)
+dev.off()
+
+
+### only select the infection region
+
+Pyelonephritis.integrated.Infection<- subset(Pyelonephritis.integrated_harmony, idents = c(2,5,10))
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area.pdf", height =8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated.Infection, crop = TRUE, label = TRUE)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_Seperated.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated.Infection, reduction = "umap", split.by ="orig.ident",label = TRUE)
+dev.off()
+
+## find subcluster for Infected region
+
+Subcluster10<-FindSubCluster(Pyelonephritis.integrated_harmony,cluster=c("10"),graph.name = "integrated_snn", subcluster.name = "Sub10",
+                             resolution = 0.1)
+
+Subcluster10@meta.data
+
+Idents(Subcluster10) <- Subcluster10@meta.data$Sub10
+
+Subcluster5<-FindSubCluster(Subcluster10,cluster=c("5"),graph.name = "integrated_snn", subcluster.name = "Sub5",
+                            resolution = 0.1)
+Subcluster5@meta.data
+Idents(Subcluster5) <- Subcluster5@meta.data$Sub5
+
+Subcluster2<-FindSubCluster(Subcluster5,cluster=c("2"),graph.name = "integrated_snn", subcluster.name = "Sub2",
+                            resolution = 0.05)
+Subcluster2@meta.data$Sub2
+
+Idents(Subcluster2) <- Subcluster2@meta.data$Sub2
+
+### Here we subset the clusters for 2,5, 10
+pdf("SpatialIntegrated_Pyeloneprhitis_SpatialPlot_infectedsubcluster_seperatedSub2-5-10.pdf", height =8, width = 40)
+SpatialDimPlot(Subcluster2, crop = TRUE, label = TRUE, group.by = "Sub2",label.size = 2.5)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_Dimplot_infectedsubcluster_seperatedSub2-5-10.pdf", height = 4, width = 30)
+DimPlot(Subcluster2, reduction = "umap", group.by = "Sub2",split.by ="orig.ident",label = TRUE)
+dev.off()
+
+pdf("SpatialIntegrated_Pyeloneprhitis_SpatialPlot_infectedsubcluster_seperatedSub2.pdf", height =8, width = 40)
+SpatialDimPlot(Subcluster2, crop = TRUE, label = TRUE, group.by = "Sub2",label.size = 2.5)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_Dimplot_infectedsubcluster_seperatedSub2.pdf", height = 4, width = 30)
+DimPlot(Subcluster2, reduction = "umap", group.by = "Sub2",split.by ="orig.ident",label = TRUE)
+dev.off()
+
+Pyelonephritis.integrated.Infection_subcluster<- subset(Subcluster2, idents = c("2_0","2_1","5_0","5_1","5_2","10_0","10_1"))
+
+Pyelonephritis.integrated.Infection_subcluster@meta.data
+
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_areasubclusterSub2-5-10.pdf", height =8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated.Infection_subcluster, crop = TRUE,group.by = "Sub2", label = TRUE,label.size = 2)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_SeperatedsubclusterSub2-5-10.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated.Infection_subcluster, reduction = "umap", group.by = "Sub2",split.by ="orig.ident",label = TRUE,label.size = 2)
+dev.off()
+
+
+Pyelonephritis.integrated.Infection_subcluster5<- subset(Subcluster5, idents = c(2,5,10))
+
+Pyelonephritis.integrated.Infection_subcluster5@meta.data
+
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_areasubclusterSub5.pdf", height =8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated.Infection_subcluster5, crop = TRUE,group.by = "Sub5", label = TRUE,label.size = 2)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_SeperatedsubclusterSub5.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated.Infection_subcluster5, reduction = "umap", group.by = "Sub5",split.by ="orig.ident",label = TRUE,label.size = 2)
+dev.off()
+
+
+
+
+
+
+
+
+
+
+
+
+
+####
+Pyelonephritis.integrated.Infection_subcluster10<- subset(Subcluster10, idents = c(2,5,10))
+
+Pyelonephritis.integrated.Infection_subcluster5@meta.data
+
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_areasubclusterSub10.pdf", height =8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated.Infection_subcluster10, crop = TRUE,group.by = "Sub10", label = TRUE,label.size = 2)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_SeperatedsubclusterSub10.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated.Infection_subcluster10, reduction = "umap", group.by = "Sub10",split.by ="orig.ident",label = TRUE,label.size = 2)
+dev.off()
+
+
+### then add the subcluster of 2, 5, 10 into a new group
+
+
+```
+
