@@ -64,6 +64,10 @@ setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results
 
 ### due to the integration take a long time, we ignore the previous and rea accordingly
 Pyelonephritis.integrated<-readRDS(file = paste0(indir, "PreliminaryIntegratedSptatil_Pyelonephritis.RDS"))
+```
+
+
+```{r}
 ## save the integrated 
 ## change the order:
 
@@ -71,7 +75,10 @@ levels(factor(Pyelonephritis.integrated$orig.ident))
 
 Pyelonephritis.integrated$orig.ident<-ordered(factor(Pyelonephritis.integrated$orig.ident), levels=c("PyeloD0_1","PyeloD1_1","PyeloD1_2","PyeloD3_1","PyeloD3_2","PyeloD5_1","PyeloD5_2","PyeloD7_1","PyeloD28_1","PyeloD28_2","PyeloD56_1"))
 levels(factor(Pyelonephritis.integrated$orig.ident))
+```
 
+
+```{r}
 # pdf("SpatialFeaturePlots_Pyeloneprhitis_integrated_NOFeature_v0323.pdf", height = 4, width = 40)
 # PSpatialFeature_NO <-SpatialFeaturePlot(Pyelonephritis.integrated, features = NULL) + theme(legend.position = "top")
 # PSpatialFeature_NO
@@ -100,8 +107,10 @@ Pyelonephritis.integrated_harmony<- RunHarmony(Pyelonephritis.integrated_harmony
 Pyelonephritis.integrated_harmony <- RunUMAP(Pyelonephritis.integrated_harmony,reduction = "harmony", dims = 1:15)
 Pyelonephritis.integrated_harmony <- FindNeighbors(Pyelonephritis.integrated_harmony,   dims = 1:15)
 Pyelonephritis.integrated_harmony <- FindClusters(Pyelonephritis.integrated_harmony, algorithm = 1,verbose = FALSE, resolution = 0.3)
+```
 
 
+```{r}
 ## find the graph nema
 names(Pyelonephritis.integrated_harmony@graphs)
 
