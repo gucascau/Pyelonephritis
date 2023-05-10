@@ -111,60 +111,67 @@ Pyelonephritis.integrated_harmony <- FindClusters(Pyelonephritis.integrated_harm
 
 
 ```{r}
-## find the graph nema
-names(Pyelonephritis.integrated_harmony@graphs)
+# Please ignore the following
+# The following is to show with a high resolution, we finally did not use them
+## find the graph name
+# names(Pyelonephritis.integrated_harmony@graphs)
+# 
+# pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate.pdf", height = 4, width = 30)
+# DimPlot(Pyelonephritis.integrated_harmony, reduction = "umap", split.by ="orig.ident",label = TRUE )
+# dev.off()
+# 
+# ?DimPlot
+# 
+# 
+# pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels.pdf", height = 8, width = 40)
+# SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
+# dev.off()
+# 
+# Pyelonephritis.integrated_harmony_highresolution <- FindClusters(Pyelonephritis.integrated_harmony, algorithm = 1,verbose = FALSE, resolution = 1)
+# 
+# 
+# 
+# pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate_highresolution.pdf", height = 4, width = 30)
+# DimPlot(Pyelonephritis.integrated_harmony_highresolution, reduction = "umap", split.by ="orig.ident",label = TRUE )
+# dev.off()
+# 
+# ?DimPlot
+# 
+# 
+# pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_highresolution.pdf", height = 8, width = 40)
+# SpatialDimPlot(Pyelonephritis.integrated_harmony_highresolution, label = TRUE,label.size=2.5)
+# dev.off()
+# 
+# 
+# Pyelonephritis.integrated_highersolution.Infection<- subset(Pyelonephritis.integrated_harmony_highresolution, idents = c(25,26))
+# 
+# pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_highresolution.pdf", height =8, width = 40)
+# SpatialDimPlot(Pyelonephritis.integrated_highersolution.Infection, crop = TRUE, label = TRUE)
+# 
+# dev.off()
+# pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_Seperated_highresolution.pdf", height = 4, width = 30)
+# DimPlot(Pyelonephritis.integrated_highersolution.Infection, reduction = "umap", split.by ="orig.ident",label = TRUE)
+# dev.off()
+```
 
-pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate.pdf", height = 4, width = 30)
-DimPlot(Pyelonephritis.integrated_harmony, reduction = "umap", split.by ="orig.ident",label = TRUE )
-dev.off()
 
-?DimPlot
-
-
-pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels.pdf", height = 8, width = 40)
-SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
-dev.off()
-
-Pyelonephritis.integrated_harmony_highresolution <- FindClusters(Pyelonephritis.integrated_harmony, algorithm = 1,verbose = FALSE, resolution = 1)
-
-
-
-pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate_highresolution.pdf", height = 4, width = 30)
-DimPlot(Pyelonephritis.integrated_harmony_highresolution, reduction = "umap", split.by ="orig.ident",label = TRUE )
-dev.off()
-
-?DimPlot
-
-
-pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_highresolution.pdf", height = 8, width = 40)
-SpatialDimPlot(Pyelonephritis.integrated_harmony_highresolution, label = TRUE,label.size=2.5)
-dev.off()
-
-
-Pyelonephritis.integrated_highersolution.Infection<- subset(Pyelonephritis.integrated_harmony_highresolution, idents = c(25,26))
-
-pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_highresolution.pdf", height =8, width = 40)
-SpatialDimPlot(Pyelonephritis.integrated_highersolution.Infection, crop = TRUE, label = TRUE)
-
-dev.off()
-pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_Seperated_highresolution.pdf", height = 4, width = 30)
-DimPlot(Pyelonephritis.integrated_highersolution.Infection, reduction = "umap", split.by ="orig.ident",label = TRUE)
-dev.off()
-
-
+```{r}
 ### only select the infection region
 
 Pyelonephritis.integrated.Infection<- subset(Pyelonephritis.integrated_harmony, idents = c(2,5,10))
 
-
+## draw the spatial feature of infection areas
 pdf("SpatialIntegrated_Pyeloneprhitis_infected_area.pdf", height =8, width = 40)
 SpatialDimPlot(Pyelonephritis.integrated.Infection, crop = TRUE, label = TRUE)
-
 dev.off()
+
 pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_Seperated.pdf", height = 4, width = 30)
 DimPlot(Pyelonephritis.integrated.Infection, reduction = "umap", split.by ="orig.ident",label = TRUE)
 dev.off()
+```
 
+
+```{r}
 ## find subcluster for Infected region
 
 Subcluster10<-FindSubCluster(Pyelonephritis.integrated_harmony,cluster=c("10"),graph.name = "integrated_snn", subcluster.name = "Sub10",

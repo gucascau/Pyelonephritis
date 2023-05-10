@@ -1,0 +1,356 @@
+---
+title: "InfectionRegionDetectionDeconvolution"
+output: html_document
+date: "2023-05-05"
+---
+
+---
+title: "Subclustering Infection Regions"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org 
+Copyright (c) 2023 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2023-05-02"
+Description: 
+#   Illustration of infected areas in spatial
+#    - This areas is specific focused on the bacterial infected areas (2,5,10)
+
+#     Note:
+#     Quite often there are strong batch effects between different ST sections, so it may be a good idea to integrate the data across sections.
+#     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
+
+---
+
+```{r}
+# loading the library packages
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+library(scater)
+library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+library(SeuratDisk)
+library(tidyverse)
+library(cowplot)
+
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+library(L1pack)
+library(reshape)
+
+library(tidyHeatmap)
+```
+
+
+```{r}
+
+set.seed(200000)
+# setting up the Enviroment: 
+indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/"
+
+
+dir.create(outdir, showWarnings = F)
+getwd()
+
+list.files()
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/")
+
+### Reading the RDS file
+Pyelonephritis_Infection<-readRDS(file = paste0(indir, "FinalAbcessClustersObj.rds"))
+
+rownames(Pyelonephritis_Infection[["Spatial"]])
+colnames(Pyelonephritis_Infection[["Spatial"]])
+
+
+Pyelonephritis_Infection[["Spatial"]][1:10,1:10]
+
+Pyelonephritis_Infection[["SCT"]][1:10,1:10]
+
+```
+
+```{r}
+# integration with the scRNA-seq reference.
+
+##############################################################################################
+### First option: Using Seurat itself instead of cluster by themselves, we clusster based on the reference scRNA-seq using Seurat
+##############################################################################################
+# with reference
+allen_reference <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluationChangedColor/Final_CombinedInformation_Pyelonephritis_V0330.RDS")
+
+# here we set up 10000 normlizes the full datstet but learns noise models on 10k cells that speeds up SCTransform dramtially wiht no loss in performanace
+library(dplyr)
+allen_reference <- SCTransform(allen_reference, ncells = 10000, verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20)
+```
+
+
+```{r}
+levels(Idents(allen_reference))
+allen_reference@meta.data
+
+Idents(allen_reference) <- str_split(allen_reference@meta.data$Annot,":",simplify = T)[,2]
+# the annotation is stored in the 'subclass' column of object metadata
+DimPlot(allen_reference,  label = TRUE)
+
+# After subsetting, we renormalize cortex
+Pyelonephritis_Infection <- SCTransform(Pyelonephritis_Infection, assay = "Spatial", verbose = FALSE) %>%
+  RunPCA(verbose = FALSE)
+anchors <- FindTransferAnchors(reference = allen_reference, query = Pyelonephritis_Infection, normalization.method = "SCT")
+
+predictions.assay <- TransferData(anchorset = anchors, 
+                                  refdata = Idents(allen_reference),
+                                  prediction.assay = TRUE,
+                                  weight.reduction =
+                                    Pyelonephritis_Infection[["pca"]], dims = 1:20)
+Pyelonephritis_Infection[["predictions"]] <- predictions.assay
+DefaultAssay(Pyelonephritis_Infection) <- "predictions"
+
+Pyelonephritis_Infection[["predictions"]]
+
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Myeloblast"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+
+```
+
+```{r}
+GetAssayData(Pyelonephritis_Infection, assay = "SCT" )
+# scale the object into 0 to 1
+Pyelonephritis_Infection_Scale
+
+library(magrittr)
+rownames(Pyelonephritis_Infection)
+rownames(Pyelonephritis_Infection) %>% seq()
+#rownames(Pyelonephritis_Infection[["SCT"]]) %>% seq()
+Pyelonephritis_Infection_scaledMatrix<- sapply(rownames(Pyelonephritis_Infection) %>% seq(),  
+       function (i) { 
+           scales::rescale(GetAssayData(Pyelonephritis_Infection, 
+                              assay = "predictions")[rownames(Pyelonephritis_Infection)[i],], to = c(0,1)) }
+  ) %>% t
+
+Pyelonephritis_Infection_scaledMatrix[1:10,10:20]
+
+# check expression ranges
+quantile(Pyelonephritis_Infection_scaledMatrix, c(0.01, 1))
+
+# add gene names
+dimnames(Pyelonephritis_Infection_scaledMatrix)[[1]] <- rownames(Pyelonephritis_Infection)
+
+# set new scaled matrix to the slt 
+Pyelonephritis_Infection <- SetAssayData(Pyelonephritis_Infection, slot = "scale.data", Pyelonephritis_Infection_scaledMatrix)
+
+Pyelonephritis_Infection[["predictions"]]
+
+?SpatialFeaturePlot
+```
+
+```{r}
+# measure the different frequency of each cluster
+
+######################################################################
+# ### measure the proportion of each spots of cell types
+### this stored in the matrix of Pyelonephritis.integrated[["predictions"]]@data
+#################################################################
+
+# the matrix for the predicted cell types and spot id
+row.names(Pyelonephritis_Infection[["predictions"]]@data)
+
+colnames(Pyelonephritis_Infection[["predictions"]]@data)
+
+#Pyelonephritis.integrated[["predictions"]]@data[, ]
+################
+# the matrix for the cluster of the spot ID
+Pyelonephritis_Infection@meta.data
+
+# cluster ID Pyelonephritis.integrated$seurat_clusters
+
+## merge the Pyelonephritis.integrated@meta.data and Pyelonephritis.integrated[["predictions"]]@data
+
+t(Pyelonephritis_Infection[["predictions"]]@data)
+
+Pyelonephritis_Infection@meta.data[c("AAACCGTTCGTCCAGG-1_1"),]
+row.names(t(Pyelonephritis_Infection[["predictions"]]@data))
+Pyelonephritis_Infection@meta.data %>% head()
+
+Table1 <- Pyelonephritis_Infection@meta.data[,c("orig.ident","Sub2","ConditionGroup")]
+## merge is way too troublesome, therefore
+FinalIntergratedTable<- merge(Pyelonephritis_Infection@meta.data[,c("orig.ident","Sub2","ConditionGroup")], t(Pyelonephritis_Infection[["predictions"]]@data), all=TRUE, by="row.names")
+
+FinalIntergratedTable
+colnames(FinalIntergratedTable)
+
+##########################################################################################
+# The heat map figure to show the different compostion within timepoints in the cluster spots
+###########################################################################################
+### We combined all the dataset without group by orig.ident and measure the different composition
+
+ClusterAllCluster_Median<-FinalIntergratedTable %>% group_by(Sub2) %>% summarise(ProximaltubuleI=median(`Proximal tubule I`),  ProximaltubuleII=median(`Proximal tubule II`), ProximaltubuleIII=median(`Proximal tubule III`), ProximaltubuleIV= median(`Proximal tubule IV`), ProximaltubuleVI=median(`Proximal tubule VI`), Distaltubule=median(`Distal tubule`),  ThinlimbofLOH=median(`Thin limb of LOH`),Urothelium= median(`Urothelium`),   ThickascendinglimbofLOH=median(`Thick ascending limb of LOH`), 
+ Intercalatedcells=median(`Intercalated cells`), Principalcells=median(`Principal cells`), 
+                                                                                                        Fibroblast=median(`Fibroblast`), Endothelium=median(`Endothelium`), Myeloblast=median(`Myeloblast`), Tcells=median(`T cells`),  Bcells=median(`B cells`),  Plasmacytoiddendriticcells=median(`Plasmacytoid dendritic cells`),
+                                                                                                           NKCells=median(`NK cells`),  .groups= 'drop') %>% as.data.frame()
+
+
+
+ClusterAllCluster_Median
+
+write.csv(ClusterAllCluster_Median, file = "ClusterAllCluster_Median.csv")
+
+### we calculate the median value for each cluster and also based on the timepotins
+### we used the median value to  scale the cell-type compositions within each niche. 
+ClusterTimepointGroup_Median<-FinalIntergratedTable %>% group_by(orig.ident, Sub2) %>% summarise(ProximaltubuleI=median(`Proximal tubule I`),  ProximaltubuleII=median(`Proximal tubule II`), ProximaltubuleIII=median(`Proximal tubule III`), ProximaltubuleIV= median(`Proximal tubule IV`), ProximaltubuleVI=median(`Proximal tubule VI`), Distaltubule=median(`Distal tubule`),  ThinlimbofLOH=median(`Thin limb of LOH`), ThickascendinglimbofLOH=median(`Thick ascending limb of LOH`), 
+ Intercalatedcells=median(`Intercalated cells`), Principalcells=median(`Principal cells`),  Urothelium= median(`Urothelium`),                                                                                                        Fibroblast=median(`Fibroblast`), Endothelium=median(`Endothelium`), Myeloblast=median(`Myeloblast`), Tcells=median(`T cells`),  Bcells=median(`B cells`),  Plasmacytoiddendriticcells=median(`Plasmacytoid dendritic cells`),
+                                                                                                           NKCells=median(`NK cells`),  .groups= 'drop')  %>% as.data.frame()
+ClusterTimepointGroup_Median
+write.csv(ClusterTimepointGroup_Median, file = "ClusterTimepointGroup_Median.csv")
+
+### draw the heatmap for these combined clusters
+
+Combined_Median_tidy <- ClusterAllCluster_Median %>% mutate_at( vars(-Sub2),scale) %>% pivot_longer(cols = -c(Sub2), names_to = "Property", values_to = "Value") 
+Combined_Median_tidy
+names(Combined_Median_tidy)
+### reorder the levels
+Combined_Median_tidy$Property<- ordered(factor(Combined_Median_tidy$Property),
+                                levels=c("ProximaltubuleI","ProximaltubuleII",
+                                         "ProximaltubuleIII", "ProximaltubuleIV", 
+                                         "ProximaltubuleVI","Principalcells", "Intercalatedcells",  "ThickascendinglimbofLOH", "ThinlimbofLOH",  "Urothelium","Distaltubule",  "Fibroblast", "Endothelium","Myeloblast" ,  "Tcells" ,"Bcells" , "NKCells"))
+
+pdf("Combined_Median_tidy_Heatmap.pdf",height = 6, width = 8)
+Combined_Median_tidyHeatmap<- na.omit(Combined_Median_tidy) %>% heatmap(Property, Sub2, Value, scale="row",cluster_rows = FALSE, cluster_columns = TRUE ,palette_value=circlize::colorRamp2(seq(-4, 4, length.out = 11), RColorBrewer::brewer.pal(11, "RdBu") ) )
+Combined_Median_tidyHeatmap
+dev.off()
+
+
+## setting up the conditions 
+Condition<- levels(ClusterTimepointGroup_Median$orig.ident)
+## run the for liips to generate the heatmap figures
+
+### generate multiple heatmap plots
+
+
+
+#pdf("Combined_heatmaps_Seurat_0320.pdf", height = 4, width = 40)
+
+## attention par() and layout() not work for ggplot and 
+# par(mfrow=c(11,1))
+## instead we should use grid.arrange()
+## grid.arrange(plot1, plot2, ncol=2)
+ClusterTimepointGroup_Median
+## create a new empty list and new number
+i=0
+my_vect <- c()
+for (Pdate in Condition){
+  ### generate the transfered objects for each condition
+  ### 
+ i =i+1
+  Pdate_Median_tidy<- ClusterTimepointGroup_Median %>% filter(orig.ident==Pdate)  %>% mutate_at(vars (-orig.ident, -Sub2),scale) %>% pivot_longer(cols = -c(orig.ident, Sub2), names_to = "Property", values_to ="Value") 
+  
+  ### change the levels of Property at each condition
+  ### tranfer the ClusterTimepointGroup_Median into a tide "element-feature-independent variables"  data frame, where the independent variable
+  ### similar function to melt, but this will transfer the objects
+  levels(factor(Pdate_Median_tidy$Property))
+  Pdate_Median_tidy$Property<- ordered(factor(Pdate_Median_tidy$Property), 
+                                       levels=c("ProximaltubuleI","ProximaltubuleII",
+                                         "ProximaltubuleIII", "ProximaltubuleIV", 
+                                         "ProximaltubuleVI","Principalcells", "Intercalatedcells",  "ThickascendinglimbofLOH", "ThinlimbofLOH",  "Urothelium","Distaltubule",  "Fibroblast", "Endothelium","Myeloblast" ,  "Tcells" ,"Bcells" , "NKCells"))
+  
+  ## change the NA value to Zero
+  #PyeloD0_1_Median_tidy$Value[is.nan(PyeloD0_1_Median_tidy$Value)]<-0
+  # ignore the na.omit
+  na.omit(Pdate_Median_tidy)
+  
+ pdf(paste0(Pdate,"_Median_tidyHeatmap.pdf"),height = 6, width = 8)
+  #PyeloD3_1_Median_tidyHeatmap<- na.omit(PyeloD3_1_Median_tidy) %>% heatmap(Property, seurat_clusters, Value, scale="row",cluster_rows = FALSE, cluster_columns = TRUE ,palette_value = c( "#E6E6FA", "#FFFFFF","#F1948A")) 
+  
+ Pdate_Median_tidy
+  Pdate_Median_tidyHeatmap<- na.omit(Pdate_Median_tidy) %>% heatmap(Property, Sub2, Value, scale="row",cluster_rows = FALSE, cluster_columns = FALSE ,palette_value=circlize::colorRamp2(seq(-4, 4, length.out = 11), RColorBrewer::brewer.pal(11, "RdBu") ) )
+  
+  #PyeloD3_1_Median_tidyHeatmap<- na.omit(PyeloD3_1_Median_tidy) %>% heatmap(Property, seurat_clusters, Value, scale="row",cluster_rows = FALSE, cluster_columns = FALSE , palette_value = c("blue","white","red"), color_legend_min=-4, color_legend_max=4)
+  
+  #my_vect<- append(my_vect,Pdate_Median_tidyHeatmap)
+  #plots[[i]]<- Pdate_Median_tidyHeatmap
+  print(Pdate_Median_tidyHeatmap)
+  dev.off()
+}
+
+
+###############################################################################################
+# spearman correlation of the celltype matrix 
+###############################################################################################
+ClusterTimepointGroup_Median
+
+for (Pdate in Condition){
+  ### generate the transfered objects for each condition
+  ### 
+  #i =i+1
+  #Pdate=c("PyeloD0_1")
+  Pdate_Median_tidy_matrix <-ClusterTimepointGroup_Median %>% filter(orig.ident==Pdate) %>% dplyr::select(-c('orig.ident','Sub2'))
+  
+  #Pdate_Median_tidy_matrix
+  #Pdate_Median_tidy_matrix<- ClusterTimepointGroup_Median %>% filter(orig.ident==Pdate) 
+  
+  #%>% mutate_at(vars (-orig.ident, -seurat_clusters),scale) %>% pivot_longer(cols = -c(orig.ident, seurat_clusters), names_to = "Property", values_to ="Value") 
+  
+ 
+  Pdate_Median_tidy_matrix_cor<-cor(as.matrix(Pdate_Median_tidy_matrix),method = "spearman")
+  
+  ## replace the NA into zerro
+  Pdate_Median_tidy_matrix_cor <- replace(Pdate_Median_tidy_matrix_cor, is.na(Pdate_Median_tidy_matrix_cor),0)
+  
+  #testRes = cor.mtest(BiomarkerExpCor, conf.level = 0.95)
+  Pdate_Median_tidy_matrix_cor_melt = melt(Pdate_Median_tidy_matrix_cor)
+  
+  ## create a dataframe
+  
+  #Pdate_Median_tidy_matrix_cor_melt$name= rep(Pdate, length(Pdate_Median_tidy_matrix_cor_melt$Var1))
+ 
+  ## merge different dataframe
+  
+  pdf(paste0(Pdate,"_Correlation_tidyHeatmap.pdf"),height = 6, width = 8)
+  #pdf("BioMarkerExpCorrelation.pdf", width = 10, height =10)
+  ## generate the coeffecient figure
+  corrplot(Pdate_Median_tidy_matrix_cor, order = 'hclust', type='upper',tl.col = 'black', insig='blank',
+           addCoef.col ='black', number.cex = 0.5, tl.cex= 0.7, tl.srt = 45, diag=FALSE,col = colorRampPalette(c("LightBlue","white","FireBrick"))(100))
+  dev.off()
+  
+  ## other way to plot
+  # Pdate_Median_tidy_matrix_cor = rcorr(as.matrix(Pdate_Median_tidy_matrix), type='spearman')
+  # 
+  # Pdate_Median_tidy_matrix_cor_melt = melt(Pdate_Median_tidy_matrix_cor$r)
+  # 
+  # 
+  # pdf(paste0(Pdate,"_Correlation_tidyHeatmap.pdf"),height = 6, width = 8)
+  # 
+  # #txtsize <- par('din')[2] / 2
+  # ggplot(Pdate_Median_tidy_matrix_cor_melt, aes(x=Var1, y=Var2, fill=value)) + geom_tile() + 
+  #   theme(axis.text.x = element_text(angle=90, hjust=TRUE))
+  # dev.off()
+   #+
+   # xlab("") + ylab("") + 
+   # geom_text(label=Pdate_Median_tidy_matrix_cor_melt$label, size=txtsize) + 
+   # geom_text(label=Pdate_Median_tidy_matrix_cor_melt$strike, size=txtsize * 4, color="red", alpha=0.4) 
+
+ 
+}
+
+
+```
+
+

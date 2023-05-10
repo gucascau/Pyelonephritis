@@ -1,0 +1,380 @@
+---
+title: "InfectionRegionDetectionDeconvolution"
+output: html_document
+date: "2023-05-05"
+---
+
+---
+title: "Annotation with CARD"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org 
+Copyright (c) 2023 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2023-05-02"
+Description: 
+#   Deconvolution with CARD
+#    - This areas is specific focused on the bacterial infected areas (2,5,10)
+
+#     Note:
+#     Quite often there are strong batch effects between different ST sections, so it may be a good idea to integrate the data across sections.
+#     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#     Reference: https://yingma0107.github.io/CARD/documentation/04_CARD_Example.html
+
+---
+
+```{r}
+# loading the library packages
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+library(scater)
+library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+library(SeuratDisk)
+library(tidyverse)
+library(cowplot)
+
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+library(L1pack)
+library(reshape)
+```
+
+
+```{r}
+
+set.seed(200000)
+# setting up the Enviroment: 
+indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/"
+
+
+dir.create(outdir, showWarnings = F)
+getwd()
+
+list.files()
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/")
+
+### Reading the RDS file
+Pyelonephritis_Infection<-readRDS(file = paste0(indir, "FinalAbcessClustersObj.rds"))
+
+rownames(Pyelonephritis_Infection[["Spatial"]])
+colnames(Pyelonephritis_Infection[["Spatial"]])
+
+
+## spatial location 
+Pyelonephritis_spatial_count <- Pyelonephritis_Infection[["Spatial"]][,]
+
+## spatial normalized sequence
+Pyelonephritis_Infection[["SCT"]][1:10,1:10]
+
+
+```
+
+```{r}
+# integration with the scRNA-seq reference.
+
+##############################################################################################
+### First option: Using Seurat itself instead of cluster by themselves, we clusster based on the reference scRNA-seq using Seurat
+##############################################################################################
+# with reference
+allen_reference <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation/Final_CombinedInformation_Pyelonephritis_V0321.RDS")
+
+# here we set up 10000 normlizes the full datstet but learns noise models on 10k cells that speeds up SCTransform dramtially wiht no loss in performanace
+library(dplyr)
+allen_reference <- SCTransform(allen_reference, ncells = 10000, verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>%
+  RunUMAP(dims = 1:20)
+```
+
+
+```{r}
+levels(Idents(allen_reference))
+allen_reference@meta.data$Annot
+
+Idents(allen_reference) <- str_split(allen_reference@meta.data$Annot,":",simplify = T)[,2]
+# the annotation is stored in the 'subclass' column of object metadata
+DimPlot(allen_reference,  label = TRUE)
+
+# After subsetting, we renormalize cortex
+Pyelonephritis_Infection <- SCTransform(Pyelonephritis_Infection, assay = "Spatial", verbose = FALSE) %>%
+  RunPCA(verbose = FALSE)
+anchors <- FindTransferAnchors(reference = allen_reference, query = Pyelonephritis_Infection, normalization.method = "SCT")
+
+predictions.assay <- TransferData(anchorset = anchors, 
+                                  refdata = Idents(allen_reference),
+                                  prediction.assay = TRUE,
+                                  weight.reduction =
+                                    Pyelonephritis_Infection[["pca"]], dims = 1:20)
+Pyelonephritis_Infection[["predictions"]] <- predictions.assay
+DefaultAssay(Pyelonephritis_Infection) <- "predictions"
+
+Pyelonephritis_Infection[["predictions"]]
+
+
+MyeloblastSpatial<- SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Myeloblast"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+
+ggsave(filename = "SpatialFeaturePlots_Pyeloneprhitis_Myeloblast_Test.pdf", plot = MyeloblastSpatial, width = 40, height = 5)
+
+
+max<- SpatialFeaturePlot(Pyelonephritis_Infection, features = c("max"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+
+ggsave(filename = "SpatialFeaturePlots_Pyeloneprhitis_Max_Test.pdf", plot = max, width = 40, height = 5)
+
+```
+
+```{r}
+GetAssayData(Pyelonephritis_Infection, assay = "SCT" )
+# scale the object into 0 to 1
+Pyelonephritis_Infection_Scale
+
+library(magrittr)
+rownames(Pyelonephritis_Infection)
+rownames(Pyelonephritis_Infection) %>% seq()
+#rownames(Pyelonephritis_Infection[["SCT"]]) %>% seq()
+Pyelonephritis_Infection_scaledMatrix<- sapply(rownames(Pyelonephritis_Infection) %>% seq(),  
+       function (i) { 
+           scales::rescale(GetAssayData(Pyelonephritis_Infection, 
+                              assay = "predictions")[rownames(Pyelonephritis_Infection)[i],], to = c(0,1)) }
+  ) %>% t
+
+Pyelonephritis_Infection_scaledMatrix[1:10,10:20]
+
+# check expression ranges
+quantile(Pyelonephritis_Infection_scaledMatrix, c(0.01, 1))
+
+# add gene names
+dimnames(Pyelonephritis_Infection_scaledMatrix)[[1]] <- rownames(Pyelonephritis_Infection)
+
+# set new scaled matrix to the slt 
+Pyelonephritis_Infection <- SetAssayData(Pyelonephritis_Infection, slot = "scale.data", Pyelonephritis_Infection_scaledMatrix)
+
+Pyelonephritis_Infection[["predictions"]]
+
+?SpatialFeaturePlot
+```
+
+
+```{r}
+## set up the color
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+```
+
+
+```{r}
+breaks<- c(0,0.5,1)
+breaks
+## check the cortex PT biomarkers
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_CortexMarkers_Test.pdf", height = 40, width = 20)
+CortexGenes<- c("Slc22a19","Serpina1f","Akr1c18","Mep1b","Napsa","Aadat","Kap","Havcr1", slot="scale.data")
+SpatialFeaturePlot(Pyelonephritis_Infection, features = CortexGenes)
+dev.off()
+
+```
+
+
+```{r}
+## generate the spatial dimplot
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Myeloblast_Test.pdf", height = 8, width = 40)
+p<-SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Myeloblast"),min.cutoff = 0,
+  max.cutoff = 1, pt.size.factor = 1.6, ncol = 11, crop = TRUE,slot="scale.data") 
+
+
+?SpatialFeaturePlot
+```
+
+
+```{r}
+#lapply(Pyelonephritis_Infection, function(x){x + scale_colour_gradientn(colours=brewer.pal(11,"RdYlBu")[11:1]))
+#p & ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 0.5, 1.0))
+
+p  & ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 0.5, 1.0)) & ggplot2::scale_color_gradient2(midpoint=mid, low="blue", mid="white", high="red", space ="Lab" )
+
+dev.off()
+```
+
+
+```{r}
+p & scale_colour_gradientn(colours = myPalette(100), limits=c(0, 1))
+#p & scale_colour_gradientn(colours = topo.colors(10))
+
+
+p & scale_colour_gradientn(colours = myPalette(100), limits=c(0, 1),labels=c(0,0.5,1), breaks =c(0.0,0.5,1))
+
+
+p & ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 0.5, 1.0), na.value = "grey50") 
+
+
+p & ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 0.5, 1.0), low = "#0000FF", mid = "yellow", high = "#FF0000")
+# p & scale_colour_gradient2(low = "#0000FF", mid = "#FFFFFF", high ="#FF0000", midpoint = 0.5,
+#                          limits =c(0,1), na.value = "gray", space = "Lab")
+#                                    
+                                   #low="midnightblue",mid = "white", high="red")
+
+?scale_fill_continuous
+#p & scale_colour_gradientn(colours = myPalette(100), limits=c(0, 1))
+
+
+#& ggplot2::scale_fill_continuous(limits = c(0.0,1.0),, breaks = c(0.0, 0.5, 1.0))
+dev.off()
+?scale_fill_continuous
+```
+
+
+```{r}
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Endothelium_Test.pdf", height = 8, width = 40)
+Endothelium<- SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Endothelium"),slot="scale.data", pt.size.factor = 1.6, ncol = 11, crop = TRUE, min.cutoff = 0, max.cutoff = 1) 
+
+Endothelium
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Tcells_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("T cells"), pt.size.factor = 1.6, ncol = 11, crop = TRUE,slot="scale.data", min.cutoff = 0, max.cutoff = 1)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ProximaltubuleI_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Proximal tubule I"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ProximaltubuleII_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Proximal tubule II"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ProximaltubuleIII_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Proximal tubule III"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ ProximaltubuleIV_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Proximal tubule IV"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+# 
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ProximaltubuleVI_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Proximal tubule VI"), slot="scale.data",min.cutoff=0, max.cutoff=0.5,pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+?SpatialFeaturePlot
+# 
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Distaltubule_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Distal tubule"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Intercalatedcells_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Intercalated cells"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Principalcells_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Principal cells"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ThinlimbofLOH_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Thin limb of LOH"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ThickascendinglimbofLOH_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Thick ascending limb of LOH"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Fibroblast_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Fibroblast"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Bcells_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("B cells"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_NKcells_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("NK cells"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ThickascendinglimbofLOH_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Thick ascending limb of LOH"), slot="scale.data",pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_ThinlimbofLOH_Test.pdf", height = 8, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Thin limb of LOH"), slot="scale.data", pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+```
+
+```{r}
+# check the spatial by biomarkers 
+DefaultAssay(Pyelonephritis_Infection) <- "integrated"
+Pyelonephritis_Infection@assays
+pdf("SpatialFeaturePlots_Pyeloneprhitis_Proximal_tubule_WithGene_Test.pdf", height = 12, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Lrp2","Slc34a1","Acsm1"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+
+Pyelonephritis_Infection@meta.data
+PTCells<-VlnPlot(Pyelonephritis_Infection, features = c("Lrp2","Slc34a1","Acsm1"), split.by = "orig.ident",pt.size=0, ncol = 1, slot="scale.data")
+?VlnPlot
+
+ggsave("PTCells_spatial_vlnplot.pdf", plot = PTCells, width = 10, height = 6)
+
+# # Dotplot(Pyelonephritis_Infection, features = c("Lrp2","Slc34a1","Acsm1")split.by = 'groups')
+# 
+# ?Dotplot
+# ggsave("PTCells_spatial_vlnplot.pdf", plot = PTCells, width = 10, height = 6)
+
+```
+
+
+```{r}
+pdf("SpatialFeaturePlots_Pyeloneprhitis_DitalTubule_WithGene_Test.pdf", height = 12, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Slc12a3","Pvalb","Wnk1"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+```
+
+
+```{r}
+pdf("SpatialFeaturePlots_Pyeloneprhitis_IC_WithGene_Test.pdf", height = 12, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Atp6v1g3","Aqp6","Slc4a1"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+```
+
+```{r}
+pdf("SpatialFeaturePlots_Pyeloneprhitis_IC_WithGene_Test.pdf", height = 12, width = 40)
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Atp6v1g3","Aqp6","Slc4a1"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+dev.off()
+```
+
+
+```{r}
+### We will perform the deconvolution for the spatial 
+devtools::install_github("dmcable/spacexr", build_vignettes = FALSE)
+
+library(spacexr)
+library(CARD)
+# set up reference:
+
+
+
+```
+
