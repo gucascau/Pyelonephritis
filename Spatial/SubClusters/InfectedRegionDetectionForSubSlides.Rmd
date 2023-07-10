@@ -1,0 +1,247 @@
+---
+title: "Subclustering Infection Regions"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org 
+Copyright (c) 2023 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2023-05-02"
+Description: 
+#   Illustration of infected areas in spatial
+#    - This areas is specific focused on the bacterial infected areas (2,5,10)
+
+#     Note:
+#     Quite often there are strong batch effects between different ST sections, so it may be a good idea to integrate the data across sections.
+#     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
+
+---
+
+```{r}
+# loading the library packages
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+library(scater)
+library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+library(SeuratDisk)
+library(tidyverse)
+library(cowplot)
+
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+library(L1pack)
+library(reshape)
+```
+
+
+```{r}
+set.seed(200000)
+# setting up the Enviroment: 
+outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialCluster_V0504_SubSlides/"
+indir= "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/"
+
+dir.create(outdir, showWarnings = F)
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialCluster_V0504_SubSlides/")
+```
+
+
+```{r}
+### due to the integration take a long time, we ignore the previous analyses and with the cluster details
+FinalAbcessClustersObj<-readRDS(file = paste0(indir, "FinalAbcessClustersObj.rds"))
+
+FinalAbcessClustersObj@meta.data
+```
+
+```{r}
+## we only choose the slides from PyeloD0_1, PyeloD1_2, PyeloD3_1, PyeloD5_1, PyeloD7_1, PyeloD28_1
+SlidesSelected<-c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1")
+
+FinalAbcessClustersObj@images$slice1
+
+SpotProportionInfection<-FinalAbcessClustersObj@meta.data %>% 
+  filter(Sub2 %in% c("2_0","2_1","5_0","5_1","5_2","10_0","10_1")) %>% filter(orig.ident%in% SlidesSelected)%>%
+  group_by(Sub2, orig.ident) %>% 
+  distinct(Sub2, orig.ident, SpotNumberPerCluster) %>% as.data.frame()
+
+SpotProportionInfection
+# 
+SpotProportionInfection<-FinalAbcessClustersObj@meta.data %>% 
+  filter(Sub2 %in% c("2_0","2_1","5_0","5_1","5_2","10_0","10_1")) %>% filter(orig.ident%in% SlidesSelected)
+
+## plot the figure
+SpotProportionInfection$orig.ident<-ordered(factor(SpotProportionInfection$orig.ident), levels=c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1"))
+
+levels(SpotProportionInfection$orig.ident)
+
+## save the selected conditions for the figure
+
+## add two row row to the data frame
+
+#SpotProportionInfection %>% add_row(Sub2= '10_1' , orig.ident= 'PyeloD0_1', SpotNumberPerCluster=0.0000)
+
+## change the levels of the infection subclusters
+as.factor(SpotProportionInfection$Sub2)
+
+SpotProportionInfection$Sub2<-ordered(factor(SpotProportionInfection$Sub2), levels=c("5_1","10_1","10_0","2_1","5_0","5_2","2_0"))
+
+
+InfectedProportion<-ggplot(SpotProportionInfection, aes(fill=orig.ident, y=as.numeric(SpotNumberPerCluster), x=Sub2)) + 
+  geom_bar(position="dodge", stat="identity")+ theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        axis.text.x = element_text(vjust = 1, hjust=1),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + 
+  scale_y_continuous(limits=c(0,0.2))+ xlab("Cluster number") +
+  ylab ("Cluster frequency in each condition") + scale_fill_discrete(name = "Infected date")
+ggsave("InfectedRegionDetection_Proportion.pdf", plot = InfectedProportion, width = 8, height = 5)
+
+```
+
+```{r}
+# we extracted all the request slides
+
+#levels=c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1"))
+FinalAbcessClustersObj@meta.data
+FinalAbcessClustersObjSubSlides<-subset(FinalAbcessClustersObj, subset= (orig.ident == "PyeloD0_1" |orig.ident == "PyeloD1_1"|orig.ident == "PyeloD3_1"|orig.ident == "PyeloD5_1"|orig.ident == "PyeloD7_1"|orig.ident == "PyeloD28_1"))
+
+Idents(FinalAbcessClustersObj)
+
+FinalAbcessClustersObjSubSlidesSptialDim<-SpatialDimPlot(FinalAbcessClustersObjSubSlides,crop=TRUE)
+?SpatialDimPlot
+
+ggsave("FinalAbcessClustersObjSubSlidesSptialDim.pdf", plot = FinalAbcessClustersObjSubSlidesSptialDim, width = 20, height = 4)
+
+levels(FinalAbcessClustersObjSubSlides@meta.data$orig.ident)
+# save the object
+saveRDS(FinalAbcessClustersObjSubSlides, file = "FinalAbcessClustersObjSubSlides.RDS")
+
+```
+
+
+```{r}
+# Here we generate the abcess regions figure for these several slides
+SelectedSlidesDimPlotForAllClusters<- DimPlot(FinalAbcessClustersObjSubSlides, reduction = "umap", split.by ="orig.ident",label = TRUE )
+
+ggsave("SelectedSlidesDimPlotForAllClusters.pdf", plot = SelectedSlidesDimPlotForAllClusters, width = 20, height = 4)
+
+#SpatialDimPlot(FinalAbcessClustersObjSubSlides, crop = TRUE,label = TRUE,label.size = 2)
+
+```
+
+
+```{r}
+## selet the subclusters to show the sptialDimplot and Dimplot
+FinalAbcessClustersObjSubSlidesInfection_subcluster<- subset(FinalAbcessClustersObjSubSlides, idents = c("2_0","2_1","5_0","5_1","5_2","10_0","10_1"))
+
+FinalAbcessClustersObjSubSlidesInfection_subcluster@meta.data
+
+#pdf("SpatialIntegrated_Pyeloneprhitis_infected_areasubclusterSub2-5-10.pdf", height =8, width = 40)
+
+pdf("FinalAbcessClustersObjSubSlidesInfection_subcluster_Dimplot.pdf", height = 4, width = 20)
+DimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, reduction = "umap", group.by = "Sub2",split.by ="orig.ident",label = TRUE,label.size = 2)
+dev.off()
+
+pdf("FinalAbcessClustersObjSubSlidesInfection_subcluster_SpatialDimplot.pdf", height = 4, width = 20)
+SpatialDimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, crop = TRUE,group.by = "Sub2", label = TRUE,label.size = 2)
+dev.off()
+
+Pyelonephritis.integrated.Infection_subcluster5<- subset(Subcluster5, idents = c(2,5,10))
+
+Pyelonephritis.integrated.Infection_subcluster5@meta.data
+
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_areasubclusterSub5.pdf", height =8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated.Infection_subcluster5, crop = TRUE,group.by = "Sub5", label = TRUE,label.size = 2)
+
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_SeperatedsubclusterSub5.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated.Infection_subcluster5, reduction = "umap", group.by = "Sub5",split.by ="orig.ident",label = TRUE,label.size = 2)
+dev.off()
+
+```
+
+
+
+
+
+```{r}
+
+## Please not use this one
+strsplit(Pyelonephritis.integrated@meta.data$GroupCluster,":") 
+Pyelonephritis.integrated@meta.data %>% filter (`group` == str_split(Pyelonephritis.integrated@meta.data$GroupCluster,":", simplify =TRUE) [,1])
+(length(Pyelonephritis.integrated@meta.data %>% filter (`group` == str_split(Pyelonephritis.integrated@meta.data$GroupCluster,":", simplify =TRUE) [,1])))
+### attention:
+dfSlice <- data.frame(Date = names(table(Pyelonephritis.integrated@meta.data$GroupCluster)), totalSpotnumber=sprintf("%1.0f",table(Pyelonephritis.integrated@meta.data$GroupCluster)), 
+                      Cluster= sprintf("%1.2f", 100*table(Pyelonephritis.integrated@meta.data$GroupCluster)/(Pyelonephritis.integrated@meta.data %>% filter (`group` == unlist(str_split(Pyelonephritis.integrated@meta.data$GroupCluster,":", simplify =FALSE))[1]))))
+
+Pyelonephritis.integrated@meta.data$TotalSpotsCondition<- 
+  
+  names(table(Pyelonephritis.integrated@meta.data$group))
+sprintf("%1.0f",table(Pyelonephritis.integrated@meta.data$group))
+
+Pyelonephritis.integrated@meta.data$TotalclusterPercent <- df[match(Pyelonephritis.integrated@meta.data$seurat_clusters,df$clu),3]
+Pyelonephritis.integrated@meta.data$TotalclusterNumber <-df[match(Pyelonephritis.integrated@meta.data$seurat_clusters,df$clu),2]
+
+### add the cluster proportion within differnt time points
+Pyelonephritis.integrated@meta.data$group
+## add the proportion of each cluster at different time points
+Pyelonephritis.integrated@meta.data$TimepointCluster<-paste0(Pyelonephritis.integrated@meta.data$group,":",Pyelonephritis.integrated@meta.data$seurat_clusters)
+#length(Pyelonephritis.integrated@meta.data %>% filter (`group` == strsplit(Pyelonephritis.integrated@meta.data$TimepointCluster,":") [[1]][1]) %>% pull(group))
+
+## make a data frame to store the different proportion
+table(Pyelonephritis.integrated@meta.data$TimepointCluster)
+TimeDf <- data.frame(Timecluster=names(table(Pyelonephritis.integrated@meta.data$TimepointCluster)), percentage= sprintf("%1.2f", 100*table(Pyelonephritis.integrated@meta.data$TimepointCluster)/length(Pyelonephritis.integrated@meta.data %>% filter (`group` == strsplit(Pyelonephritis.integrated@meta.data$TimepointCluster,":") [[1]][1]) %>% pull(group))))
+TimeDf
+
+## we then added the TimeClusterPercentage
+Pyelonephritis.integrated@meta.data$TimeClusterPercentage <- TimeDf[match(Pyelonephritis.integrated@meta.data$TimepointCluster, TimeDf$Timecluster),2]
+Pyelonephritis.integrated@meta.data
+
+Idents(Pyelonephritis.integrated)
+
+pdf("Frequency_split_cluster_V0322.pdf", width = 15, height = 4)
+ggplot(Pyelonephritis.integrated@meta.data, aes(fill=Pyelonephritis.integrated@meta.data$group, y=as.numeric(Pyelonephritis.integrated@meta.data$TimeClusterPercentage), x=Idents(Pyelonephritis.integrated))) + 
+  geom_bar(position="dodge", stat="identity")+ theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                                                                  axis.text.x = element_text(vjust = 1, hjust=1),
+                                                                  panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + scale_y_continuous(limits=c(0,40)) 
+dev.off()
+
+pdf("FeaturePlots_Pyeloneprhitis_UmapDimPlot_Withlabels_V0322.pdf", width = 5, height = 4)
+DimPlot(Pyelonephritis.integrated, label = TRUE,reduction = "umap",  pt.size=0.1)
+
+dev.off()
+
+```
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

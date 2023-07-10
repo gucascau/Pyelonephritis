@@ -125,20 +125,66 @@ PSpatialFeature_NO
 
 dev.off()
 
-#Pyelonephritis.integrated<- RunHarmony(Pyelonephritis.integrated, group.by.vars = "orig.ident")
-Pyelonephritis.integrated <- RunPCA(Pyelonephritis.integrated, verbose = FALSE)
-Pyelonephritis.integrated <- FindNeighbors(Pyelonephritis.integrated, dims = 1:15)
-Pyelonephritis.integrated <- FindClusters(Pyelonephritis.integrated, verbose = FALSE, resolution = 0.3)
-Pyelonephritis.integrated <- RunUMAP(Pyelonephritis.integrated, dims = 1:15)
 
-SpatialDimPlot(Pyelonephritis.integrated)
-#### Run harmony to remove the 
-# Pyelonephritis.integrated_harmony<- RunHarmony(Pyelonephritis.integrated, group.by.vars = "orig.ident")
-# Pyelonephritis.integrated_harmony <- RunPCA(Pyelonephritis.integrated_harmony, verbose = FALSE)
-# Pyelonephritis.integrated_harmony <- FindNeighbors(Pyelonephritis.integrated_harmony, dims = 1:15)
-# Pyelonephritis.integrated_harmony <- FindClusters(Pyelonephritis.integrated_harmony, verbose = FALSE, resolution = 0.4)
-# Pyelonephritis.integrated_harmony <- RunUMAP(Pyelonephritis.integrated_harmony,reduction = "harmony", dims = 1:15)
+#Pyelonephritis.integrated<- RunHarmony(Pyelonephritis.integrated, group.by.vars = "orig.ident")
+
+Pyelonephritis.integrated_0<- ScaleData(Pyelonephritis.integrated,verbose = FALSE)
+
+Pyelonephritis.integrated_0 <- RunPCA(Pyelonephritis.integrated_0, verbose = FALSE)
+Pyelonephritis.integrated_0 <- FindNeighbors(Pyelonephritis.integrated_0, dims = 1:12)
+Pyelonephritis.integrated_0 <- FindClusters(Pyelonephritis.integrated_0, verbose = FALSE, resolution = 0.2)
+Pyelonephritis.integrated_0 <- RunUMAP(Pyelonephritis.integrated_0, dims = 1:15)
+
+
+# SpatialDimPlot(Pyelonephritis.integrated)
+#Pyelonephritis.integrated@active.assay
+### Run harmony to remove the
+
+
+# add another batch that control sample without infection, others with infection
+Pyelonephritis.integrated@meta.data
+
+Pyelonephritis.integrated@meta.data<-Pyelonephritis.integrated@meta.data %>% mutate(Bacterial = case_when((orig.ident == "PyeloD0_1") ~'Uninfection', TRUE ~"Infection"))
+Pyelonephritis.integrated@meta.data
+tail(Pyelonephritis.integrated@meta.data)
+#Pyelonephritis.integrated_harmony <- RunPCA(Pyelonephritis.integrated, verbose = FALSE, npcs = 15)
+#Pyelonephritis.integrated<- ScaleData(Pyelonephritis.integrated,verbose = FALSE)
+Pyelonephritis.integrated_Forharmony <- RunPCA(Pyelonephritis.integrated, verbose = FALSE, npcs = 30)
+
+Pyelonephritis.integrated_harmony<- RunHarmony(Pyelonephritis.integrated_Forharmony, group.by.vars  = c("orig.ident","Bacterial"))
+### to make sure our hsarmony integration is reflected in the data varlaualtion, we still need to generate UMAP from harmony
+Pyelonephritis.integrated_harmony <- RunUMAP(Pyelonephritis.integrated_harmony,reduction = "harmony", dims = 1:30)
+
 # 
+Pyelonephritis.integrated_harmony <- FindNeighbors(Pyelonephritis.integrated_harmony, dims = 1:30, reduction = "harmony")
+Pyelonephritis.integrated_harmony <- FindClusters(Pyelonephritis.integrated_harmony, verbose = FALSE, resolution = 0.4)
+
+# Draw the SpatialDimpolot
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_SpatialDimplotHarminy_withlabels.pdf", height = 8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
+dev.off()
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_DimplotHarminy_Seperate_withlabel_rotated.pdf", height = 8, width = 40)
+DimPlot(Pyelonephritis.integrated_harmony, reduction = "umap", split.by ="orig.ident",label = TRUE, label.size=2.5)
+dev.off()
+
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_SpatialDimplot_withlabels.pdf", height = 8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated_0, label = TRUE,label.size=2.5)
+dev.off()
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_Dimplot_Seperate_withlabel_rotated.pdf", height = 8, width = 40)
+DimPlot(Pyelonephritis.integrated_0, reduction = "umap", split.by ="orig.ident",label = TRUE, label.size=2.5)
+dev.off()
+
+
+## 
+
 
 ## find all markers
 

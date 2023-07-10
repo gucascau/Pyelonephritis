@@ -5,7 +5,7 @@ date: "2023-05-05"
 ---
 
 ---
-title: "Annotation with CARD"
+title: "Subclustering Infection Regions"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
@@ -13,11 +13,15 @@ Copyright (c) 2023 Kidney and Urology Tract Center
 Nationwide Children's Hospital
 date: "2023-05-02"
 Description: 
-#   Deconvolution with CARD
-#    - Expect using Seurat, we also applied CARD for the deconvolution
+#   Perform the Deconvolution of the Kidney
+#    - Deconvolution of the kidney
+#    - Validate with the marker genes
+#    - Draw the FeaturePlots 
 
 #     Note:
-#     Reference: https://yingma0107.github.io/CARD/documentation/04_CARD_Example.html
+#     Quite often there are strong batch effects between different ST sections, so it may be a good idea to integrate the data across sections.
+#     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
 
 ---
 
@@ -78,7 +82,7 @@ colnames(Pyelonephritis_Infection[["Spatial"]])
 
 
 ## spatial location 
-Pyelonephritis_spatial_count <- Pyelonephritis_Infection[["Spatial"]][,]
+Pyelonephritis_Infection[["Spatial"]][1:10,1:10]
 
 ## spatial normalized sequence
 Pyelonephritis_Infection[["SCT"]][1:10,1:10]
@@ -126,6 +130,9 @@ DefaultAssay(Pyelonephritis_Infection) <- "predictions"
 
 Pyelonephritis_Infection[["predictions"]]
 
+## save the annotated Pyelonephritis
+
+saveRDS(Pyelonephritis_Infection, file = "Pyelonephritis_Infection_decovoluted.rds")
 
 MyeloblastSpatial<- SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Myeloblast"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
 
@@ -363,6 +370,10 @@ SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Atp6v1g3","Aqp6","Slc
 dev.off()
 ```
 
+```{r}
+
+
+```
 
 ```{r}
 ### We will perform the deconvolution for the spatial 
