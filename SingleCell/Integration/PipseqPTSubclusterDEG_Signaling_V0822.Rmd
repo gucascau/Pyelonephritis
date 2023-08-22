@@ -131,6 +131,9 @@ CellCommDir <-  paste0(Outdir,"CellCommunication/")
 # directory for pyseudotime
 PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
 
+# directory for biomarkers
+
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
 
 dir.create(DEGDir, showWarnings = FALSE)
 dir.create(ProgenyDir, showWarnings = FALSE)
@@ -138,6 +141,7 @@ dir.create(GOenrichDir, showWarnings = FALSE)
 dir.create(TFDir, showWarnings = FALSE)
 dir.create(KEGGDir, showWarnings = FALSE)
 dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
 
 set.seed(10000)
 ```
@@ -234,12 +238,37 @@ KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "C
 
 # the biomarkers for the 
 ```{r}
+
+setwd(BioMarkerDir)
+# 
+PTcells
+DefaultAssay(PTcells) <- "RNA"
 CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
 
 CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = 0) +RotatedAxis()
 
 ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+
+for (i in CandidateMarkers ){
+  p2 <-FeaturePlot(PTcells, features = i) & 
+ #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i,""))
+  
+  ggsave(paste0(i, "_PT_Marker_featurePlot.pdf"), plot = p2, width = 4, height = 3)
+}
 ```
+
+# add the proportion within timepoints
+```{r}
+# Firstly, create a new column to combine Dataset and cluster
+PTcells@meta.data %>% head()
+
+PTPropotionWithinTime <-table(PTcells@meta.data$DataSet,PTcells@meta.data$SCT_snn_res.0.2) %>% as.data.frame() %>%
+  group_by(Var1) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
+ggsave("PTPropotionWithinTime.pdf", plot = PTPropotionWithinTime, width = 4, height = 3)
+```
+
 
 # #####################################
 ## generate the Progeny signaling pathways
@@ -303,7 +332,7 @@ ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1])
 
 # generate the heatmap for PT
 pdf(file="ProximalTubuleCell_Progeny_ForHeatmap.pdf",height = 5, width = 8)
-zd = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
+progeny_hmap = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
                         fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
                         cex=1, clustering_distance_rows="euclidean", cex=1,
                         # clustering_distance_cols="euclidean", clustering_method="complete", 
@@ -329,8 +358,9 @@ for (i in ProgenyFeatures ){
 
 ```
 
-# Using PROGENy model 
+# Using PROGENy model from DecoupleR
 ```{r}
+setwd(ProgenyDir)
 net <- get_progeny(organism = 'mouse', top = 500)
 
 # Activity inference with Multivariate Linear Model (MLM)
@@ -362,13 +392,26 @@ PTcells@assays$pathwaysmlm@data <- PTcells@assays$pathwaysmlm@scale.data
 ProgenyFeatures <- levels(factor(acts$source))
 ProgenyFeatures
 for (i in ProgenyFeatures ){
-  p2 <-(FeaturePlot(PTcells, features = i) & 
-  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  p2 <-FeaturePlot(PTcells, features = i) & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
   ggtitle(paste0(i," activity"))
   
   ggsave(paste0(i, "_PT_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 5)
 }
 
+#(c("royalblue", "white","lightcoral"))
+FeaturePlot(PTcells, features = "Hypoxia", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("Hypoxia"," activity"))
+
+FeaturePlot(PTcells, features = "NFkB", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("NFkB"," activity"))
+
+
+FeaturePlot(PTcells, features = "TNFa", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("TNFa"," activity"))
 
 p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
   NoLegend() + ggtitle('Cell types')
@@ -404,6 +447,81 @@ my_breaks <- c(seq(-0.5, 0, length.out=ceiling(palette_length/2) + 1),
 # Plot
 PTcellsHeatmap<- pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
 ggsave("PTcellsHeatmap_Progeny.pdf", plot = PTcellsHeatmap, width = 6, height = 6)
+
+```
+
+# Transcription factor activity inference from PT scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(PTcells@assays$RNA@data)
+# Run wmean
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
+
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+PTcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = PTcells) <- "tfsulm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$tfsulm@data <- PTcells@assays$tfsulm@scale.data
+
+p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(PTcells, features = c("PAX5")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('PAX5 activity')
+DefaultAssay(object = PTcells) <- "RNA"
+p3 <- FeaturePlot(data, features = c("PAX5")) + ggtitle('PAX5 expression')
+DefaultAssay(object = PTcells) <- "tfswmean"
+p1 | p2 | p3
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 25
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$tfswmean@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
 
 ```
 
