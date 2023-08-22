@@ -1,0 +1,682 @@
+---
+title: "PipseqPTSubcluster_V0822"
+author: "Xin Wang"
+date: "2023-08-22"
+description: Proximal tubule subclusters analyses:
+  - Pathway activity inference by PROGENy model from PT subclusters
+  - Transcription factor activity inference from PT subclusters
+  - DEGs and Pathways
+
+  
+output: html_document
+---
+# Loading the packages
+```{r}
+# check the session information
+sessionInfo()
+library(dplyr)
+library(Seurat)
+library(patchwork)
+
+#install.packages('devtools') #assuming it is not already installed
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+library(devtools)
+#install_github('andreacirilloac/updateR')
+# install.packages("sctransform")
+# install.packages("ggthemes")
+# loading the libarary
+library(updateR)
+
+library("sctransform")
+library("ggthemes")
+library(Seurat)
+
+# BiocManager::install("limma")
+# BiocManager::install("ComplexHeatmap")
+# BiocManager::install("biomaRt")
+# BiocManager::install("methrix")BiocManager::install("org.Hs.eg.db")
+# devtools::install_github("saeyslab/nichenetr")
+library(limma)
+library(nichenetr)
+library(tidyverse)
+library(dplyr)
+
+library(biomaRt)
+library("data.table")
+
+
+library(umap)
+library(patchwork)
+library(cowplot)
+library(installr)
+
+#install.packages("Matrix", repos = "http://cran.r-project.org")
+### we used discre color palettes from ggsci
+
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+
+#options(buildtools.check = function(action) TRUE )
+#devtools::install_url('https://cran.r-project.org/src/contrib/Archive/Matrix.utils/Matrix.utils_0.9.7.tar.gz')
+#devtools::install_github('cole-trapnell-lab/monocle3')
+#library(monocle3)
+
+library(harmony)
+library(Seurat)
+#library(SeuratData)
+library(tidyverse)
+library(tibble)
+#library(BPCells)
+library(ggplot2)
+library("devtools")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+#library(tibble)
+#library(future)
+library(here)
+library(patchwork)
+library(future)
+library(monocle3)
+library(readr)
+#devtools::install_dev("remotes")
+#remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+#remotes::install_github(repo ='chris-mcginnis-ucsf/DoubletFinder' )
+#install.packages("DoubletFinder")
+library(DoubletFinder)
+library(future.callr)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+#install.packages("magick")
+library(magick)
+library(progeny)
+library(pheatmap)
+
+library(decoupleR)
+
+
+#K means with 6 groups
+
+```
+
+
+## Set up the workspace environment:
+```{r}
+rm(list =ls())
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
+Indir <-c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
+Outdir <-c( "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
+```
+
+# Create 
+```{r}
+# create folders for DEGs, Progeny, GO, KEGG and TF analyses
+# directory for DEGs
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
+
+
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+
+set.seed(10000)
+```
+
+
+# generate the health cluster of PT cells
+
+```{r}
+# Read the preclustered object
+
+scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS"))
+
+# We only collect the PT cells
+# CellType[CellType$cluster %in% c("1_0","1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+
+scrna @meta.data
+
+PTcells <- subset(scrna, subset = Raw_cell_type == "PT")
+
+PTcells@meta.data
+# We then recluster the PT cells
+# recluster the cells
+PTcells <- SCTransform(PTcells, verbose = TRUE)
+PTcells <- RunPCA(PTcells,npcs = 5, verbose = TRUE)
+
+# Run harmony for the PT cells
+PTcells <- RunHarmony(PTcells, 
+				group.by.vars = c("DataSet"), 
+				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+PTcells <- RunUMAP(PTcells, dims = 1:5, verbose = TRUE, reduction = "harmony")
+PTcells <- FindNeighbors(PTcells, dims = 1:5,  verbose = TRUE, reduction = "harmony")
+
+PTcells<- FindClusters(PTcells,  verbose = TRUE, resolution = 0.2)
+
+PTcellsDim<- DimPlot(PTcells,label = T)
+PTcellsDim
+ggsave(filename = "PTcellsDim.pdf", plot = PTcellsDim, width = 8, height = 6)
+
+PTcellsDimSplit<-DimPlot(PTcells, split.by = "DataSet",label = T)
+
+ggsave(filename = "PTcellsDimSplit.pdf", plot = PTcellsDimSplit, width = 24, height = 6)
+
+
+```
+
+# check the markers
+```{r}
+# the healthy cells
+HealthMarkers<- c("Slc22a30", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
+
+DotPlot(PTcells, features =  HealthMarkers, col.min = -0.5) +RotatedAxis()
+
+CyclingMarker <- "Mki67"
+DotPlot(PTcells, features =  CyclingMarker, col.min = -0.5) +RotatedAxis()
+
+EarlyInjuryMarkers <- c("Cdh13", "Cdh6", "Havcr1")
+DotPlot(PTcells, features =  EarlyInjuryMarkers, col.min = -0.5) +RotatedAxis()
+LateInjuryMarkers <-c( "Ccl2", "Gm17268", "Cald1")
+DotPlot(PTcells, features =  LateInjuryMarkers, col.min = -0.5) +RotatedAxis()
+
+ReparingMarkers <- "Top2a"
+
+DotPlot(PTcells, features =  ReparingMarkers, col.min = -0.5) +RotatedAxis()
+
+FailedFepairMarkers <- c("Ypel2","Kcnip4")
+
+DotPlot(PTcells, features =  FailedFepairMarkers, col.min = -0.5) +RotatedAxis()
+# 
+MaladptiveMarkers <- c("Vcam1", "Havcr1",  "Icam1", "Prom1","Cxcl2","Ccl3","Myc")
+
+DotPlot(PTcells, features =  MaladptiveMarkers, col.min = -0.5) +RotatedAxis()
+
+
+# Combined 
+#"Lrp2","Slc34a1","Slc13a1"
+KidneyStatuesMarkers<- c( "Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
+
+ DotPlot(PTcells, features =  KidneyStatuesMarkers,col.min = -1) +RotatedAxis()
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1")
+ DotPlot(PTcells, features =  KidneyStatuesTypeMarkers) +RotatedAxis()
+ 
+ KidneyStatuesTypeMarkers2<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1","Nfkbia")
+  DotPlot(PTcells, features =  KidneyStatuesTypeMarkers2) +RotatedAxis()
+
+ #, cluster 5: Fn1, Havcr1, Cst3, Igfbp7, S100a8, Il1b, Slc7a13 : Profibrotic PT
+ # cluster 1: Spp1, Prom1, Kcnip4, Col27a1,Top2a,Nfkbia: Cycling PT
+ # cluster 8: Cdh13, Hsp90aa1,Inmt, Mki67 : Proliferating PT
+ 
+ # cluster 1: ASpp1, Prom1, Kcnipp4: Progenitor PT
+ 
+ # cluster 0: Aldob
+```
+
+# the biomarkers for the 
+```{r}
+CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
+
+CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = 0) +RotatedAxis()
+
+ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+```
+
+# #####################################
+## generate the Progeny signaling pathways
+# #####################################
+
+```{r}
+# set up the directory
+setwd(ProgenyDir)
+## we set up with a high memory
+
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+
+# create cluster data frame with the cells, Celltypes
+PTCluster<- data.frame(Cell = names(Idents(PTcells)),   
+                              CellType = as.character(Idents(PTcells)),
+                              stringsAsFactors = FALSE)
+
+PTcells <- progeny(PTcells, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+PTcells
+# setup the default assay as progeny
+DefaultAssay(object = PTcells) <- "progeny"
+
+PTcells <- Seurat::ScaleData(PTcells, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(PTcells, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, PTCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 100
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+
+# generate the heatmap for PT
+pdf(file="ProximalTubuleCell_Progeny_ForHeatmap.pdf",height = 5, width = 8)
+zd = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
+                        fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+                        cex=1, clustering_distance_rows="euclidean", cex=1,
+                        # clustering_distance_cols="euclidean", clustering_method="complete", 
+                        color=myColor, breaks = progenyBreaks, 
+                        main = "PROGENy (500)", angle_col = 45,
+                        border_color = NA)
+
+print(progeny_hmap)
+dev.off()
+test<- FeaturePlot(PTcells, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(PTcells, features = i,split.by = "DataSet") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_PT_cluster_featurePlot.pdf"), plot = p2, width = 20, height = 5)
+}
+
+
+```
+
+# Using PROGENy model 
+```{r}
+net <- get_progeny(organism = 'mouse', top = 500)
+
+# Activity inference with Multivariate Linear Model (MLM)
+# Extract the normalized log-transformed counts
+mat <- as.matrix(PTcells@assays$RNA@data)
+
+# Run mlm
+acts <- run_mlm(mat=mat, net=net, .source='source', .target='target',
+                .mor='weight', minsize = 5)
+
+acts
+# Visualization:
+# Extract mlm and store it in pathwaysmlm in data
+PTcells[['pathwaysmlm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+
+# Change assay
+DefaultAssay(object = PTcells) <- "pathwaysmlm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$pathwaysmlm@data <- PTcells@assays$pathwaysmlm@scale.data
+
+# run the source of pathways
+ProgenyFeatures <- levels(factor(acts$source))
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(PTcells, features = i) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_PT_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 5)
+}
+
+
+p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(PTcells, features = c("Trail")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('Trail activity')
+
+
+
+# Expore the mean activiey per group across pathways:
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$pathwaysmlm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Transform to wide matrix
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-0.5, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 0.5, length.out=floor(palette_length/2)))
+
+# Plot
+PTcellsHeatmap<- pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+ggsave("PTcellsHeatmap_Progeny.pdf", plot = PTcellsHeatmap, width = 6, height = 6)
+
+```
+
+
+# #####################################
+## generate the Trajectories of PT cells
+# #####################################
+# 2.2 Prepared cds the object
+```{r}
+# set up the pyseudotime directory:
+setwd(PyseudotimeDir)
+
+# build cds object
+PTcells_expr_matrix = GetAssayData(PTcells, slot = "counts")
+
+# Cell meta annotation
+p_data <- PTcells@meta.data 
+head(p_data)
+
+# Gene meta annotation
+f_data<- data.frame(gene_short_name = row.names(PTcells), row.names = row.names(PTcells))
+
+
+pre_cds <- new_cell_data_set(PTcells_expr_matrix,
+                         cell_metadata = p_data,
+                         gene_metadata = f_data)
+
+pData(pre_cds) %>% colnames()
+
+cds <- preprocess_cds(pre_cds) #标准化+PCA降维
+
+```
+
+# 2.2 Umap by Monocle3
+```{r}
+cds <- reduce_dimension(cds, preprocess_method = "PCA")
+head(cds@int_colData$reducedDims$UMAP)
+
+plot_cells(cds, reduction_method="UMAP", 
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE, 
+           color_cells_by="SCT_snn_res.0.2")
+dev.off()
+# UMAP by Seurat
+seurat_umap <- Embeddings(PTcells, reduction = "umap")[colnames(cds),]
+cds@int_colData$reducedDims$UMAP <- seurat_umap
+head(cds@int_colData$reducedDims$UMAP)
+plot_cells(cds, reduction_method="UMAP", 
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE, 
+           color_cells_by="SCT_snn_res.0.2")
+
+```
+
+# Draw the monocle state
+```{r}
+#分群(类似monocle的State)
+
+cds <- cluster_cells(cds)
+
+#预测轨迹
+cds <- learn_graph(cds)
+#交互式确定root节点，可以选择多个。我这里选择了一个
+cds <- order_cells(cds) 
+
+PT_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime", 
+           label_cell_groups = FALSE, 
+           label_leaves = TRUE,  
+           label_branch_points = FALSE)
+
+ggsave(filename = "PT_pseudotime_MonocaCluster.pdf", plot = PT_pseudotime, width = 4, height = 3)
+
+
+```
+
+```{r}
+# Determine the psedudotime related genes
+Track_genes <- graph_test(cds, neighbor_graph="principal_graph")
+
+Track_genes %>% head()
+
+```
+
+# plot the expression of interesting genes during the PT pseudotime
+```{r}
+
+# re-order the tracked genes by the q value and morans I
+Track_genes <- Track_genes[,c(5,2,3,4,1,6)] %>% 
+  dplyr::arrange(desc(morans_I),q_value)
+
+# Plot some interesting genes for the PT pseudotime : Top 2 genes, Napsa, Kap, Ttr, Igfbp7, Havcr1 and Prom1
+KapTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[1],] , 
+                         min_expr=0.5)
+ggsave(filename = "PT_pseudotime_KapTrack.pdf", plot = KapTrack, width = 5, height = 3)
+NapsaTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[2],] , 
+                         min_expr=0.5)
+ggsave(filename = "PT_pseudotime_NapsaTrack.pdf", plot = NapsaTrack, width = 5, height = 3)
+
+TtrTrack <- plot_genes_in_pseudotime(cds["Ttr",] , 
+                         min_expr=0.5)
+ggsave(filename = "PT_pseudotime_TtrTrack.pdf", plot = TtrTrack, width = 5, height = 3)
+
+Igfbp7Track <- plot_genes_in_pseudotime(cds["Igfbp7",] , 
+                         min_expr=0.5)
+ggsave(filename = "PT_pseudotime_Igfbp7Track.pdf", plot = Igfbp7Track, width = 5, height = 3)
+
+Track_genes$gene_short_name[1:5]
+
+
+Track_genes$gene_short_name[2]
+Track_genes$gene_short_name[1]
+Havcr1Track <- plot_genes_in_pseudotime(cds["Havcr1",] , 
+                         min_expr=0.5)
+
+ggsave(filename = "PT_pseudotime_Havcr1Track.pdf", plot = Havcr1Track, width = 5, height = 3)
+
+# For the 
+Prom1Track <- plot_genes_in_pseudotime(cds["Prom1",],min_expr=0.5 )
+ggsave(filename = "PT_pseudotime_Prom1Track.pdf", plot = Prom1Track, width = 5, height = 3)
+
+FeaturePlot(PTcells, features = "Havcr1")
+
+```
+
+# choose the top signifcant for visualization
+```{r}
+diff_pseudo_gene <- Track_genes %>% 
+  dplyr::arrange(q_value) %>%
+  # remove the genes with mitochondrion
+  filter(!grepl('^mt-|Hbb-', gene_short_name)) %>%
+  rownames() %>% head(60)
+
+# we ignore the mitochondria genes
+
+
+
+diff_pseudo_gene
+
+# generate the heatmap for those genes
+
+diff_pseudo_gene.matrix <- exprs(cds)[match(diff_pseudo_gene,rownames(rowData(cds))),order(pseudotime(cds))]
+
+diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){smooth.spline(x,df=3)$y}))
+diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){(x-mean(x))/sd(x)}))
+rownames(diff_pseudo_gene.matrix) <- diff_pseudo_gene;
+
+#pheatmap(diff_pseudo_gene.matrix)
+
+# because the plot_pseudotime_heatmap no longer have, we used the complexheatmap to draw the figure
+# Reference: https://github.com/cole-trapnell-lab/monocle-release/issues/295
+pdf("PT_pseudotime_psudotimeGenes.pdf", height = 6, width = 8)
+htkm <- Heatmap(
+  diff_pseudo_gene.matrix,
+  name    = "z-score",
+  col     = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names  = TRUE,
+  show_column_names = FALSE,
+  row_names_gp  = gpar(fontsize = 6),
+  km = 8,
+  row_title_rot = 0,
+  use_raster=TRUE,
+  cluster_rows  = TRUE,
+  cluster_row_slices = FALSE,
+  cluster_columns   = FALSE)
+
+print (htkm)
+dev.off()
+#ggsave(filename = "PT_pseudotime_psudotimeGenes.pdf", plot = htkm, width = 8, height = 6)
+
+
+#Ward.D2 Hierarchical Clustering
+pdf("PT_pseudotime_psudotimeGenes_Hierarchicalcluster.pdf", height = 7, width = 6)
+hthc <- Heatmap(
+  diff_pseudo_gene.matrix,
+  name                         = "z-score",
+  col                          = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names               = TRUE,
+  show_column_names            = FALSE,
+  row_names_gp                 = gpar(fontsize = 6),
+  clustering_method_rows = "ward.D2",
+  clustering_method_columns = "ward.D2",
+  row_title_rot                = 0,
+  use_raster= TRUE,
+  cluster_rows                 = TRUE,
+  cluster_row_slices           = FALSE,
+  cluster_columns              = FALSE)
+
+print(hthc)
+dev.off()
+
+cds["Havcr1",] %>% head()
+# Generate the Dotplot for these genes
+plot_genes_in_pseudotime(cds[c("Havcr1"),] , 
+                         min_expr=0.5)
+
+DotPlot(PTcells, features =diff_pseudo_gene ) +RotatedAxis()
+
+DotPlot(PTcells, features =c("Spp1","Havcr1","Itgb1","Top2a",
+                             "Prom1","Pdgfb","Defb1","Fn1","Col6a1"), col.min = -0.5 ) +RotatedAxis()
+
+FeaturePlot(PTcells, features = c("Lcn2","Defb1","Egf","Havcr1"))
+# the following no longer have 
+
+Track_genes
+# p = plot_pseudotime_heatmap(cds[diff_pseudo_gene,], 
+#                         num_clusters = 3,  # default 6
+#                         return_heatmap=T)
+# 
+
+```
+
+
+
+# generate the subclusters of PT, DCT, IC, PC
+```{r}
+# dividing into cycling, transitioning, adap- tive (successful or maladaptive repair) and degenerative (damaged or stressed). 
+# cycling: Mki67
+# Early Injury: Cdh13, Cdh6, Havcr1
+# Late Injury: Ccl2, Gm17268, Cald1
+# conserved: Slc13a1, Slc5a2,  Slc7a13, Cyp7b1
+
+
+
+# Panoptosis
+# Il1b, MLKL, Gsdmd,Ripk3
+
+# Fibrosis 
+# Fn1, Col1a1, Col3a1, Tgfb1
+# adaptive
+# VCAM1, DCDC2 and HAVCR1, C3, ICAM1
+# VCAM1 PROM1 ITGB8
+# Vcam1, Havcr1, Dcdc2, Icam1, Prom1, ITgb8
+
+#degenerative
+# SPP1, CST3, CLU and IGFBP7, APOE ALDOB
+# B2M S100A6
+# Spp1, Cst3, GDF15,Clu, Igfbp7, Apoe, Aldob, B2m, S100a6
+# agionegious PEC,
+# EGFR, VEGF, Cdh5
+
+# Egfr, Vegf, Cdh5
+KidneyStatuesMarkers<- c("Slc13a1", "Slc5a2", "Slc7a13", "Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1")
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6")
+
+DotPlot(scrna, features =  KidneyStatuesMarkers, col.min = -0.5) +RotatedAxis()
+DotPlot(scrna, features =  KidneyStatuesTypeMarkers, col.min = -0.5) +RotatedAxis()
+
+
+for (i in KidneyStatuesMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+for (i in KidneyStatuesTypeMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesTypeMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+
+# with the inflammation markers
+
+# with the fibrosis markers
+
+# with the apoptosis markers
+
+# with the necrosis markers
+
+# with the endothelial markers
+
+
+```
+
+

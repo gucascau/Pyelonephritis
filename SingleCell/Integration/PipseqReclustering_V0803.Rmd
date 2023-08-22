@@ -554,7 +554,7 @@ ggsave(filename = "PTcellsDim.pdf", plot = PTcellsDim, width = 8, height = 6)
 
 PTcellsDimSplit<-DimPlot(PTcells, split.by = "DataSet",label = T)
 
-ggsave(filename = "PTcellsDimSplit.pdf", plot = PTcellsDimSplit, width = 18, height = 8)
+ggsave(filename = "PTcellsDimSplit.pdf", plot = PTcellsDimSplit, width = 18, height = 6)
 
 ```
 
