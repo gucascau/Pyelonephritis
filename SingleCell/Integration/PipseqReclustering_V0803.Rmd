@@ -3,14 +3,16 @@ title: "PipseqReclustering_V0803"
 author: "Xin Wang"
 date: "2023-08-10"
 output: html_document
+description: This script is to generate the clustering and annoation infection for Pipseq:
+  1. UMAP of single cell landscape of mouse Pyelonephritis : including the quality control, integration of objects, harmony batch effect removal
+  2. Annotation of Pyelonephritis : with known published biomarkers
+  3. Subcluster of Proximal tubule cells : with candidate known PT status biomarkers
+  4. Psudotime analysis of Proximal tubule cells
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-# step1: Loading the packages
+# Loading the packages
 ```{r}
+# check the session information
 sessionInfo()
 library(dplyr)
 library(Seurat)
@@ -48,8 +50,6 @@ library("data.table")
 library(umap)
 library(patchwork)
 library(cowplot)
-
-
 library(installr)
 
 #install.packages("Matrix", repos = "http://cran.r-project.org")
@@ -73,7 +73,6 @@ library(tidyverse)
 #library(BPCells)
 library(ggplot2)
 library("devtools")
-
 library("AnnotationDbi")
 library("org.Hs.eg.db")
 #library(tibble)
@@ -86,7 +85,6 @@ library(monocle3)
 #remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
 #remotes::install_github(repo ='chris-mcginnis-ucsf/DoubletFinder' )
 #install.packages("DoubletFinder")
-
 library(DoubletFinder)
 library(future.callr)
 ```
@@ -94,106 +92,171 @@ library(future.callr)
 
 ## Step 2: Set up the workspace environment:
 ```{r}
-
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
-Indir<-c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/PreprocessedPipseeker/")
-Outdir <- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
+setwd(
+  "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/"
+)
+Indir <-
+  c(
+    "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/PreprocessedPipseeker/"
+  )
+Outdir <-
+  c(
+    "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/"
+  )
 ## check the files in the current directory
-Datafiles<-list.files(path = paste0(Indir,"/"), recursive = F, full.names = F)
+Datafiles <-
+  list.files(
+    path = paste0(Indir, "/"),
+    recursive = F,
+    full.names = F
+  )
 
-Datafiles
+# setting up the seed 
 set.seed(10000)
-
 ```
 
 # Step 3. Prepare the input datasets and create objects
 ```{r}
 # create an empty list to store the objects
-scrna.list = list() 
-# create a vector of convenient sample names, such as "D0","D3","D7" and "D28"
+scrna.list = list()
 
-for (i in Datafiles){
-  
+# create a vector of convenient sample names, such as "D0","D3","D7" and "D28"
+for (i in Datafiles) {
   # initiate the seurate object
-  scrna.list[[i]] = ReadMtx(mtx = paste0(Indir,i,"/matrix.mtx.gz"),features = paste0(Indir,i,"/features.tsv.gz"),cells = paste0(Indir,i,"/barcodes.tsv.gz"))
-   # initiate the seurate object
+  scrna.list[[i]] = ReadMtx(
+    mtx = paste0(Indir, i, "/matrix.mtx.gz"),
+    features = paste0(Indir, i, "/features.tsv.gz"),
+    cells = paste0(Indir, i, "/barcodes.tsv.gz")
+  )
+  # initiate the seurate object
   #scrna.list[[name2]]<- CreateSeuratObject(counts=rds, project= name2)
-  scrna.list[[i]]= CreateSeuratObject(counts = scrna.list[[i]], Project= samples[i],min.cells = 3, min.features = 200);
+  scrna.list[[i]] = CreateSeuratObject(
+    counts = scrna.list[[i]],
+    Project = samples[i],
+    min.cells = 3,
+    min.features = 200
+  )
+  
   
   # rename the cell with name id
-  scrna.list[[i]]<- RenameCells(scrna.list[[i]], add.cell.id = i)
+  scrna.list[[i]] <- RenameCells(scrna.list[[i]], add.cell.id = i)
   ## using the assign the name to the objects
   assign (i, scrna.list[[i]])
   ## create a group that show the name of samples
-  scrna.list[[i]]$DataSet <- rep(i, length(scrna.list[[i]]$orig.ident))
+  scrna.list[[i]]$DataSet <-
+    rep(i, length(scrna.list[[i]]$orig.ident))
   
-  scrna.list[[i]]$percent.mt <- PercentageFeatureSet(scrna.list[[i]], pattern = "^mt-")
- scrna.list[[i]]$rDNA <- PercentageFeatureSet(scrna.list[[i]], pattern = "^Rp[sl][[:digit:]]")
-
-  scrna.list[[i]] <- subset(scrna.list[[i]], subset = nFeature_RNA >200  & nFeature_RNA < 8000 &  nCount_RNA < 16000 & percent.mt < 20 & rDNA <40)
+  scrna.list[[i]]$percent.mt <-
+    PercentageFeatureSet(scrna.list[[i]], pattern = "^mt-")
+  scrna.list[[i]]$rDNA <-
+    PercentageFeatureSet(scrna.list[[i]], pattern = "^Rp[sl][[:digit:]]")
+  
+  scrna.list[[i]] <-
+    subset(
+      scrna.list[[i]],
+      subset = nFeature_RNA > 200  &
+        nFeature_RNA < 8000 &
+        nCount_RNA < 16000 & percent.mt < 20 & rDNA < 40
+    )
   scrna.list[[i]] <- NormalizeData(scrna.list[[i]])
   scrna.list[[i]] <- ScaleData(scrna.list[[i]])
-  scrna.list[[i]] <- FindVariableFeatures(scrna.list[[i]], selection.method = "vst", nfeatures = 2000)
+  scrna.list[[i]] <-
+    FindVariableFeatures(scrna.list[[i]],
+                         selection.method = "vst",
+                         nfeatures = 2000)
   scrna.list[[i]] <- RunPCA(scrna.list[[i]])
   # ElbowPlot(seurat_obj)
   scrna.list[[i]] <- FindNeighbors(scrna.list[[i]], dims = 1:20)
   scrna.list[[i]] <- RunUMAP(scrna.list[[i]], dims = 1:20)
-
-
+  
 }
 
-
-
-scrna.list[[1]]@meta.data
 ```
 
 # merge the seurate objects into a single one
 ```{r}
 ## merge might not be a good way for the intergration, instead we used the integration by find the integration features
-scrna <- merge(x=scrna.list[[1]], y=c(scrna.list[[2]],scrna.list[[3]],scrna.list[[4]]), project="Pyelonephritis")
+scrna <-
+  merge(
+    x = scrna.list[[1]],
+    y = c(scrna.list[[2]], scrna.list[[3]], scrna.list[[4]]),
+    project = "Pyelonephritis"
+  )
 
 ## change the order of days 
 levels(factor(scrna@meta.data$DataSet))
 
-scrna@meta.data$DataSet <- ordered(factor(scrna@meta.data$DataSet),levels = c("0DPI", "3DPI", "7DPI","28DPI"))
+scrna@meta.data$DataSet <-
+  ordered(factor(scrna@meta.data$DataSet),
+          levels = c("0DPI", "3DPI", "7DPI", "28DPI"))
 
 scrna@meta.data %>% tail()
 # create a condition details with and without infection
-scrna@meta.data <- scrna@meta.data %>% 
-mutate( Condition= case_when(scrna@meta.data$DataSet == "0DPI" ~"Noninfect",
-                                          TRUE ~ "Infect"))
+scrna@meta.data <- scrna@meta.data %>%
+  mutate(Condition = case_when(scrna@meta.data$DataSet == "0DPI" ~ "Noninfect",
+                               TRUE ~ "Infect"))
 
 # measure the mitochondrial percentage
- scrna[["percent.mt"]] <- PercentageFeatureSet(scrna, pattern = "^mt-")
- scrna[["rDNA"]] <- PercentageFeatureSet(scrna, pattern = "^Rp[sl][[:digit:]]")
- 
+scrna[["percent.mt"]] <-
+  PercentageFeatureSet(scrna, pattern = "^mt-")
+scrna[["rDNA"]] <-
+  PercentageFeatureSet(scrna, pattern = "^Rp[sl][[:digit:]]")
+
 #VlnPlot(scrna, features = c("percent.mt", "nCount_RNA", "nFeature_RNA","rDNA"))
-QCReport<-VlnPlot(scrna, features = c("rDNA","percent.mt", "nCount_RNA", "nFeature_RNA") , split.by = "DataSet", ncol = 2)
+ QCReport <-
+   VlnPlot(
+     scrna,
+     features = c("rDNA", "percent.mt", "nCount_RNA", "nFeature_RNA") ,
+     split.by = "DataSet",
+     ncol = 2
+   )
 
 ggsave(filename = "SampleQC_reports.pdf",plot = QCReport, height = 12, width = 12 )
 
- ### filtered the low quality cells that have less than 200 RNA and larger than 8000 and percentage mt high than 20%
-scrna <- subset (scrna, subset = nFeature_RNA >200  & nFeature_RNA < 8000 &  nCount_RNA < 16000 & percent.mt < 20 & rDNA <40)
+
+### filtered the low quality cells that have less than 200 RNA and larger than 8000 and percentage mt high than 20%, rDNA higher than 40
+scrna <-
+  subset (scrna,
+          subset = nFeature_RNA > 200  &
+            nFeature_RNA < 8000 &
+            nCount_RNA < 16000 & percent.mt < 20 & rDNA < 40)
 ```
 
-
+# Calculate the Frequency of Cells in each Datasets
 ```{r}
-SummarizedCells<- as.data.frame(table(scrna@meta.data$DataSet))
-SummarizedCells
+SummarizedCells <- as.data.frame(table(scrna@meta.data$DataSet))s
 
-OrignalFrequencyCellTypes<- ggplot(data =SummarizedCells , aes(x=Var1, y= Freq )) +
-  geom_bar(stat ="identity", position="dodge") + 
-   geom_text(aes(label=Freq), position=position_dodge(width=0.9), vjust=-0.25,size=2)+
+OrignalFrequencyCellTypes <-
+  ggplot(data = SummarizedCells , aes(x = Var1, y = Freq)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(
+    aes(label = Freq),
+    position = position_dodge(width = 0.9),
+    vjust = -0.25,
+    size = 2
+  ) +
   theme_bw() +
-  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
-     axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
-       panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +xlab("Samples") +ylab("Number of cells ")
- 
-ggsave("OrignalFrequencyCells.pdf",plot = OrignalFrequencyCellTypes, width = 8, height = 4)
+  theme(
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.text.x = element_text(
+      angle = 45,
+      vjust = 1,
+      hjust = 1
+    ),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "black")
+  ) + xlab("Samples") + ylab("Number of cells ")
+
+ggsave(
+  "OrignalFrequencyCells.pdf",
+  plot = OrignalFrequencyCellTypes,
+  width = 8,
+  height = 4
+)
 ```
 
-
-
+# Removing batch effects using Harmony
 ```{r}
 
 # # enable parallel processing via future package
@@ -202,7 +265,6 @@ ggsave("OrignalFrequencyCells.pdf",plot = OrignalFrequencyCellTypes, width = 8, 
 # plan()
 #"mitoPercent","Rpl", "nCount_RNA", "nFeature_RNA"
 # 
-
 scrna <- scrna %>%
     NormalizeData() %>%
     FindVariableFeatures(selection.method = "vst") %>% 
@@ -215,8 +277,6 @@ scrna <- RunHarmony(scrna, group.by.vars = c("DataSet"), assay.use="SCT",reducti
 scrna <- RunUMAP(scrna, dims = 1:30, reduction = "harmony", assay = "SCT")
 scrna <- FindNeighbors(scrna, dims = 1:30,  reduction = "harmony")
 scrna <- FindClusters(scrna,  resolution = 0.1,algorithm = 1)
-
-
 
 # scrna <- FindNeighbors(scrna, dims = 1:30,  reduction = "harmony", graph.name = "Test")
 # scrna <- FindClusters(scrna,  resolution = 0.1,algorithm = 1, graph.name = "Test")
@@ -239,43 +299,37 @@ scrna<- readRDS("Pyelonephritis_singlecell_harmony_v0803.RDS")
 ```
 
 
-
+# We further reclustering the cluster 1 and 5 for a higher resolution
 ```{r}
 # we further divide the meyeloblast into neutrophil, basophils and microphage
-# the defulat cluster find name:
+# the default cluster names were saved in the:
 scrna@commands$FindClusters$graph.name
 
 Idents(scrna) <- scrna@meta.data$seurat_clusters
 # use the SCT cluster graph name do subcluster for 1
 scrna<-FindSubCluster(scrna,cluster=c("1"),graph.name = "SCT_snn",subcluster.name = "Sub1", resolution = 0.05)
 
-
-?FindSubCluster
-
+# set up the cluster details into Sub1
 Idents(scrna) <- scrna@meta.data$Sub1
 
 # scrna<-FindSubCluster(scrna,cluster=c("4"),graph.name = "SCT_snn",subcluster.name = "Sub4", resolution = 0.05)
 # Idents(scrna) <- scrna@meta.data$Sub4
 
+# use the SCT cluster graph name do subcluster for 5
 scrna<-FindSubCluster(scrna,cluster=c("5"),graph.name = "SCT_snn",subcluster.name = "Sub5", resolution = 0.05)
 Idents(scrna) <- scrna@meta.data$Sub5
 
-
-DimPlot(scrna, label = T)
-
+# generate the DimPlots
 DimplotScrnaSub <- DimPlot(scrna, reduction = "umap", label = T) 
-DimplotScrnaSub
 DimplotScrnaSplitSub <- DimPlot(scrna, reduction = "umap",split.by = "DataSet", label = T) 
-DimplotScrnaSplitSub
 
 ggsave(filename = "DimplotScrnatSub.pdf", plot = DimplotScrnaSub, width = 6, height = 5)
 ggsave(filename = "DimplotScrnaSplitSub.pdf", plot = DimplotScrnaSplitSub, width = 16, height = 5)
 
-
 ```
 
 
-# step 7 generate the biomarker distribution
+# Generate the biomarker distribution
 ```{r}
 DefaultAssay(scrna) <-"RNA"
 
@@ -328,7 +382,6 @@ FinalUssedMarkers2<- c("Lrp2","Slc34a1","Acsm1","Cubn","Havcr1","Slc12a3","Slc8a
 # 
 # setwd(file.path(Outdir))
 
-?DotPlot
 
 pdf("Pyelonephritis_DotPlot_Finalused2.markers.pdf", height =8, width = 20)
 DotPlot(scrna, features =  FinalUssedMarkers2, col.min =-1, col.max = 2 ) +RotatedAxis()
@@ -363,7 +416,6 @@ all.genes <- rownames(scrna)
 
 # add the cell type
 ```{r}
-
 # CellType
 FinalCluster<- as.character(levels(factor(scrna$Sub5)))
 FinalCluster
@@ -406,35 +458,7 @@ CellType[CellType$cluster %in% c("15"),2] <- "URO" #"Urothelium"
 CellType[CellType$cluster %in% c("16"),2] <-"B"  # "B cells"
 CellType[CellType$cluster %in% c("17"),2] <- "NEU"  # "Neutrophil"
 
-
-# 
-# CellType[CellType$cluster %in% c("1_0","1_1","0", "9","12","18", "19","3"),2] <- "Proximal tubule"
-# CellType[CellType$cluster %in% c("1_0"),2] <- "Microphage"
-# #CellType[CellType$cluster %in% c("1_1"),2] <- "Inflammated proximal tubule"
-# CellType[CellType$cluster %in% c("2"),2] <- "T cells"
-# CellType[CellType$cluster %in% c("4"),2] <- "Descending thin limb cells"
-# #CellType[CellType$cluster %in% c("4_1"),2] <- "Maladaptive limb of LOH"
-# 
-# CellType[CellType$cluster %in% c("5_0"),2] <- "Thick ascending limb cells"
-# CellType[CellType$cluster %in% c("5_1"),2] <- "Distal convoluted tubule and Thick ascending limb of LOH"
-# 
-# CellType[CellType$cluster %in% c("6"),2] <- "Intercalated cells"
-# CellType[CellType$cluster %in% c("7"),2] <- "Principal cells"
-# CellType[CellType$cluster %in% c("8"),2] <- "Connecting tubule"
-# 
-# CellType[CellType$cluster %in% c("10"),2] <- "NK Cells"
-# CellType[CellType$cluster %in% c("11"),2] <- "Endothelium"
-# CellType[CellType$cluster %in% c("13"),2] <- "Plasma cells"
-# CellType[CellType$cluster %in% c("14"),2] <- "Fibroblast"
-# CellType[CellType$cluster %in% c("15"),2] <- "Urothelium"
-# CellType[CellType$cluster %in% c("16"),2] <- "B cells"
-# CellType[CellType$cluster %in% c("17"),2] <- "Neutrophil"
-# 
-
 # add the cell types
-CellType
-
-scrna@meta.data$Sub5
 scrna@meta.data$Raw_cell_type <- sapply(scrna@meta.data$Sub5, function(x){CellType[CellType$cluster %in% x,2]})
 levels(factor(scrna@meta.data$Raw_cell_type))
 scrna@meta.data %>% head()
@@ -456,7 +480,6 @@ scrna@meta.data %>% head()
 DimClusterAnnotateSplit <-DimPlot(scrna, reduction = "umap",group.by = "Raw_cell_type", split.by = "DataSet",label = T)
 ggsave(filename = "DimClusterAnnotateSplit.pdf", plot = DimClusterAnnotateSplit, width = 20, height = 5)
 
-# save 
 
 ```
 
