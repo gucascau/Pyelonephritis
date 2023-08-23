@@ -269,6 +269,73 @@ PTPropotionWithinTime <-table(PTcells@meta.data$DataSet,PTcells@meta.data$SCT_sn
 ggsave("PTPropotionWithinTime.pdf", plot = PTPropotionWithinTime, width = 4, height = 3)
 ```
 
+# Add the cell annotation to the orginal single cells
+```{r}
+PTcells@meta.data %>% head()
+
+# add the annotation using case_when
+
+PTcells@meta.data<- PTcells@meta.data %>%   mutate(PTIntegrateAnnot = 
+           case_when(SCT_snn_res.0.2 %in% c("0","1","2", "3","4") ~ "heaPT", # health PT
+                     SCT_snn_res.0.2 %in% c("7") ~ "DegPT", # Degenerative PT
+                     SCT_snn_res.0.2 %in% c("5") ~ "MalPT", # Maladaptive PT
+                     SCT_snn_res.0.2 %in% c("6") ~ "TraPT", # Maladaptive PT
+                      SCT_snn_res.0.2 %in% c("8") ~ "AcuPT", # Acute injured PT
+                     )) 
+levels(factor(PTcells@meta.data$PTIntegrateAnnot))
+
+# FinalCluster<- as.character(levels(factor(PTcells$SCT_snn_res.0.2)))
+# FinalCluster
+# # create a dataframe to store the single cell annotation:
+# CellType <- data.frame(cluster=FinalCluster , cell= FinalCluster)
+# 
+# # update the cell details
+# CellType[CellType$cluster %in% c("0","1","2", "3","4","5"),2] <- "health PT"
+# 
+# CellType[CellType$cluster %in% c("7"),2] <- "Degenerative PT"
+# 
+# CellType[CellType$cluster %in% c("5"),2] <- "Maladaptive PT"
+# 
+# CellType[CellType$cluster %in% c("6"),2] <- "Transient PT"
+# 
+# CellType[CellType$cluster %in% c("8"),2] <- "Acute injured PT"
+# 
+# # add the cell types to the mata datasets
+# 
+# PTcells@meta.data$PTStatus <- sapply(PTcells@meta.data$SCT_snn_res.0.2, function(x){CellType[CellType$cluster %in% x,2]})
+# 
+# # add the 
+
+# then add the PTIntegrateAnnot into the meta data of orignal
+# generate the data frame for PT cell meta data
+PTmataAnnotation <- PTcells@meta.data %>% dplyr::select(SCT_snn_res.0.2, PTIntegrateAnnot)
+
+table(PTmataAnnotation$PTIntegrateAnnot)
+
+## add this annotation into the meta dataset
+scrna@meta.data <- scrna@meta.data %>% rownames_to_column('rn') %>% 
+  left_join( PTmataAnnotation %>% rownames_to_column('rn'))%>% 
+# then add a new column that change the NA into Raw_cell_type
+  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
+  mutate(A_new = ifelse(is.na(PTIntegrateAnnot), Raw_cell_type,PTIntegrateAnnot))
+### join the meta data to meta annoation
+
+Idents(scrna) <- scrna@meta.data$A_new
+
+
+#left_join(rownames_to_column(UUOProjectObject_F@meta.data), MetaAnnotation, by=c("rownames" = "Symbol"))
+
+### join the meta data to meta annoation
+#UUOProjectObject_F@meta.data %>% mutate(Symbol=rownames(UUOProjectObject_F@meta.data))%>% left_join(MetaAnnotation %>% mutate(Symbol=rownames(MetaAnnotation)), by = 'Symbol')
+
+# set up the new cell types but keep the orginal cell types
+
+row.names(scrna@meta.data) <- scrna@meta.data$rn
+ DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
+ 
+ saveRDS(scrna, file = "PIPSeq_Annotated_v0823.rds")
+```
+
 
 # #####################################
 ## generate the Progeny signaling pathways
