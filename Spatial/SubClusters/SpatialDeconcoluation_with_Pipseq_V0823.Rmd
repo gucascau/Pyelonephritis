@@ -1,28 +1,21 @@
 ---
-title: "InfectionRegionDetectionDeconvolution"
-output: html_document
-date: "2023-05-05"
----
-
----
-title: "Subclustering Infection Regions"
+title: "SpatialDeconcoluation_with_Pipseq"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
 Copyright (c) 2023 Kidney and Urology Tract Center
 Nationwide Children's Hospital
-date: "2023-05-02"
+date: "2023-08-23"
 Description: 
-#   Illustration of infected areas in spatial
-#    - This areas is specific focused on the bacterial infected areas (2,5,10)
+#   Deconvolute the spatial spots using PIPseq single cells 
 
 #     Note:
-#     Quite often there are strong batch effects between different ST sections, so it may be a good idea to integrate the data across sections.
-#     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#    #     We updated the single cells with neutrophil, different status of PT cells.  
+#    #     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
 #     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
-
 ---
 
+# load the library packages
 ```{r}
 # loading the library packages
 library(Seurat)
@@ -41,7 +34,7 @@ library(SPOTlight)
 library(SingleCellExperiment)
 
 #install.packages("SeuratDisk")
-library(SeuratDisk)
+#library(SeuratDisk)
 library(tidyverse)
 library(cowplot)
 
@@ -56,46 +49,68 @@ library(RColorBrewer)
 #install.packages("reshape")
 library(L1pack)
 library(reshape)
+library(reshape2)
+
 
 library(tidyHeatmap)
 ```
 
-
+# Set up the enviroment: 
 ```{r}
-
+# clear all the objects in the environments
+rm(list=ls())
+# set seed
 set.seed(200000)
-# setting up the Enviroment: 
-indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/"
+
+# single cell directory:
+Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/"
+
+# spatial transcript directory:
+Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/"
+
+# Output directory :
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_V08232023/"
+
+# Cell types deconvolution:
+
+Ctdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_V08232023/CellTypes/"
 
 
-dir.create(outdir, showWarnings = F)
+dir.create(Ctdir, showWarnings = F)
 getwd()
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_V08232023/")
+```
 
-list.files()
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Integration_v04142023/SpatialClusters_V0425/")
+# Read the RDS objects from the spatial and single cells, briefly check the objects
+```{r}
+# Reading the RDS file
+Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "FinalAbcessClustersObj.rds"))
 
-### Reading the RDS file
-Pyelonephritis_Infection<-readRDS(file = paste0(indir, "FinalAbcessClustersObj.rds"))
+# 
+Pyelonephritis_Infection
 
-rownames(Pyelonephritis_Infection[["Spatial"]])
-colnames(Pyelonephritis_Infection[["Spatial"]])
-
-#Idents(Pyelonephritis_Infection)
+# We have two assays: Spatial and SCT
 Pyelonephritis_Infection[["Spatial"]][1:10,1:10]
 
 Pyelonephritis_Infection[["SCT"]][1:10,1:10]
 
+rownames(Pyelonephritis_Infection[["Spatial"]])
+colnames(Pyelonephritis_Infection[["Spatial"]])
+selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
 ```
 
 ```{r}
 # integration with the scRNA-seq reference.
 
 ##############################################################################################
-### First option: Using Seurat itself instead of cluster by themselves, we clusster based on the reference scRNA-seq using Seurat
+### First option: Using Seurat itself instead of cluster by themselves, we cluster based on the reference scRNA-seq using Seurat
 ##############################################################################################
 # with reference
-allen_reference <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluationChangedColor/Final_CombinedInformation_Pyelonephritis_V0330.RDS")
+allen_reference <- readRDS(file = paste0(Scindir, "PIPSeq_Annotated_v0823.rds"))
 
+allen_reference@meta.data %>% head()
+
+Idents(allen_reference)
 # here we set up 10000 normlizes the full datstet but learns noise models on 10k cells that speeds up SCTransform dramtially wiht no loss in performanace
 library(dplyr)
 allen_reference <- SCTransform(allen_reference, ncells = 10000, verbose = FALSE) %>%
@@ -106,15 +121,17 @@ allen_reference <- SCTransform(allen_reference, ncells = 10000, verbose = FALSE)
 
 ```{r}
 levels(Idents(allen_reference))
-allen_reference@meta.data
 
-Idents(allen_reference) <- str_split(allen_reference@meta.data$Annot,":",simplify = T)[,2]
+table(Idents(allen_reference))
+
+#Idents(allen_reference) <- str_split(allen_reference@meta.data$Annot,":",simplify = T)[,2]
 # the annotation is stored in the 'subclass' column of object metadata
 DimPlot(allen_reference,  label = TRUE)
 
-# After subsetting, we renormalize cortex
+# After subsetting, we renormalize spatial transcriptomics
 Pyelonephritis_Infection <- SCTransform(Pyelonephritis_Infection, assay = "Spatial", verbose = FALSE) %>%
   RunPCA(verbose = FALSE)
+
 anchors <- FindTransferAnchors(reference = allen_reference, query = Pyelonephritis_Infection, normalization.method = "SCT")
 
 predictions.assay <- TransferData(anchorset = anchors, 
@@ -125,42 +142,58 @@ predictions.assay <- TransferData(anchorset = anchors,
 Pyelonephritis_Infection[["predictions"]] <- predictions.assay
 DefaultAssay(Pyelonephritis_Infection) <- "predictions"
 
-Pyelonephritis_Infection[["predictions"]]
-
-SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Myeloblast"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
-
 ```
 
+ ```{r}
+# GetAssayData(Pyelonephritis_Infection, assay = "SCT" )
+# # scale the object into 0 to 1
+# 
+# library(magrittr)
+# rownames(Pyelonephritis_Infection)
+# rownames(Pyelonephritis_Infection) %>% seq()
+# #rownames(Pyelonephritis_Infection[["SCT"]]) %>% seq()
+# Pyelonephritis_Infection_scaledMatrix<- sapply(rownames(Pyelonephritis_Infection) %>% seq(),  
+#        function (i) { 
+#            scales::rescale(GetAssayData(Pyelonephritis_Infection, 
+#                               assay = "predictions")[rownames(Pyelonephritis_Infection)[i],], to = c(0,1)) }
+#   ) %>% t
+# 
+# Pyelonephritis_Infection_scaledMatrix[1:10,10:20]
+# 
+# # check expression ranges
+# quantile(Pyelonephritis_Infection_scaledMatrix, c(0.01, 1))
+# 
+# # add gene names
+# dimnames(Pyelonephritis_Infection_scaledMatrix)[[1]] <- rownames(Pyelonephritis_Infection)
+# 
+# # set new scaled matrix to the slt 
+# Pyelonephritis_Infection <- SetAssayData(Pyelonephritis_Infection, slot = "scale.data", Pyelonephritis_Infection_scaledMatrix)
+# 
+# Pyelonephritis_Infection[["predictions"]]
+# 
+# ?SpatialFeaturePlot
+```
+
+# Generate the feature plot for each cell types
 ```{r}
-GetAssayData(Pyelonephritis_Infection, assay = "SCT" )
-# scale the object into 0 to 1
-Pyelonephritis_Infection_Scale
 
-library(magrittr)
-rownames(Pyelonephritis_Infection)
-rownames(Pyelonephritis_Infection) %>% seq()
-#rownames(Pyelonephritis_Infection[["SCT"]]) %>% seq()
-Pyelonephritis_Infection_scaledMatrix<- sapply(rownames(Pyelonephritis_Infection) %>% seq(),  
-       function (i) { 
-           scales::rescale(GetAssayData(Pyelonephritis_Infection, 
-                              assay = "predictions")[rownames(Pyelonephritis_Infection)[i],], to = c(0,1)) }
-  ) %>% t
+setwd(Ctdir)
 
-Pyelonephritis_Infection_scaledMatrix[1:10,10:20]
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+# generate the feature plots for each cell types
+Celltypes<- levels(Idents(allen_reference))
 
-# check expression ranges
-quantile(Pyelonephritis_Infection_scaledMatrix, c(0.01, 1))
+for (i in Celltypes){
+  
+  CellTypeSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1.6, crop = TRUE,  images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
+  
+  ggsave(filename = paste0(i,"_SpatialFeaturePrediction.pdf"), plot = CellTypeSpatialFeature, height = 4, width = 16)
+  
+}
 
-# add gene names
-dimnames(Pyelonephritis_Infection_scaledMatrix)[[1]] <- rownames(Pyelonephritis_Infection)
-
-# set new scaled matrix to the slt 
-Pyelonephritis_Infection <- SetAssayData(Pyelonephritis_Infection, slot = "scale.data", Pyelonephritis_Infection_scaledMatrix)
-
-Pyelonephritis_Infection[["predictions"]]
-
-?SpatialFeaturePlot
 ```
+
 
 ```{r}
 # measure the different frequency of each cluster

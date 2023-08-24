@@ -167,6 +167,7 @@ PTcells@meta.data
 PTcells <- SCTransform(PTcells, verbose = TRUE)
 PTcells <- RunPCA(PTcells,npcs = 5, verbose = TRUE)
 
+PTcells@meta.data
 # Run harmony for the PT cells
 PTcells <- RunHarmony(PTcells, 
 				group.by.vars = c("DataSet"), 
@@ -184,13 +185,12 @@ PTcellsDimSplit<-DimPlot(PTcells, split.by = "DataSet",label = T)
 
 ggsave(filename = "PTcellsDimSplit.pdf", plot = PTcellsDimSplit, width = 24, height = 6)
 
-
 ```
 
 # check the markers
 ```{r}
 # the healthy cells
-HealthMarkers<- c("Slc22a30", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
+HealthMarkers<- c("Acsm1","Slc22a30","Mt1g", "Itgb8", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
 
 DotPlot(PTcells, features =  HealthMarkers, col.min = -0.5) +RotatedAxis()
 
@@ -214,10 +214,9 @@ MaladptiveMarkers <- c("Vcam1", "Havcr1",  "Icam1", "Prom1","Cxcl2","Ccl3","Myc"
 
 DotPlot(PTcells, features =  MaladptiveMarkers, col.min = -0.5) +RotatedAxis()
 
-
 # Combined 
 #"Lrp2","Slc34a1","Slc13a1"
-KidneyStatuesMarkers<- c( "Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
+KidneyStatuesMarkers<- c( "Nrg1","Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
 
  DotPlot(PTcells, features =  KidneyStatuesMarkers,col.min = -1) +RotatedAxis()
 
@@ -242,11 +241,11 @@ KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "C
 setwd(BioMarkerDir)
 # 
 PTcells
-DefaultAssay(PTcells) <- "RNA"
-CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
+DefaultAssay(PTcells) <- "SCT"
+CandidateMarkers <- c("Acsm1","Lrp2","Mt1", "Slc13a3","Slc5a12","Itgb8","Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
 
-CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = 0) +RotatedAxis()
-
+CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers) +RotatedAxis()
+CandidateMarkersDotPlot
 ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
 
 for (i in CandidateMarkers ){
@@ -255,6 +254,11 @@ for (i in CandidateMarkers ){
   ggtitle(paste0(i,""))
   
   ggsave(paste0(i, "_PT_Marker_featurePlot.pdf"), plot = p2, width = 4, height = 3)
+    p3 <-FeaturePlot(PTcells, features = i, split.by = "DataSet") & 
+ #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i,""))
+  
+  ggsave(paste0(i, "_PT_Marker_featurePlot_split.pdf"), plot = p3, width = 12, height = 3)
 }
 ```
 
@@ -276,9 +280,13 @@ PTcells@meta.data %>% head()
 # add the annotation using case_when
 
 PTcells@meta.data<- PTcells@meta.data %>%   mutate(PTIntegrateAnnot = 
-           case_when(SCT_snn_res.0.2 %in% c("0","1","2", "3","4") ~ "heaPT", # health PT
+           case_when(SCT_snn_res.0.2 %in% c("0") ~ "heaPT-S1", # health PT
+                     SCT_snn_res.0.2 %in% c("1") ~ "heaPT-S2", # health PT
+                     SCT_snn_res.0.2 %in% c("2") ~ "heaPT-S3", # health PT
+                     SCT_snn_res.0.2 %in% c("3") ~ "heaPT-S4", # health PT
+                     SCT_snn_res.0.2 %in% c("4") ~ "heaPT-S5", # health PT
                      SCT_snn_res.0.2 %in% c("7") ~ "DegPT", # Degenerative PT
-                     SCT_snn_res.0.2 %in% c("5") ~ "MalPT", # Maladaptive PT
+                     SCT_snn_res.0.2 %in% c("5") ~ "heaPT-S6", # Maladaptive PT
                      SCT_snn_res.0.2 %in% c("6") ~ "TraPT", # Maladaptive PT
                       SCT_snn_res.0.2 %in% c("8") ~ "AcuPT", # Acute injured PT
                      )) 
@@ -334,6 +342,7 @@ row.names(scrna@meta.data) <- scrna@meta.data$rn
  DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
  
  saveRDS(scrna, file = "PIPSeq_Annotated_v0823.rds")
+ Idents(scrna) 
 ```
 
 
