@@ -99,6 +99,7 @@ library(magick)
 
 ## Step 2: Set up the workspace environment:
 ```{r}
+rm(list=ls())
 setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
 Indir <-c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
 Outdir <-c( "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
@@ -116,7 +117,7 @@ set.seed(10000)
 scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS"))
 
 # We only collect the PT cells
-CellType[CellType$cluster %in% c("1_0","1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+#CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
 
 scrna @meta.data
 

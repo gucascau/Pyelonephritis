@@ -142,6 +142,7 @@ dir.create(TFDir, showWarnings = FALSE)
 dir.create(KEGGDir, showWarnings = FALSE)
 dir.create(CellCommDir, showWarnings = FALSE)
 dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
 
 set.seed(10000)
 ```
@@ -610,6 +611,7 @@ pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks)
 # set up the pyseudotime directory:
 setwd(PyseudotimeDir)
 
+DefaultAssay(PTcells) <- "SCT"
 # build cds object
 PTcells_expr_matrix = GetAssayData(PTcells, slot = "counts")
 
@@ -667,7 +669,7 @@ PT_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime",
            label_cell_groups = FALSE, 
            label_leaves = TRUE,  
            label_branch_points = FALSE)
-
+PT_pseudotime
 ggsave(filename = "PT_pseudotime_MonocaCluster.pdf", plot = PT_pseudotime, width = 4, height = 3)
 
 

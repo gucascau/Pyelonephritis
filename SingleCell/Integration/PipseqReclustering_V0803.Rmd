@@ -224,7 +224,7 @@ scrna <-
 
 # Calculate the Frequency of Cells in each Datasets
 ```{r}
-SummarizedCells <- as.data.frame(table(scrna@meta.data$DataSet))s
+SummarizedCells <- as.data.frame(table(scrna@meta.data$DataSet))
 
 OrignalFrequencyCellTypes <-
   ggplot(data = SummarizedCells , aes(x = Var1, y = Freq)) +
@@ -319,9 +319,13 @@ Idents(scrna) <- scrna@meta.data$Sub1
 scrna<-FindSubCluster(scrna,cluster=c("5"),graph.name = "SCT_snn",subcluster.name = "Sub5", resolution = 0.05)
 Idents(scrna) <- scrna@meta.data$Sub5
 
+
+# use the SCT cluster do subcluster for 
+
 # generate the DimPlots
 DimplotScrnaSub <- DimPlot(scrna, reduction = "umap", label = T) 
 DimplotScrnaSplitSub <- DimPlot(scrna, reduction = "umap",split.by = "DataSet", label = T) 
+DimplotScrnaSplitSub
 
 ggsave(filename = "DimplotScrnatSub.pdf", plot = DimplotScrnaSub, width = 6, height = 5)
 ggsave(filename = "DimplotScrnaSplitSub.pdf", plot = DimplotScrnaSplitSub, width = 16, height = 5)
@@ -366,20 +370,47 @@ PCMarkers <- c("Aqp2","Hsd11b2" ,"Scnn1g")
 
 FinalUssedMarkers2<- c("Lrp2","Slc34a1","Acsm1","Cubn","Havcr1","Slc12a3","Slc8a1","Calb1","Trpm6","Pvalb","Wnk1","Trpv5","Fst","Slc14a2","Slc12a1","Cldn10","Atp6v1g3","Aqp6","Slc26a4","Aqp2","Hsd11b2" ,"Scnn1g","Krt5","Krt14","Upk1b", "Col3a1","Lum","Fbn1","Pecam1","Igfbp3","Cdh5","Ptprc","Lyz2","Lst1","C1qa","C1qb","Il1b","Cd14","Cxcr6","Cd247", "Cd79b","Ms4a1","Igkc","Nkg7","Cd7","Ccl5","Ireb2","Alas2","C78334")
 
+# macrophage 1 and macrophage 2:
 
-# CFilePath<- paste0(Outdir,"Candidatemarkers")
-# dir.create(file.path(CFilePath))
-# setwd(file.path(CFilePath))
-# 
-# for (i in celltype.markers){
-# 
-#   FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
-# 
-#   ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 10)
-# 
-# }
+# M1 can choose CD80, CD86, CD64, CD16 and CD32 as markers. 
+Macrophage2TypeMarkers <- c("Ifngr1","Il17a","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b","Il13","Cd163","Mrc1","Arg1", "Cd68")
 
-# 
+DotPlot(scrna, features = Macrophage2TypeMarkers)
+Macrophage1Markers <- c("Ifngr1","Il17a","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b")
+
+
+# M2 can choose CD163 and CD206 are major markers, Arg1 DECTIN
+Macrophage2Markers <- c("Il13","Cd163","Mrc1","Arg1", "Cd68")
+
+CFilePath<- paste0(Outdir,"Candidatemarkers")
+dir.create(file.path(CFilePath))
+setwd(file.path(CFilePath))
+
+for (i in celltype.markers){
+
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 10)
+
+}
+
+for (i in Macrophage1Markers){
+
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 10)
+
+}
+
+
+for (i in Macrophage2Markers){
+
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 10)
+
+}
+#
 # setwd(file.path(Outdir))
 
 
@@ -436,7 +467,7 @@ CellType
 # CellType[CellType$cluster %in% c("18"),2] <- "Glomerular Endothelial Cell"
 # 
 
-CellType[CellType$cluster %in% c("1_0","1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
 CellType[CellType$cluster %in% c("1_0"),2] <- "MAC" # macrophage
 #CellType[CellType$cluster %in% c("1_1"),2] <- "Inflammated proximal tubule"
 CellType[CellType$cluster %in% c("2"),2] <- "T" #"T cell"
@@ -542,7 +573,7 @@ for (i in Finalcelltypemarkers){
 
 ```{r}
 # We only collect the PT cells
-CellType[CellType$cluster %in% c("1_0","1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
 
 scrna @meta.data
 
