@@ -14,6 +14,7 @@ description: This script is to generate the clustering and annoation infection f
 ```{r}
 # check the session information
 sessionInfo()
+library(sf)
 library(dplyr)
 library(Seurat)
 library(patchwork)
@@ -87,6 +88,9 @@ library(monocle3)
 #install.packages("DoubletFinder")
 library(DoubletFinder)
 library(future.callr)
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
 ```
 
 
@@ -208,11 +212,25 @@ scrna[["rDNA"]] <-
      scrna,
      features = c("rDNA", "percent.mt", "nCount_RNA", "nFeature_RNA") ,
      split.by = "DataSet",
-     ncol = 2
+     pt.size=0,
+     ncol = 1
    )
 
 ggsave(filename = "SampleQC_reports.pdf",plot = QCReport, height = 12, width = 12 )
 
+pdf("PIPseq_Feature.pdf", height = 4, width = 6)
+VlnPlot(scrna, features = c("nFeature_RNA"), group.by = "DataSet",pt.size=0 )
+dev.off()
+?VlnPlot
+pdf("PIPseq_nCounts.pdf", height = 4, width = 6)
+VlnPlot(scrna, features = c("nCount_RNA"), group.by = "DataSet",pt.size=0 )
+dev.off()
+?VlnPlot
+
+pdf("PIPseq_mtPercent.pdf", height = 4, width = 6)
+VlnPlot(scrna, features = c("percent.mt"), group.by = "DataSet",pt.size=0,y.max=80 )
+dev.off()
+?VlnPlot
 
 ### filtered the low quality cells that have less than 200 RNA and larger than 8000 and percentage mt high than 20%, rDNA higher than 40
 scrna <-
@@ -225,7 +243,7 @@ scrna <-
 # Calculate the Frequency of Cells in each Datasets
 ```{r}
 SummarizedCells <- as.data.frame(table(scrna@meta.data$DataSet))
-
+nrow(scrna@meta.data)
 OrignalFrequencyCellTypes <-
   ggplot(data = SummarizedCells , aes(x = Var1, y = Freq)) +
   geom_bar(stat = "identity", position = "dodge") +
@@ -278,6 +296,7 @@ scrna <- RunUMAP(scrna, dims = 1:30, reduction = "harmony", assay = "SCT")
 scrna <- FindNeighbors(scrna, dims = 1:30,  reduction = "harmony")
 scrna <- FindClusters(scrna,  resolution = 0.1,algorithm = 1)
 
+scrna
 # scrna <- FindNeighbors(scrna, dims = 1:30,  reduction = "harmony", graph.name = "Test")
 # scrna <- FindClusters(scrna,  resolution = 0.1,algorithm = 1, graph.name = "Test")
 

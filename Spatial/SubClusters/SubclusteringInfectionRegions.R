@@ -101,9 +101,8 @@ pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate.pdf", height = 4,
 DimPlot(Pyelonephritis.integrated_harmony, reduction = "umap", split.by ="orig.ident",label = TRUE )
 dev.off()
 
-?DimPlot
 
-
+#
 pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels.pdf", height = 8, width = 40)
 SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
 dev.off()
@@ -115,8 +114,6 @@ Pyelonephritis.integrated_harmony_highresolution <- FindClusters(Pyelonephritis.
 pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate_highresolution.pdf", height = 4, width = 30)
 DimPlot(Pyelonephritis.integrated_harmony_highresolution, reduction = "umap", split.by ="orig.ident",label = TRUE )
 dev.off()
-
-?DimPlot
 
 
 pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_highresolution.pdf", height = 8, width = 40)
@@ -133,7 +130,6 @@ dev.off()
 pdf("SpatialIntegrated_Pyeloneprhitis_infected_area_Seperated_highresolution.pdf", height = 4, width = 30)
 DimPlot(Pyelonephritis.integrated_highersolution.Infection, reduction = "umap", split.by ="orig.ident",label = TRUE)
 dev.off()
-
 
 ### only select the infection region
 
@@ -167,6 +163,24 @@ Subcluster2<-FindSubCluster(Subcluster5,cluster=c("2"),graph.name = "integrated_
 Subcluster2@meta.data$Sub2
 
 Idents(Subcluster2) <- Subcluster2@meta.data$Sub2
+
+selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
+
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+# check the biomarker of Renal pelvis, renal pelvis and medulla, renal medulla and cortex, renal cortex
+
+RenalBiomarkers <- c("Upk3a","Psca","Slc4a11","Nfat5","Slc3a1","Prlr","Ren1", "Nphs1", "Havcr1","Il1b","Lcn2")
+
+for (i in RenalBiomarkers){
+  BiomarkerSpatialFeature<- SpatialFeaturePlot(Subcluster2, features = i, pt.size.factor = 1.6, crop = TRUE,  images = selectedslices) &
+    ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-2,8))
+  ggsave(filename = paste0(i,"_SpatialFeature.pdf"), plot = BiomarkerSpatialFeature, height = 4, width = 16)
+  
+}
+# change the levels of Subcluster:
+
+
+DotPlot(Subcluster2,features = RenalBiomarkers) +RotatedAxis()
 
 ### Here we subset the clusters for 2,5, 10
 pdf("SpatialIntegrated_Pyeloneprhitis_SpatialPlot_infectedsubcluster_seperatedSub2-5-10.pdf", height =8, width = 40)

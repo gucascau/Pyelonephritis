@@ -147,9 +147,8 @@ scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnno
 
 scrna @meta.data
 
-MACcells <- subset(scrna, subset = Raw_cell_type == "MAC"  )
-MYOcells <- subset(scrna, subset = Raw_cell_type == "MAC" |Raw_cell_type == "NEU"|Raw_cell_type == "B" )
-MYOcells@meta.data
+MACcells <- subset(scrna, subset = Raw_cell_type == "MAC" |Raw_cell_type == "B" )
+
 MACcells@meta.data
 # We then recluster the PT cells
 # recluster the cells
@@ -171,46 +170,9 @@ ggsave(filename = "MACcellsDim.pdf", plot = MACcellsDim, width = 8, height = 6)
 
 MACcellsDimSplit<-DimPlot(MACcells, split.by = "DataSet",label = T)
 
-ggsave(filename = "MACcellsDimSplit.pdf", plot = MACcellsDimSplit, width = 10, height = 3)
+ggsave(filename = "MACcellsDimSplit.pdf", plot = MACcellsDimSplit, width = 24, height = 6)
 
-Idents(MACcells)
 ```
-
-
-```{r}
-# number of cells
-
-table(scrna@meta.data$DataSet)
-
-MACPropotionWithinTime <- table(MACcells@meta.data$DataSet,Idents(MACcells)) %>% as.data.frame() %>%
-  group_by(Var1) %>%
-  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
-ggsave("MACPropotionWithinTime.pdf", plot = MACPropotionWithinTime, width = 4, height = 3)
-```
-
-# add markers for the B cells and macrophages
-```{r}
-FinalMarkers <- c("Cd79a","Cd79b","C1qa","C1qb","Cd81","Lyz2","Ctsh","Selenop","Mgl2","Itgam","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Lrp2","Umod","Aqp2","Igfbp7","Havcr1", "Lcn2")
-
-# reference: https://www.sciencedirect.com/science/article/pii/S0085253822007153
-MacrophageFinalMarkersDoplot<- DotPlot(MACcells, features = FinalMarkers, col.min = -4, col.max = 1) +RotatedAxis() 
-MacrophageFinalMarkersDoplot
-ggsave(filename = "MacrophageFinalMarkersDoplot.pdf", plot = MacrophageFinalMarkersDoplot, width = 8, height = 4)
-
-
-IFNstimulatedMarkers <- c("Ccl4", "Ccl3", "Cxcl2", "Il1b",  "Cd72", "Cxcl9", "Ccl12", "Isg15", "Gbp2")
- DotPlot(MACcells, features = IFNstimulatedMarkers, col.min = -4, col.max = 1) +RotatedAxis()
-
- M2Markers <- c("Mrc1", "Maf", "Apoe",  "Stab1")
- 
- DotPlot(MACcells, features = M2Markers, col.min = -4, col.max = 1) +RotatedAxis()
- # 
- # Trem2, Cd9, Spp1, and Lgals3
- # Hist1h2ap, Hist1h1b, Birc5, Ube2c, and Cenpf.
- # 
- 
-```
-
 
 # check the markers
 ```{r}
@@ -340,6 +302,11 @@ ggsave("ProfibroticDotPlot.pdf", plot = ProfibroticDotPlot, height = 4, width = 
 
 ```
 
+# add the frequency of marcrophages
+```{r}
+
+```
+
 
 ```{r}
 # the healthy cells
@@ -397,72 +364,6 @@ CandidateMarkersDotPlot<-  DotPlot(MACcells, features =  CandidateMarkers, col.m
 
 ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
 ```
-
-
-# generate the health cluster of Myeloblast cells
-Ref: https://www.nature.com/articles/s41467-023-40156-6
-```{r}
-MYEDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/MYE_Subclusters/")
-setwd(MYEDir)
-# Read the preclustered object
-
-# We only collect the PT cells
-#CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
-
-scrna @meta.data
-
-#MACcells <- subset(scrna, subset = Raw_cell_type == "MAC"  )
-MYOcells <- subset(scrna, subset = Raw_cell_type == "MAC" |Raw_cell_type == "NEU" |Raw_cell_type == "B" )
-MYOcells@meta.data
-
-# We then recluster the PT cells
-# recluster the cells
-MYOcells <- SCTransform(MYOcells, verbose = TRUE)
-MYOcells <- RunPCA(MYOcells,npcs = 8, verbose = TRUE)
-
-# Run harmony for the PT cells
-MYOcells <- RunHarmony(MYOcells, 
-				group.by.vars = c("DataSet"), 
-				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
-MYOcells <- RunUMAP(MYOcells, dims = 1:8, verbose = TRUE, reduction = "harmony")
-MYOcells <- FindNeighbors(MYOcells, dims = 1:8,  verbose = TRUE, reduction = "harmony")
-
-MYOcells<- FindClusters(MYOcells,  verbose = TRUE, resolution = 0.1)
-
-MYOcellsDim<- DimPlot(MYOcells,label = T)
-MYOcellsDim
-ggsave(filename = "MYOcellsDim.pdf", plot = MYOcellsDim, width = 8, height = 6)
-
-MYOcellsDimSplit<-DimPlot(MYOcells, split.by = "DataSet",label = T)
-MYOcellsDimSplit
-ggsave(filename = "MYOcellsDimDimSplit.pdf", plot = MYOcellsDimSplit, width = 10, height = 3)
-
-Idents(MYOcells)
-```
-
-
-```{r}
-
-# change the order the cluster
-
-
-FinalMarkers <- c("S100a8","S100a9","Il1b","Itgam","Ly6g","Ly6c1", "Cd79a","Cd79b","C1qa","C1qb","Ctsh","Selenop","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Lrp2","Umod","Aqp2","Havcr1","Lcn2","Igfbp7")
-
-#
-FinalMarkers <- c("Itgam","Il1b","S100a8","S100a9","Ly6g", "Cd79a","Cd79b","C1qa","C1qb","Cd81","Ctsh","Selenop","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Lrp2","Umod","Aqp2","Havcr1","Lcn2","Igfbp7")
-# reference: https://www.sciencedirect.com/science/article/pii/S0085253822007153
-MYOcellsFinalMarkersDoplot<- DotPlot(MYOcells, features = FinalMarkers, col.min = -0.5) +RotatedAxis() 
-ggsave("MYOcellsFinalMarkersDoplot.pdf", plot = MYOcellsFinalMarkersDoplot, height = 6, width = 9)
-
-MYOcellsFinalMarkersDoplot
-MYOcellsDimSplit
-DoHeatmap(MYOcells, features = FinalMarkers)
-```
-
-
-
-
-
 
 # #####################################
 ## generate the Trajectories of PT cells
