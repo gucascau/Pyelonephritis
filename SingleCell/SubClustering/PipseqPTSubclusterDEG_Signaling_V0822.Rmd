@@ -186,6 +186,8 @@ PTcellsDimSplit<-DimPlot(PTcells, split.by = "DataSet",label = T)
 
 ggsave(filename = "PTcellsDimSplit.pdf", plot = PTcellsDimSplit, width = 24, height = 6)
 
+saveRDS(PTcells, file = "PIPSeq_Annotated_OnlyPT_v0823.rds")
+ 
 ```
 
 # check the markers
@@ -236,18 +238,22 @@ KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "C
  # cluster 0: Aldob
 ```
 
-# the biomarkers for the 
+# the biomarkers for the candidate markers
 ```{r}
-
 setwd(BioMarkerDir)
 # 
-PTcells
 DefaultAssay(PTcells) <- "SCT"
-CandidateMarkers <- c("Acsm1","Lrp2","Mt1", "Slc13a3","Slc5a12","Itgb8","Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
+CandidateMarkers <- c("Acsm1","Lrp2","Mt1", "Slc13a3","Slc5a12","Itgb8","Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13","Slc4a11","Slc3a1","Prlr","Ren1","Slc12a1","Umod","Klk1")
 
-CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers) +RotatedAxis()
+CandidateMarkers2 <- c("Slc34a1","Lrp2","Slc5a2","Slc22a6","Agt","Acsm1","Mt1", "Slc13a3","Slc5a12","Itgb8","Aldob","Spp1","Spp2","Lcn2", "Slc22a8","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13","Slc4a11","Slc3a1","Prlr","Ren1","Slc12a1","Umod","Klk1","Slc12a3")
+CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = -1) +RotatedAxis()
 CandidateMarkersDotPlot
 ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+
+CandidateMarkersDotPlot2<-  DotPlot(PTcells, features =  CandidateMarkers2, col.min = -1) +RotatedAxis()
+CandidateMarkersDotPlot2
+ggsave("PT_CandidateMarkersDotPlot_2.pdf", plot = CandidateMarkersDotPlot2, height = 6, width = 12)
+
 
 for (i in CandidateMarkers ){
   p2 <-FeaturePlot(PTcells, features = i) & 
@@ -261,6 +267,35 @@ for (i in CandidateMarkers ){
   
   ggsave(paste0(i, "_PT_Marker_featurePlot_split.pdf"), plot = p3, width = 12, height = 3)
 }
+```
+
+# biomarker from other cell types
+```{r}
+# Cfh: Parietal epithelial cells
+Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
+                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+
+                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+                      "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
+                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+                     #"Enox1","Thsd4", #Macula densa
+                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+                    "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
+                    "Krt5","Upk1b","Krt14", # Urothelium
+                    "Cdh5","Igfbp3","Pecam1", # Endothelium
+                    "Col3a1","Fbn1","Lum","Col1a1", # Fibroblast
+                    "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
+                    "S100a8","S100a9","Il1b", # Neutrophil
+                    "C1qa","C1qb","Aif1", # Macrophage
+                    "Cxcr6","Cd247","Cd3e", # T cells
+                    "Igkc","Cd79a","Cd79b", # B cells
+                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+)
+
+OtherMarkerGenesDotPlots<- DotPlot(PTcells, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
+ggsave(filename = "OtherMarkerGenesExpression_ClusterAnnotate.pdf", plot = OtherMarkerGenesDotPlots, width = 15, height = 8)
+
 ```
 
 # add the proportion within timepoints
@@ -287,9 +322,9 @@ PTcells@meta.data<- PTcells@meta.data %>%   mutate(PTIntegrateAnnot =
                      SCT_snn_res.0.2 %in% c("3") ~ "heaPT-S4", # health PT
                      SCT_snn_res.0.2 %in% c("4") ~ "heaPT-S5", # health PT
                      SCT_snn_res.0.2 %in% c("7") ~ "DegPT", # Degenerative PT
-                     SCT_snn_res.0.2 %in% c("5") ~ "heaPT-S6", # Maladaptive PT
-                     SCT_snn_res.0.2 %in% c("6") ~ "TraPT", # Maladaptive PT
-                      SCT_snn_res.0.2 %in% c("8") ~ "AcuPT", # Acute injured PT
+                     SCT_snn_res.0.2 %in% c("5") ~ "MalaPT", # Maladaptive PT
+                     SCT_snn_res.0.2 %in% c("6") ~ "InfiPT", # Infiltration PT
+                      SCT_snn_res.0.2 %in% c("8") ~ "HybridPT", # Hybrid PT
                      )) 
 levels(factor(PTcells@meta.data$PTIntegrateAnnot))
 
@@ -343,9 +378,12 @@ row.names(scrna@meta.data) <- scrna@meta.data$rn
  DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
  
  saveRDS(scrna, file = "PIPSeq_Annotated_v0823.rds")
+ 
+ scrna <- readRDS("PIPSeq_Annotated_v0823.rds")
+ 
+
  Idents(scrna) 
 ```
-
 
 # #####################################
 ## generate the Progeny signaling pathways
@@ -397,7 +435,7 @@ summarized_progeny_scores_df <- summarized_progeny_scores %>%
   spread(Pathway, avg) %>%
   data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
 
-paletteLength = 100
+paletteLength = 80
 myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
 
 progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
@@ -408,14 +446,15 @@ progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0,
 ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
 
 # generate the heatmap for PT
-pdf(file="ProximalTubuleCell_Progeny_ForHeatmap.pdf",height = 5, width = 8)
+pdf(file="ProximalTubuleCell_Progeny_ForHeatmap.pdf",height = 5, width = 5)
 progeny_hmap = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
                         fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
                         cex=1, clustering_distance_rows="euclidean", cex=1,
                         # clustering_distance_cols="euclidean", clustering_method="complete", 
                         color=myColor, breaks = progenyBreaks, 
                         main = "PROGENy (500)", angle_col = 45,
-                        border_color = NA)
+                        border_color = NA,
+                        treeheight_col = 0,   treeheight_row=0)
 
 print(progeny_hmap)
 dev.off()
@@ -434,6 +473,128 @@ for (i in ProgenyFeatures ){
 
 
 ```
+
+# Transcription factor activity inference from Immune scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(PTcells@assays$RNA@data)
+# Run ulm
+#acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+#                .mor='mor', minsize = 5)
+
+
+#saveRDS(acts, file="PT_Transcriptfactor.RDS")
+
+acts <- readRDS("PT_Transcriptfactor.RDS")
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+PTcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = PTcells) <- "tfsulm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$tfsulm@data <- PTcells@assays$tfsulm@scale.data
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 20
+
+t(as.matrix(PTcells@assays$tfsulm@data))
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$tfsulm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+# drop "Znf335" due to not exist in the expression
+#tfs <- tfs[!tfs == "Znf335"]
+
+#tfs[!tfs == "Znf335"]
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+PTTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F, 
+                        color=my_color,fontsize=12, fontsize_row = 10, 
+                        breaks = my_breaks, 
+                        #main = "Predicted TF activities", 
+                        #angle_col = 90,
+                        treeheight_col = 0, treeheight_row=0)
+
+
+ggsave("PTcellsHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PTTFheatmap, width = 4, height = 5)
+
+# draw the transcriptor factor activity and their expression
+# generate the figure of transcript factor activity:
+for (m in tfs){
+  p2 <- (FeaturePlot(PTcells, features = m) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(m, ' activity'))
+  
+  ggsave(paste0("TFActivity_",m,"_PTcells_FeaturePlot.pdf"), plot = p2, width = 4, height = 3)
+}
+
+DefaultAssay(object = PTcells) <- "RNA"
+
+for (n in tfs){
+  p3 <- (FeaturePlot(PTcells, features = n,slot= "scale.data") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression'))
+  
+  p4 <- (FeaturePlot(PTcells, features = n, split.by = "DataSet",slot= "scale.data") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression (time)'))
+ 
+  ggsave(paste0("TFExpression_",n,"_PTcells_FeaturePlot.pdf"), plot = p3, width = 4, height = 3)
+  ggsave(paste0("TFExpression_",n,"_PTcells_FeaturePlot_Split.pdf"), plot = p3, width = 4, height = 3)
+
+}
+# add their activity in Dotplot
+Idents(PTcells)
+# get the order of row name
+GeneOrderByPheatmap <- rownames(t(top_acts_mat))[PTTFheatmap$tree_row$order]
+#IMMTFheatmap$tree_row$order
+GeneOrderByPheatmap
+?DotPlot
+TFDotPlot <- DotPlot(PTcells, features = rev(GeneOrderByPheatmap)) +
+  RotatedAxis() + coord_flip()+ 
+  #ggtitle("Predicted TF expression")+
+   theme(legend.position = "right")
+ggsave("PT_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
+
+```
+
+
 
 # Using PROGENy model from DecoupleR
 ```{r}
@@ -601,217 +762,6 @@ my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
 pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
 
 ```
-
-
-# #####################################
-## generate the Trajectories of PT cells
-# #####################################
-# 2.2 Prepared cds the object
-```{r}
-# set up the pyseudotime directory:
-setwd(PyseudotimeDir)
-
-DefaultAssay(PTcells) <- "SCT"
-# build cds object
-PTcells_expr_matrix = GetAssayData(PTcells, slot = "counts")
-
-# Cell meta annotation
-p_data <- PTcells@meta.data 
-head(p_data)
-
-# Gene meta annotation
-f_data<- data.frame(gene_short_name = row.names(PTcells), row.names = row.names(PTcells))
-
-
-pre_cds <- new_cell_data_set(PTcells_expr_matrix,
-                         cell_metadata = p_data,
-                         gene_metadata = f_data)
-
-pData(pre_cds) %>% colnames()
-
-cds <- preprocess_cds(pre_cds) #标准化+PCA降维
-
-```
-
-# 2.2 Umap by Monocle3
-```{r}
-cds <- reduce_dimension(cds, preprocess_method = "PCA")
-head(cds@int_colData$reducedDims$UMAP)
-
-plot_cells(cds, reduction_method="UMAP", 
-           show_trajectory_graph = FALSE,
-           label_cell_groups = FALSE, 
-           color_cells_by="SCT_snn_res.0.2")
-dev.off()
-# UMAP by Seurat
-seurat_umap <- Embeddings(PTcells, reduction = "umap")[colnames(cds),]
-cds@int_colData$reducedDims$UMAP <- seurat_umap
-head(cds@int_colData$reducedDims$UMAP)
-plot_cells(cds, reduction_method="UMAP", 
-           show_trajectory_graph = FALSE,
-           label_cell_groups = FALSE, 
-           color_cells_by="SCT_snn_res.0.2")
-
-```
-
-# Draw the monocle state
-```{r}
-#分群(类似monocle的State)
-
-cds <- cluster_cells(cds)
-
-#预测轨迹
-cds <- learn_graph(cds)
-#交互式确定root节点，可以选择多个。我这里选择了一个
-cds <- order_cells(cds) 
-
-PT_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime", 
-           label_cell_groups = FALSE, 
-           label_leaves = TRUE,  
-           label_branch_points = FALSE)
-PT_pseudotime
-ggsave(filename = "PT_pseudotime_MonocaCluster.pdf", plot = PT_pseudotime, width = 4, height = 3)
-
-
-```
-
-```{r}
-# Determine the psedudotime related genes
-Track_genes <- graph_test(cds, neighbor_graph="principal_graph")
-
-Track_genes %>% head()
-
-```
-
-# plot the expression of interesting genes during the PT pseudotime
-```{r}
-
-# re-order the tracked genes by the q value and morans I
-Track_genes <- Track_genes[,c(5,2,3,4,1,6)] %>% 
-  dplyr::arrange(desc(morans_I),q_value)
-
-# Plot some interesting genes for the PT pseudotime : Top 2 genes, Napsa, Kap, Ttr, Igfbp7, Havcr1 and Prom1
-KapTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[1],] , 
-                         min_expr=0.5)
-ggsave(filename = "PT_pseudotime_KapTrack.pdf", plot = KapTrack, width = 5, height = 3)
-NapsaTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[2],] , 
-                         min_expr=0.5)
-ggsave(filename = "PT_pseudotime_NapsaTrack.pdf", plot = NapsaTrack, width = 5, height = 3)
-
-TtrTrack <- plot_genes_in_pseudotime(cds["Ttr",] , 
-                         min_expr=0.5)
-ggsave(filename = "PT_pseudotime_TtrTrack.pdf", plot = TtrTrack, width = 5, height = 3)
-
-Igfbp7Track <- plot_genes_in_pseudotime(cds["Igfbp7",] , 
-                         min_expr=0.5)
-ggsave(filename = "PT_pseudotime_Igfbp7Track.pdf", plot = Igfbp7Track, width = 5, height = 3)
-
-Track_genes$gene_short_name[1:5]
-
-
-Track_genes$gene_short_name[2]
-Track_genes$gene_short_name[1]
-Havcr1Track <- plot_genes_in_pseudotime(cds["Havcr1",] , 
-                         min_expr=0.5)
-
-ggsave(filename = "PT_pseudotime_Havcr1Track.pdf", plot = Havcr1Track, width = 5, height = 3)
-
-# For the 
-Prom1Track <- plot_genes_in_pseudotime(cds["Prom1",],min_expr=0.5 )
-ggsave(filename = "PT_pseudotime_Prom1Track.pdf", plot = Prom1Track, width = 5, height = 3)
-
-FeaturePlot(PTcells, features = "Havcr1")
-
-```
-
-# choose the top signifcant for visualization
-```{r}
-diff_pseudo_gene <- Track_genes %>% 
-  dplyr::arrange(q_value) %>%
-  # remove the genes with mitochondrion
-  filter(!grepl('^mt-|Hbb-', gene_short_name)) %>%
-  rownames() %>% head(60)
-
-# we ignore the mitochondria genes
-
-
-
-diff_pseudo_gene
-
-# generate the heatmap for those genes
-
-diff_pseudo_gene.matrix <- exprs(cds)[match(diff_pseudo_gene,rownames(rowData(cds))),order(pseudotime(cds))]
-
-diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){smooth.spline(x,df=3)$y}))
-diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){(x-mean(x))/sd(x)}))
-rownames(diff_pseudo_gene.matrix) <- diff_pseudo_gene;
-
-#pheatmap(diff_pseudo_gene.matrix)
-
-# because the plot_pseudotime_heatmap no longer have, we used the complexheatmap to draw the figure
-# Reference: https://github.com/cole-trapnell-lab/monocle-release/issues/295
-pdf("PT_pseudotime_psudotimeGenes.pdf", height = 6, width = 8)
-htkm <- Heatmap(
-  diff_pseudo_gene.matrix,
-  name    = "z-score",
-  col     = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
-  show_row_names  = TRUE,
-  show_column_names = FALSE,
-  row_names_gp  = gpar(fontsize = 6),
-  km = 8,
-  row_title_rot = 0,
-  use_raster=TRUE,
-  cluster_rows  = TRUE,
-  cluster_row_slices = FALSE,
-  cluster_columns   = FALSE)
-
-print (htkm)
-dev.off()
-#ggsave(filename = "PT_pseudotime_psudotimeGenes.pdf", plot = htkm, width = 8, height = 6)
-
-
-#Ward.D2 Hierarchical Clustering
-pdf("PT_pseudotime_psudotimeGenes_Hierarchicalcluster.pdf", height = 7, width = 6)
-hthc <- Heatmap(
-  diff_pseudo_gene.matrix,
-  name                         = "z-score",
-  col                          = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
-  show_row_names               = TRUE,
-  show_column_names            = FALSE,
-  row_names_gp                 = gpar(fontsize = 6),
-  clustering_method_rows = "ward.D2",
-  clustering_method_columns = "ward.D2",
-  row_title_rot                = 0,
-  use_raster= TRUE,
-  cluster_rows                 = TRUE,
-  cluster_row_slices           = FALSE,
-  cluster_columns              = FALSE)
-
-print(hthc)
-dev.off()
-
-cds["Havcr1",] %>% head()
-# Generate the Dotplot for these genes
-plot_genes_in_pseudotime(cds[c("Havcr1"),] , 
-                         min_expr=0.5)
-
-DotPlot(PTcells, features =diff_pseudo_gene ) +RotatedAxis()
-
-DotPlot(PTcells, features =c("Spp1","Havcr1","Itgb1","Top2a",
-                             "Prom1","Pdgfb","Defb1","Fn1","Col6a1"), col.min = -0.5 ) +RotatedAxis()
-
-FeaturePlot(PTcells, features = c("Lcn2","Defb1","Egf","Havcr1"))
-# the following no longer have 
-
-Track_genes
-# p = plot_pseudotime_heatmap(cds[diff_pseudo_gene,], 
-#                         num_clusters = 3,  # default 6
-#                         return_heatmap=T)
-# 
-
-```
-
-
 
 # generate the subclusters of PT, DCT, IC, PC
 ```{r}

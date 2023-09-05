@@ -535,8 +535,6 @@ ggsave(filename = "DimClusterAnnotateSplit.pdf", plot = DimClusterAnnotateSplit,
 saveRDS(scrna, file = "Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS")
 ```
 
-
-
 # add the proportion within timepoints
 ```{r}
 # Firstly, create a new column to combine Dataset and cluster
@@ -588,8 +586,15 @@ for (i in Finalcelltypemarkers){
 
 ```
 
-# generate the health cluster of PT cells
 
+
+
+
+
+
+
+# The following is for PT, please ignore it. We did have the another script focusing on PT cluster
+# generate the health cluster of PT cells
 ```{r}
 # We only collect the PT cells
 CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"

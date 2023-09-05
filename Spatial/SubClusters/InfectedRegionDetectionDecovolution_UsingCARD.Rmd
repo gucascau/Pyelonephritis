@@ -368,13 +368,63 @@ dev.off()
 
 ```{r}
 ### We will perform the deconvolution for the spatial 
+options(timeout = 600000000) ### set this to avoid timeout error
 devtools::install_github("dmcable/spacexr", build_vignettes = FALSE)
-
 library(spacexr)
+
+install.packages('devtools')
+library(devtools)
+options(buildtools.check = function(action) TRUE )
+library(sf)
+devtools::install_github('YingMa0107/CARD', type="source")
 library(CARD)
 # set up reference:
+session_info()
+
+devtools::install_github("dmcable/spacexr", build_vignettes = FALSE)
+library(spacexr)
+```
+
+# Spatial deconvolution using RCTD
+```{r}
+
+# set up reference
+ref <- readRDS("../data/mouse_hippocampus_reference.rds")
+ref <- UpdateSeuratObject(ref)
+Idents(ref) <- "celltype"
+
+# extract information to pass to the RCTD Reference function
+counts <- ref[["RNA"]]$counts
+cluster <- as.factor(ref$celltype)
+names(cluster) <- colnames(ref)
+nUMI <- ref$nCount_RNA
+names(nUMI) <- colnames(ref)
+reference <- Reference(counts, cluster, nUMI)
+
+# set up query with the RCTD function SpatialRNA
+slide.seq <- SeuratData::LoadData("ssHippo")
+counts <- slide.seq[["Spatial"]]$counts
+coords <- GetTissueCoordinates(slide.seq)
+colnames(coords) <- c("x", "y")
+coords[is.na(colnames(coords))] <- NULL
+query <- SpatialRNA(coords, counts, colSums(counts))
+
+#Using the reference and query object, we annotate the dataset and add the cell type labels to the query Seurat object. RCTD parallelizes well, so multiple cores can be specified for faster performance.
+
+RCTD <- create.RCTD(query, reference, max_cores = 8)
+RCTD <- run.RCTD(RCTD, doublet_mode = "doublet")
+slide.seq <- AddMetaData(slide.seq, metadata = RCTD@results$results_df)
+
+p1 <- SpatialDimPlot(slide.seq, group.by = "first_type")
+p2 <- SpatialDimPlot(slide.seq, group.by = "second_type")
 
 
 
+```
+
+# using the spotlight
+```{r}
+BiocManager::install("SPOTlight")
+library(SPOTlight)
 ```
 

@@ -199,11 +199,41 @@ KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "C
 
 # the biomarkers for the 
 ```{r}
-CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
+CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13","Slc4a11","Slc3a1","Ren1","Slc12a1","Umod","Klk1")
 
-CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = 0) +RotatedAxis()
+CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = -2) +RotatedAxis()
 
 ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+
+```
+
+# biomarker from other cell types
+```{r}
+# Cfh: Parietal epithelial cells
+Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
+                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+
+                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+                      "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
+                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+                     #"Enox1","Thsd4", #Macula densa
+                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+                    "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
+                    "Krt5","Upk1b","Krt14", # Urothelium
+                    "Cdh5","Igfbp3","Pecam1", # Endothelium
+                    "Col3a1","Fbn1","Lum","Col1a1", # Fibroblast
+                    "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
+                    "S100a8","S100a9","Il1b", # Neutrophil
+                    "C1qa","C1qb","Aif1", # Macrophage
+                    "Cxcr6","Cd247","Cd3e", # T cells
+                    "Igkc","Cd79a","Cd79b", # B cells
+                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+)
+
+OtherMarkerGenesDotPlots<- DotPlot(PTcells, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
+ggsave(filename = "OtherMarkerGenesExpression_ClusterAnnotate.pdf", plot = OtherMarkerGenesDotPlots, width = 15, height = 8)
+
 ```
 
 # #####################################
@@ -218,7 +248,6 @@ PTcells_expr_matrix = GetAssayData(PTcells, slot = "counts")
 # Cell meta annotation
 p_data <- PTcells@meta.data 
 head(p_data)
-
 # Gene meta annotation
 f_data<- data.frame(gene_short_name = row.names(PTcells), row.names = row.names(PTcells))
 
@@ -226,7 +255,6 @@ f_data<- data.frame(gene_short_name = row.names(PTcells), row.names = row.names(
 pre_cds <- new_cell_data_set(PTcells_expr_matrix,
                          cell_metadata = p_data,
                          gene_metadata = f_data)
-
 pData(pre_cds) %>% colnames()
 
 cds <- preprocess_cds(pre_cds) #标准化+PCA降维
@@ -410,6 +438,7 @@ Track_genes
 # 
 
 ```
+
 
 
 
