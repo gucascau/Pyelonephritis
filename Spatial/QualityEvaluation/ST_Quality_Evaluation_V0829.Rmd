@@ -9,26 +9,720 @@ Description: Quality measurements of spatial trancriptomics for Pyelonephritis
 #    - The number of genes per spot
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# Load the libraries
+```{r}
+
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+
+
+library(SPOTlight)
+#library(scater)
+library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+library(SeuratDisk)
+library(tidyverse)
+library(cowplot)
+
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+library(L1pack)
+library(reshape)
+
+
+### alllow large memory
+library(usethis) 
+#usethis::edit_r_environ()
+
+# if (!("xbioc" %in% rownames(inst))) {
+#   remotes::install_github("renozao/xbioc", dependencies = FALSE)
+# }
+# if (!("SCDC" %in% rownames(inst))) {
+#   remotes::install_github("meichendong/SCDC", dependencies = FALSE)
+# }
+# 
+# suppressPackageStartupMessages(require(SCDC))
+# suppressPackageStartupMessages(require(Biobase))
+
+
 ```
 
-## R Markdown
+# Create environment
+```{r}
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/PreProcess/V09052023_PreliminaryResults/"
+dir.create(outdir, showWarnings = F)
+# set pathway
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/PreProcess/V09052023_PreliminaryResults/")
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# set the seed
+set.seed(11111111)
 
-```{r cars}
-summary(cars)
+```
+#######################################################
+# 1. loading 10X Genomics Visium dataset
+#######################################################
+```{r}
+
+#Read in 10X Image and Spatial Data
+
+P0<-Load10X_Spatial(data.dir="../Datasets_V04282022/ControlSample/", 
+                    filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                    slice="slice1",  filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P0[['orig.ident']] <-"PyeloD0_1"
+
+P31<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_31/", 
+                            filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                            slice="slice2",  filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+
+P31[['orig.ident']] <-"PyeloD1_1"
+
+P32<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_32", 
+                                     filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                                     slice="slice3", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P32[['orig.ident']] <-"PyeloD1_2"
+
+P33<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_33", 
+                               filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                               slice="slice4", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P33[['orig.ident']] <-"PyeloD3_1"
+
+P34<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_34", 
+                               filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                               slice="slice5", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P34[['orig.ident']] <-"PyeloD3_2"
+
+P41<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_41/", 
+                     filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                     slice="slice6", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P41[['orig.ident']] <-"PyeloD5_1"
+
+P42<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_42", 
+                     filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                     slice="slice7", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P42[['orig.ident']] <-"PyeloD5_2"
+
+
+P11<-Load10X_Spatial(data.dir="../Datasets_V04282022/AcutePyeloneph/", 
+                    filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                    slice="slice8",  filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P11[['orig.ident']] <-"PyeloD7_1"
+
+P12<-Load10X_Spatial(data.dir="../Datasets_V04282022/AcutePyelo/", 
+                     filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                     slice="slice9",  filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P12[['orig.ident']] <-"PyeloD28_1"
+
+P28<-Load10X_Spatial(data.dir="../Datasets_V04282022/Chronicpyelo/", 
+                     filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                     slice="slice10",  filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P28[['orig.ident']] <-"PyeloD28_2"
+
+
+P43<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_43", 
+                     filename="filtered_feature_bc_matrix.h5", assay="Spatial", 
+                     slice="slice11", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
+P43[['orig.ident']] <-"PyeloD56_1"
+
+
 ```
 
-## Including Plots
+# spatial normalization using SCTransform
+```{r}
 
-You can also embed plots, for example:
+P0 <- SCTransform(P0, assay = "Spatial", verbose = FALSE)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+P31 <- SCTransform(P31, assay = "Spatial", verbose = FALSE)
+#P31 <- NormalizeData(P31, verbose = FALSE, assay = "Spatial")
+
+P32 <- SCTransform(P32, assay = "Spatial", verbose = FALSE)
+#P32 <- NormalizeData(P32, verbose = FALSE, assay = "Spatial")
+
+P33 <- SCTransform(P33, assay = "Spatial", verbose = FALSE)
+#P33 <- NormalizeData(P33, verbose = FALSE, assay = "Spatial")
+
+P34 <- SCTransform(P34, assay = "Spatial", verbose = FALSE)
+#P34 <- NormalizeData(P34, verbose = FALSE, assay = "Spatial")
+
+P41 <- SCTransform(P41, assay = "Spatial", verbose = FALSE)
+#P41 <- NormalizeData(P41, verbose = FALSE, assay = "Spatial")
+
+P42 <- SCTransform(P42, assay = "Spatial", verbose = FALSE)
+#P42 <- NormalizeData(P42, verbose = FALSE, assay = "Spatial")
+
+P11 <- SCTransform(P11, assay = "Spatial", verbose = FALSE)
+
+P12 <- SCTransform(P12, assay = "Spatial", verbose = FALSE)
+
+P28 <- SCTransform(P28, assay = "Spatial", verbose = FALSE)
+
+P43 <- SCTransform(P43, assay = "Spatial", verbose = FALSE)
+#P43 <- NormalizeData(P43, verbose = FALSE, assay = "Spatial")
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### due to the fact that there are stong batch effects betweeen different ST sections, so it may be a good idea to integrate the data across sections
+
+```{r}
+st.list = list(D0 = P0, D1_1=P31, D1_2=P32, D3_1=P33, D3_2=P34, D5_1=P41,D5_2=P42,D7_1=P11, D28_1=P12, D28_2=P28, D56=P43 )
+# with only the selected list
+st.list = list(D0 = P0,  D1_2=P32, D3_1=P33, D5_2=P42,D7_1=P11, D28_1=P12)
+
+selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
+
+DateOrder <- c("PyeloD0_1","PyeloD1_2","PyeloD3_1","PyeloD5_2","PyeloD7_1","PyeloD28_1")
+st.list
+# run SCT on both datasets
+st.list = lapply(st.list, SCTransform, assay = "Spatial", method = "poisson")
+
+# need to set maxSize for PrepSCTIntegration to work
+options(future.globals.maxSize = 200000000 * 1024^2)  # set allowed size to 2K MiB
+
+# now we perform the actual integration
+st.features = SelectIntegrationFeatures(st.list, nfeatures = 3000, verbose = FALSE)
+st.list <- PrepSCTIntegration(object.list = st.list, anchor.features = st.features,
+                              verbose = FALSE)
+
+int.anchors <- FindIntegrationAnchors(object.list = st.list, normalization.method = "SCT",
+                                      verbose = FALSE, anchor.features = st.features)
+
+Pyelonephritis.integrated <- IntegrateData(anchorset = int.anchors, normalization.method = "SCT",
+                                  verbose = FALSE)
+#
+#saveRDS(Pyelonephritis.integrated, file =sprintf("%s/PreliminaryIntegratedSptatil_Pyelonephritis.RDS",outdir))
+```
+
+# Spatial integration and batch effect removal
+```{r}
+### due to the integration take a long time, we ignore the previous and rea accordingly
+#Pyelonephritis.integrated<-readRDS(file = "../../PreProcess/V03222023_PreliminaryResults/PreliminaryIntegratedSptatil_Pyelonephritis.RDS")
+## save the integrated 
+## change the order:
+
+
+levels(factor(Pyelonephritis.integrated$orig.ident))
+
+Pyelonephritis.integrated$orig.ident<-ordered(factor(Pyelonephritis.integrated$orig.ident), levels=DateOrder)
+levels(factor(Pyelonephritis.integrated$orig.ident))
+
+#### Run harmony to remove the batch effects
+Pyelonephritis.integrated_harmony <- RunPCA(Pyelonephritis.integrated, verbose = FALSE, npcs=15)
+Pyelonephritis.integrated_harmony<- RunHarmony(Pyelonephritis.integrated_harmony, group.by.vars = "orig.ident")
+Pyelonephritis.integrated_harmony <- RunUMAP(Pyelonephritis.integrated_harmony,reduction = "harmony", dims = 1:15)
+Pyelonephritis.integrated_harmony <- FindNeighbors(Pyelonephritis.integrated_harmony,   dims = 1:15)
+Pyelonephritis.integrated_harmony <- FindClusters(Pyelonephritis.integrated_harmony, algorithm = 1,verbose = FALSE, resolution = 0.3)
+
+## find the graph nema
+names(Pyelonephritis.integrated_harmony@graphs)
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate_onlySlide.pdf", height = 4, width = 30)
+DimPlot(Pyelonephritis.integrated_harmony, reduction = "umap", split.by ="orig.ident",label = TRUE )
+dev.off()
+
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_onlySlide.pdf", height = 8, width = 40)
+SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
+dev.off()
+saveRDS(Pyelonephritis.integrated, file =sprintf("%s/PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_v0905.RDS",outdir))
+
+selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
+
+```
+
+## find subcluster for Infected region
+```{r}
+
+Subcluster5<-FindSubCluster(Pyelonephritis.integrated_harmony,cluster=c("5"),graph.name = "integrated_snn", subcluster.name = "Sub5",
+                             resolution = 0.1)
+
+Subcluster10@meta.data
+
+Idents(Subcluster5) <- Subcluster5@meta.data$Sub5
+DimPlot(Subcluster5,label = T, split.by = "orig.ident")
+SpatialDimPlot(Subcluster5)
+Subcluster6<-FindSubCluster(Subcluster5,cluster=c("6"),graph.name = "integrated_snn", subcluster.name = "Sub6",
+                            resolution = 0.1)
+Subcluster6@meta.data
+Idents(Subcluster6) <- Subcluster6@meta.data$Sub6
+DimPlot(Subcluster6,label = T, split.by = "orig.ident")
+SpatialDimPlot(Subcluster6, label = TRUE,label.size=2.5,images = selectedslices)
+
+Subcluster0<-FindSubCluster(Subcluster6,cluster=c("0"),graph.name = "integrated_snn", subcluster.name = "Sub0",
+                             resolution = 0.1)
+ Subcluster0@meta.data$Sub0
+
+ Idents(Subcluster0) <- Subcluster0@meta.data$Sub0
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_Dimplot_Seperate_3.pdf", height = 4, width = 20)
+DimPlot( Subcluster0, reduction = "umap", split.by ="orig.ident",label = TRUE )
+dev.off()
+
+pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_3.pdf", height = 8, width = 25)
+SpatialDimPlot(Subcluster0, label = TRUE,label.size=2.5)
+dev.off()
+
+```
+
+
+#######################################################
+##  2. basical details
+#######################################################
+```{r}
+
+#2.1 dimension of the activae assay here is the number of features (genes) by samples (spots)
+# dim(P31)
+# dim(P32)
+# dim(P33)
+# dim(P34)
+# dim(P41)
+# dim(P42)
+# dim(P43)
+# dim(Pyelonephritis)
+### 2.1 dimension of the active assay # the number of feature (genes) by spots (spots)
+dim(x=Pyelonephritis.integrated)
+str(Pyelonephritis.integrated)
+head(Pyelonephritis.integrated @meta.data)
+nrow(x=Pyelonephritis.integrated) ## the number of features
+ncol(x=Pyelonephritis.integrated) ### the number of samples
+Pyelonephritis.integrated$orig.ident
+
+
+```
+
+### 2.2 feature levels and sample name
+```{r}
+## check how many spots each spatial
+table(Pyelonephritis.integrated$orig.ident)
+# calculate the feature (gene) and sample names
+head(x=rownames(Pyelonephritis.integrated),n=5)
+tail(x=rownames(Pyelonephritis.integrated),n=5)
+## sample name 
+tail(x=colnames(Pyelonephritis.integrated),n=5)
+
+## 2.3. Sample level metadata
+class(Pyelonephritis.integrated[[]])
+colnames(Pyelonephritis.integrated[[]])
+head(Pyelonephritis.integrated@meta.data)
+
+## nFeature spatial; the number of unique gene in each sample
+
+sum(Pyelonephritis.integrated$nFeature_Spatial == colSums(Pyelonephritis.integrated@assays$SCT@counts >0))
+
+
+```
+
+
+
+## consist of one or more assay objects as individual represetation of single-cell expression data,
+## Each Assay stores multiple slots, including raw (counts), normalized (data) and scaled data (scaled.data) as well as a vector of variable features (var.features) and feature-level metadata (meta.features).
+#Pyelonephritis.integrated@assays$Spatial@meta.features
+
+## check the mitochondrial gene list
+#grep (pattern = "^hb", x=(rownames(P31)), ignore.case=TRUE, value = TRUE)
+
+# 2.3 sample level metadata
+```{r}
+class(P31[[]])
+colnames(P31[[]])
+colnames(Pyelonephritis.integrated[[]])
+tail(rownames(Pyelonephritis.integrated[[]]))
+
+```
+
+
+# 2.4 the number of unique genes in each sample
+```{r}
+#colSums(P31@assays$Spatial@counts)
+sum(P31$nFeature_Spatial == colSums(P31@assays$Spatial@counts>0))
+```
+
+# 2.5 the total numebr of detected molecules in each sample
+```{r}
+sum(P31$nCount_Spatial == colSums(P31@assays$Spatial@counts))
+
+```
+
+
+## 2.4 objects (e.g. Assaty) together with feature level metadata
+ 
+
+```{r}
+# a vector of names of assiacted objects 
+names(x=P31)
+# Spatial details
+Pyelonephritis.integrated[['Spatial']] # equivalent to P31@assays$Spatial
+# slice detais for image key
+Pyelonephritis.integrated[[]] # equivalent to P31@assays$slice1
+
+Pyelonephritis.integrated[['Spatial']]
+
+```
+
+# each seurat object consists of one or more assay objects (basis unit of seurat ) as individual representation of single-cell expression data
+# example of the assay objuect include RNA, ADT in CITE-seq, or Spatial. Each assay store multiple slots, including raw (counts), normalized (data) and scaled data as well as 
+# a vector of varible features (var.features) and feature-level metadata
+```{r}
+
+Pyelonephritis.integrated@assays$Spatial ## 
+Pyelonephritis.integrated[['Spatial']]@counts[5:10,1:3]
+Pyelonephritis.integrated[['Spatial']]@counts[5:10,1:3]
+# Feature level metadata is associated with each individual assay
+
+```
+
+## quality control
+
+#####################################################################################################################
+### 3. Generated a matrix for the control datasets to evaluate the number of spatial counts and number of features
+#####################################################################################################################
+
+```{r}
+
+#Then we run dimensionality reduction and clustering as before.
+DefaultAssay(Pyelonephritis.integrated) <- "SCT"
+
+### 
+Pyelonephritis.integrated[[]]
+
+# quality control
+
+Pyelonephritis.integrated<-PercentageFeatureSet(Pyelonephritis.integrated, "^mt-", col.name = "percent_mito")
+Pyelonephritis.integrated<- PercentageFeatureSet(Pyelonephritis.integrated, "^Hb.*-", col.name = "percent_hb")
+Pyelonephritis.integrated<- PercentageFeatureSet(Pyelonephritis.integrated, "^Rp.*", col.name = "percent_rRNA")
+
+#Pyelonephritis.integrated@meta.data
+# add the group details and change the order of the groups
+
+
+Pyelonephritis.integrated[["group"]] = Pyelonephritis.integrated$orig.ident
+
+levels(factor(Pyelonephritis.integrated[[]]$group))
+
+## measure how many spots 
+# create a list
+TotalSpot<- data.frame(name=row.names(table(Pyelonephritis.integrated$group)), value=as.numeric(table(Pyelonephritis.integrated$group)))
+TotalSpot
+sum(Pyelonephritis.integrated[[]]$nFeature_Spatial)/nrow(Pyelonephritis.integrated[[]])/ (sum(Pyelonephritis.integrated[[]]$nCount_Spatial)/sum(Pyelonephritis.integrated[[]]$nFeature_Spatial))
+
+## change the order the rowname
+
+TotalSpot$name<-ordered(factor(TotalSpot$name), levels=DateOrder)
+
+TotalSpot
+###use the default colors
+library(scales)
+###plot total number of spots
+cols = gg_color_hue(11)
+## plot the spots number distibution
+pdf("SpotsPlots_Pyeloneprhitis_integrated_v0323.pdf", height = 3, width = 6)
+
+#show_col(hue_pal()(16))
+
+# These two are equivalent; by default scale_fill_hue() is used
+# These two are equivalent; by default scale_colour_hue() is used
+pspots <-
+  ggplot(data = TotalSpot, aes(x = name, y = value, fill = name)) + geom_bar(stat = "identity") + theme_classic() + theme(
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_text(size = 14, face = "bold")
+  )+ ggtitle("Spot number")+ scale_fill_hue() + ylim(0, 3000)
+#+scale_color_brewer(palette="Spectral")
+print (pspots)
+
+dev.off()
+
+### plot the number of counts, numbe of features in the spatial 
+
+pdf("FeaturePlots_Pyeloneprhitis_integrated_v0323.pdf", height = 6, width = 12)
+PVlnFeature<- VlnPlot(Pyelonephritis.integrated, features = c("nCount_Spatial", "nFeature_Spatial", "percent_rRNA",
+                                                   "percent_hb"), group.by ="group", pt.size = 0, ncol = 4) + NoLegend()
+
+PVlnFeature
+dev.off()
+
+pdf("FeaturePlots_Pyeloneprhitis_integrated_withSpots_v0323.pdf", height = 4, width = 16)
+PVlnFeature<- VlnPlot(Pyelonephritis.integrated, features = c("nCount_Spatial", "nFeature_Spatial", "percent_rRNA",
+                                                              "percent_hb"), group.by ="group", pt.size = 0, ncol = 5) + NoLegend()
+
+PVlnFeature + pspots
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_integrated_SpatialFeatureCounts_nCount_Spatial_v0323.pdf", height = 4, width = 24)
+PSpatialFeature <-
+  SpatialFeaturePlot(Pyelonephritis.integrated, features = c("nFeature_Spatial")) &
+  ggplot2::scale_fill_gradientn(colours = myPalette(4), limits =
+                                  c(0, 80000),breaks = c(0, 40000, 80000))
+# ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 1.0))
+## the following can scale the legend size
+#++ ggplot2::scale_fill_continuous(limits = c(0.0,1.0),, breaks = c(0.0, 0.5, 1.0))
+PSpatialFeature
+
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_integrated_SpatialFeatureCounts_percent_rRNA_v0323.pdf", height = 4, width = 24)
+PSpatialFeature <-
+  SpatialFeaturePlot(Pyelonephritis.integrated, features = c("percent_rRNA")) &
+  ggplot2::scale_fill_gradientn(colours = myPalette(4), limits =
+                                  c(0, 0.4),breaks = c(0, 0.2, 0.4))
+# ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 1.0))
+## the following can scale the legend size
+#++ ggplot2::scale_fill_continuous(limits = c(0.0,1.0),, breaks = c(0.0, 0.5, 1.0))
+PSpatialFeature
+
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_integrated_SpatialFeatureCounts_percent_hb_v0323.pdf", height = 4, width = 24)
+PSpatialFeature <-
+  SpatialFeaturePlot(Pyelonephritis.integrated, features = c("percent_hb")) &
+  ggplot2::scale_fill_gradientn(colours = myPalette(4), limits =
+                                  c(0, 2),breaks = c(0, 1,2))
+# ggplot2::scale_fill_continuous(limits = c(0.0,1.0), breaks = c(0.0, 1.0))
+## the following can scale the legend size
+#++ ggplot2::scale_fill_continuous(limits = c(0.0,1.0),, breaks = c(0.0, 0.5, 1.0))
+PSpatialFeature
+
+dev.off()
+```
+
+
+
+################################################################
+# Fig S. draw the biomarkers expression of acute kidney injury 
+################################################################
+
+## several biomarkers: 
+
+ 
+pdf("SpatialFeaturePlots_Pyeloneprhitis_KidneyInjuredBiomarker_v0323.pdf", height = 12, width = 40)
+
+SpatialFeaturePlot(Pyelonephritis.integrated, features = c("Lcn2","Cst3","Havcr1"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+
+dev.off()
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_KidneyInjuredBiomarker2_v0323.pdf", height = 12, width = 40)
+
+SpatialFeaturePlot(Pyelonephritis.integrated, features = c("Il18","Fabp1","Clu"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+
+dev.off()
+
+
+pdf("SpatialFeaturePlots_Pyeloneprhitis_KidneyInjuredBiomarkerCellCycleArrest_v0323.pdf", height = 12, width = 40)
+
+SpatialFeaturePlot(Pyelonephritis.integrated, features = c("Timp2","Igfbp7"), pt.size.factor = 1.6, ncol = 11, crop = TRUE)
+
+dev.off()
+
+################################################################
+# Fig S. the cell-type cluster proportion across different time points
+################################################################
+```{r}
+Subcluster0[["Spatial"]]
+Subcluster0@meta.data$Sub0
+### add the cluster proportion within all the datasets
+table(Subcluster0@meta.data$group)
+## 4.3 add the proportion of each cluster and show on the annotated clusters from all the datasets
+length(Subcluster0@meta.data$Sub0)
+df<- data.frame(clu=names(table(Subcluster0@meta.data$Sub0)), totalnumber=sprintf("%1.0f",table(Subcluster0@meta.data$Sub0)), percentage= sprintf("%1.2f", 100*table(Subcluster0@meta.data$Sub0)/length(Subcluster0@meta.data$Sub0)))
+names(table(Subcluster0@meta.data$Sub0))
+table(Subcluster0@meta.data$Sub0)
+df
+
+```
+
+## 5.4 add the proportion of each cluster on each slide
+```{r}
+## we paste the group and cluster number 
+Subcluster0@meta.data %>% head()
+paste0(Subcluster0@meta.data$orig.ident,":",Subcluster0@meta.data$Sub0)
+
+Subcluster0@meta.data$GroupCluster = paste0(Subcluster0@meta.data$orig.ident,":",Subcluster0@meta.data$Sub0)
+table(Subcluster0@meta.data$GroupCluster)
+
+names(table(Subcluster0@meta.data$orig.ident))
+
+sprintf("%1.0f",table(Subcluster0@meta.data$orig.ident))
+
+table(Subcluster0@meta.data$orig.ident)
+
+Subcluster0@meta.data$GroupCluster
+
+# add the total number of each condition
+dfSliceTotalnumber<- data.frame(Condition= names(table(Subcluster0@meta.data$orig.ident)), TotalSpotNumber = sprintf("%1.0f",table(Subcluster0@meta.data$orig.ident)))
+dfSliceTotalnumber
+
+# add the total number of each condition into meta data
+Subcluster0@meta.data$TotalclusterNumber<-dfSliceTotalnumber[match(Subcluster0@meta.data$orig.ident,dfSliceTotalnumber$Condition ),2]
+Subcluster0@meta.data %>% head()
+
+# add the number of each cluster number under different condition 
+dfSliceClusternumber<- data.frame(ConditionCluster= names(table(Subcluster0@meta.data$GroupCluster)), TotalSpotNumberCluster = sprintf("%1.0f",table(Subcluster0@meta.data$GroupCluster)))
+dfSliceClusternumber
+Subcluster0@meta.data$TotalclusterPerCondiiton <- dfSliceClusternumber[match(Subcluster0@meta.data$GroupCluster,dfSliceClusternumber$ConditionCluster),2]
+
+# measure the proportion of each cluster under different condition
+Subcluster0@meta.data$TotalclusterNumber
+
+Subcluster0@meta.data$ClusterProportion<- 100*(as.numeric(Subcluster0@meta.data$TotalclusterPerCondiiton)/as.numeric(Subcluster0@meta.data$TotalclusterNumber))
+
+Subcluster0@meta.data %>% head()
+
+```
+
+## generate a matrix for each group
+
+```{r}
+Subcluster0@meta.data %>% dplyr::select(c("orig.ident","Sub0","TotalclusterNumber",
+                                                 "TotalclusterPerCondiiton","ClusterProportion"))
+
+pdf("Frequency_split_bycondition_V0322.pdf", width = 15, height = 4)
+ggplot(Subcluster0@meta.data, aes(fill=Subcluster0@meta.data$orig.ident, y=as.numeric(Subcluster0@meta.data$ClusterProportion), x=Subcluster0@meta.data$Sub0)) + 
+  geom_bar(position="dodge", stat="identity")+ theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                                                                  axis.text.x = element_text(vjust = 1, hjust=1),
+                                                                  panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + scale_y_continuous(limits=c(0,40))+ xlab("Cluster number") +
+  ylab ("Cluster frequency in each condition") + scale_fill_discrete(name = "Infected date")
+dev.off()
+
+
+pdf("Frequency_split_bycluster_V0322.pdf", width = 15, height = 4)
+ggplot(Subcluster0@meta.data, aes(fill=Subcluster0@meta.data$Sub0, y=as.numeric(Subcluster0@meta.data$ClusterProportion), x=Subcluster0@meta.data$orig.ident)) + 
+  geom_bar(position="dodge", stat="identity")+ theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                                                                  axis.text.x = element_text(vjust = 1, hjust=1),
+                                                                  panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + scale_y_continuous(limits=c(0,40)) 
+dev.off()
+
+```
+
+
+## we only select the cluster 2, 5 and 10
+Pyelonephritis.integrated@meta.data
+Pyelonephritis.integrated.infected<-Pyelonephritis.integrated@meta.data %>% filter(`seurat_clusters` %in% c(2,5,10))
+pdf("Frequency_split_bycondition_infectedarea_V0322.pdf", width = 6, height = 4)
+ggplot(Pyelonephritis.integrated.infected, aes(fill=Pyelonephritis.integrated.infected$group, y=as.numeric(Pyelonephritis.integrated.infected$ClusterProportion), x=Pyelonephritis.integrated.infected$seurat_clusters)) + 
+  geom_bar(position="dodge", stat="identity")+ theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                                                                  axis.text.x = element_text(vjust = 1, hjust=1),
+                                                                  panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + scale_y_continuous(limits=c(0,40)) +
+  xlab("Cluster number") +
+    ylab ("Cluster frequency in each condition") + scale_fill_discrete(name = "Infected date")
+dev.off()
+
+
+
+strsplit(Pyelonephritis.integrated@meta.data$GroupCluster,":") 
+Pyelonephritis.integrated@meta.data %>% filter (`group` == str_split(Pyelonephritis.integrated@meta.data$GroupCluster,":", simplify =TRUE) [,1])
+(length(Pyelonephritis.integrated@meta.data %>% filter (`group` == str_split(Pyelonephritis.integrated@meta.data$GroupCluster,":", simplify =TRUE) [,1])))
+### attention:
+dfSlice <- data.frame(Date = names(table(Pyelonephritis.integrated@meta.data$GroupCluster)), totalSpotnumber=sprintf("%1.0f",table(Pyelonephritis.integrated@meta.data$GroupCluster)), 
+                      Cluster= sprintf("%1.2f", 100*table(Pyelonephritis.integrated@meta.data$GroupCluster)/(Pyelonephritis.integrated@meta.data %>% filter (`group` == unlist(str_split(Pyelonephritis.integrated@meta.data$GroupCluster,":", simplify =FALSE))[1]))))
+
+Pyelonephritis.integrated@meta.data$TotalSpotsCondition<- 
+
+names(table(Pyelonephritis.integrated@meta.data$group))
+sprintf("%1.0f",table(Pyelonephritis.integrated@meta.data$group))
+
+Pyelonephritis.integrated@meta.data$TotalclusterPercent <- df[match(Pyelonephritis.integrated@meta.data$seurat_clusters,df$clu),3]
+Pyelonephritis.integrated@meta.data$TotalclusterNumber <-df[match(Pyelonephritis.integrated@meta.data$seurat_clusters,df$clu),2]
+
+### add the cluster proportion within differnt time points
+Pyelonephritis.integrated@meta.data$group
+## add the proportion of each cluster at different time points
+Pyelonephritis.integrated@meta.data$TimepointCluster<-paste0(Pyelonephritis.integrated@meta.data$group,":",Pyelonephritis.integrated@meta.data$seurat_clusters)
+#length(Pyelonephritis.integrated@meta.data %>% filter (`group` == strsplit(Pyelonephritis.integrated@meta.data$TimepointCluster,":") [[1]][1]) %>% pull(group))
+
+## make a data frame to store the different proportion
+table(Pyelonephritis.integrated@meta.data$TimepointCluster)
+TimeDf <- data.frame(Timecluster=names(table(Pyelonephritis.integrated@meta.data$TimepointCluster)), percentage= sprintf("%1.2f", 100*table(Pyelonephritis.integrated@meta.data$TimepointCluster)/length(Pyelonephritis.integrated@meta.data %>% filter (`group` == strsplit(Pyelonephritis.integrated@meta.data$TimepointCluster,":") [[1]][1]) %>% pull(group))))
+TimeDf
+
+## we then added the TimeClusterPercentage
+Pyelonephritis.integrated@meta.data$TimeClusterPercentage <- TimeDf[match(Pyelonephritis.integrated@meta.data$TimepointCluster, TimeDf$Timecluster),2]
+Pyelonephritis.integrated@meta.data
+
+Idents(Pyelonephritis.integrated)
+
+pdf("Frequency_split_cluster_V0322.pdf", width = 15, height = 4)
+ggplot(Pyelonephritis.integrated@meta.data, aes(fill=Pyelonephritis.integrated@meta.data$group, y=as.numeric(Pyelonephritis.integrated@meta.data$TimeClusterPercentage), x=Idents(Pyelonephritis.integrated))) + 
+  geom_bar(position="dodge", stat="identity")+ theme_bw() + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+                                                                  axis.text.x = element_text(vjust = 1, hjust=1),
+                                                                  panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) + scale_y_continuous(limits=c(0,40)) 
+dev.off()
+
+pdf("FeaturePlots_Pyeloneprhitis_UmapDimPlot_Withlabels_V0322.pdf", width = 5, height = 4)
+DimPlot(Pyelonephritis.integrated, label = TRUE,reduction = "umap",  pt.size=0.1)
+
+dev.off()
+
+#df[match(Pyelonephritis.integrated@meta.data$seurat_clusters,df$clu),3]
+## set up the default to SCT
+
+## enable joint dimensional reduction and clustering on the undelyiing RNA seq expression data
+# DefaultAssay(Pyelonephritis.integrated) <- "SCT"
+# 
+# st.list = list(D0 = P0, D1_1=P31, D1_2=P32, D3_1=P33, D3_2=P34, D5_1=P41,D5_2=P42,D7_1=P11, D7_2=P12, D28=P28, D56=P43 )
+# VariableFeatures(Pyelonephritis.integrated) <-c(VariableFeatures(P0), VariableFeatures(P31),VariableFeatures(P32),VariableFeatures(P33),VariableFeatures(P34),VariableFeatures(P41),VariableFeatures(P42), VariableFeatures(P43),VariableFeatures(P11),VariableFeatures(P12),VariableFeatures(P28))
+# #VariableFeatures(Pyelonephritis.integrated) 
+# 
+
+#####################################################################################################################
+### 4. Normalization the variance of molecular counts expresses, dimension reduction
+#####################################################################################################################
+### without the reference
+## normalized bu SCTranform and check the structure
+## SCTransform returns the Seurat object with a new assay called SCT, where its counts slot stores the corrected UMI counts, the data slot stores the log-normalized version of the corrected UMI counts, and scale.data slot stores the pearson residuals (normalized values) and is used as PCA input.
+
+dim(Pyelonephritis.integrated@assays$SCT@counts)
+dim(Pyelonephritis.integrated@assays$SCT@data) 
+dim(Pyelonephritis.integrated@assays$SCT@scale.data) 
+#
+
+## Computes the correlation of the log normalized data and sctransform residuals with the
+# # number of UMIs
+# Pyelonephritis_norm <- GroupCorrelation(Pyelonephritis_norm, group.assay = "Spatial", assay = "Spatial", slot = "data", do.plot = FALSE)
+# Pyelonephritis_norm <- GroupCorrelation(Pyelonephritis_norm, group.assay = "Spatial", assay = "SCT", slot = "scale.data", do.plot = FALSE)
+# 
+# p1 <- GroupCorrelationPlot(Pyelonephritis_norm, assay = "Spatial", cor = "nCount_Spatial_cor") + ggtitle("Log Normalization") +
+#   theme(plot.title = element_text(hjust = 0.5))
+# p2 <- GroupCorrelationPlot(Pyelonephritis_norm, assay = "SCT", cor = "nCount_Spatial_cor") + ggtitle("SCTransform Normalization") +
+#   theme(plot.title = element_text(hjust = 0.5))
+# p1 + p2
+
+# ## Run PCA 
+# 
+# DefaultAssay(Pyelonephritis) <-"SCT"
+# VariableFeatures(Pyelonephritis) <-c (VariableFeatures(P31),VariableFeatures(P32),VariableFeatures(P33),VariableFeatures(P34),VariableFeatures(P41),VariableFeatures(P42), VariableFeatures(P43))
+# Pyelonephritis <- RunPCA(Pyelonephritis, assay = "SCT", verbose = FALSE)
+# # compute K nearest neighbors (KNN)
+# Pyelonephritis <- FindNeighbors(Pyelonephritis, reduction = "pca", dims = 1:20)
+# # Leiden algorithm for community detection
+# Pyelonephritis <- FindClusters(Pyelonephritis, verbose = FALSE)
+# # PCA result is the default UMAP input, use dimensions 1:30 as input features
+# Pyelonephritis <- RunUMAP(Pyelonephritis, reduction = "pca", dims = 1:20)
+# 
+# pdf(file = "Pyeonephritis_umap_clustered_Dimplot.pdf",  height = 12, width = 40)
+# plot3 <- DimPlot(Pyelonephritis_norm, reduction = "umap", label = TRUE, split.by = "group") + NoLegend()
+# plot3
+# dev.off()
+# pdf(file = "Pyeonephritis_Spactial_clustered_SpatialDimplot.pdf",  height = 12, width = 40)
+# plot4 <- SpatialDimPlot(Pyelonephritis_norm, label = TRUE, label.size = 3) + NoLegend()
+# plot4
+# dev.off()
+
+Idents(Pyelonephritis.integrated)
+
+
