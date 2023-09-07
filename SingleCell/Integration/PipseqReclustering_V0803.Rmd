@@ -538,6 +538,8 @@ saveRDS(scrna, file = "Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RD
 # add the proportion within timepoints
 ```{r}
 # Firstly, create a new column to combine Dataset and cluster
+
+#scrna <-readRDS("Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS")
 scrna@meta.data %>% head()
 table(scrna@meta.data$DataSet,scrna@meta.data$Raw_cell_type) %>% as.data.frame()
 
@@ -545,7 +547,7 @@ AllPropotionWithinTime <-table(scrna@meta.data$DataSet,scrna@meta.data$Raw_cell_
   group_by(Var1) %>%
   mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
 
-ggsave("PTPropotionWithinTime.pdf", plot = AllPropotionWithinTime, width = 4, height = 3)
+ggsave("CellTypePropotionWithinTime.pdf", plot = AllPropotionWithinTime, width = 4, height = 6)
 ```
 
 
