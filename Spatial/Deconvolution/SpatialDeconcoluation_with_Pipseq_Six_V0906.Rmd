@@ -810,10 +810,12 @@ colnames(InfectedMat_D0) <- ordered (colnames(InfectedMat_D0), levels =CelltypeO
 InfectedMat_D0<- InfectedMat_D0[ ,CelltypeOrder]
 # for final celltype matrix: 
 InfectedMat_D0CellType<- InfectedMat_D0[,!colnames(InfectedMat_D0) %in% c("max")]
-InfectedMat_D0CellType
+InfectedMat_D0CellTypeNozero <- InfectedMat_D0CellType[,colSums(InfectedMat_D0CellType)>0]
+
+
 # correlation
-InfectedMat_D0CellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_D0CellType)
-InfectedMat_D0CellTypeInteractions<- plotInteractions(InfectedMat_D0CellType, "heatmap")
+InfectedMat_D0CellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_D0CellTypeNozero)
+InfectedMat_D0CellTypeInteractions<- plotInteractions(InfectedMat_D0CellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 
 ggsave("SpatialScatterPieDay0_CorrelationMatrix.pdf", plot =InfectedMat_D0CellTypeCorrelationMatrix, height = 6, width = 6 )
 
