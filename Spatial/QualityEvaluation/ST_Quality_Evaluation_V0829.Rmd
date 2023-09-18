@@ -144,7 +144,6 @@ P43<-Load10X_Spatial(data.dir="../WithSlideID_V0111/Pyelonephritis_43",
                      slice="slice11", filter.matrix=TRUE, to.upper=FALSE, image=NULL)
 P43[['orig.ident']] <-"PyeloD56_1"
 
-
 ```
 
 # spatial normalization using SCTransform
@@ -184,7 +183,7 @@ P43 <- SCTransform(P43, assay = "Spatial", verbose = FALSE)
 ### due to the fact that there are stong batch effects betweeen different ST sections, so it may be a good idea to integrate the data across sections
 
 ```{r}
-st.list = list(D0 = P0, D1_1=P31, D1_2=P32, D3_1=P33, D3_2=P34, D5_1=P41,D5_2=P42,D7_1=P11, D28_1=P12, D28_2=P28, D56=P43 )
+#st.list = list(D0 = P0, D1_1=P31, D1_2=P32, D3_1=P33, D3_2=P34, D5_1=P41,D5_2=P42,D7_1=P11, D28_1=P12, D28_2=P28, D56=P43 )
 # with only the selected list
 st.list = list(D0 = P0,  D1_2=P32, D3_1=P33, D5_2=P42,D7_1=P11, D28_1=P12)
 
@@ -242,7 +241,7 @@ dev.off()
 pdf("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withlabels_onlySlide.pdf", height = 8, width = 40)
 SpatialDimPlot(Pyelonephritis.integrated_harmony, label = TRUE,label.size=2.5)
 dev.off()
-saveRDS(Pyelonephritis.integrated, file =sprintf("%s/PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_v0905.RDS",outdir))
+#saveRDS(Pyelonephritis.integrated, file =sprintf("%s/PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_v0905.RDS",outdir))
 
 selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
 
@@ -753,7 +752,7 @@ dev.off()
 # we save the Subcluster0 as the final Spatial transcript object
 ```{r}
 # we save the subcluster0 as the final Spatial object
-saveRDS(Subcluster0, file =sprintf("%s/PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS",outdir))
+#saveRDS(Subcluster0, file =sprintf("%s/PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS",outdir))
 
 ```
 

@@ -189,8 +189,9 @@ CFilePath<- paste0(Outdir,"Candidatemarkers")
 dir.create(file.path(CFilePath))
 setwd(file.path(CFilePath))
 
-
+# 
 FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
+
 MYEGenesDotPlots<- DotPlot(IMMcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
 MYEGenesDotPlots
 ggsave(filename = "MYEGenesDotPlots.pdf", plot = MYEGenesDotPlots, width = 10, height = 5)
@@ -228,7 +229,11 @@ ggsave(filename = "MYEGenesDotPlots.pdf", plot = MYEGenesDotPlots, width = 10, h
 # MarkerGenesDotPlots
 # ggsave(filename = "MarkerGenesExpression_ClusterAnnotate.pdf", plot = MarkerGenesDotPlots, width = 15, height = 8)
 # 
+# For different type of cells
 
+
+
+# For all the immune cell markers
 for (i in FinalMarkers){
 # 
   FeaturePlots<-FeaturePlot(IMMcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
@@ -238,6 +243,73 @@ for (i in FinalMarkers){
 # heatmap for all the cells
 
 DoHeatmap(IMMcells, features = FinalMarkers)
+
+```
+
+```{r}
+# T cells and others
+# https://www.biocompare.com/Editorial-Articles/597618-A-Guide-to-Naive-T-Cell-Markers/
+# https://www.cellsignal.com/pathways/immune-cell-markers-mouse
+# Put the marker gene into a list
+
+ImmuneDiffType <- list()
+
+ImmuneDiffType[["Cd4"]]<- c("Cd4","Cd27","Ptprc","Il7r","Il2ra") # CD4 Naive cells: Cd4+, CD27+, CD45RA+, CD127+, CD25-, CD45RO-
+
+
+ImmuneDiffType[["Cd8"]] <- c( "Cd8a","Cd28","Sell","Ccr7" ) # CD8 Naive T cells: Cd8+, CD27+, CD28+, CD45RA+, CD62L+, CCR7+, CD45RO-
+ImmuneDiffType[["Th1"]] <-c('Stat1', 'Stat4', 'Tbx21', 'Il12a', 'Ifng','Tnf', 'Il2', 'Lta')
+ImmuneDiffType[["Th2"]] <-c('Il4', 'Il2', 'Il10','Il13', 'Il25', 'Stat5a','Irf4','Stat6', 'Gata3', 'Il5')
+ImmuneDiffType[["Th17"]] <-c('Tgfb1', 'Il6', 'Rorc', 'Stat3', 'Il17a', 'Il17f', 'Il23a', 'Irf4', 'Maf', 'Il21', 'Il22')
+ImmuneDiffType[["Treg"]] <-c('Tgfb1', 'Il10', 'Foxp3', 'Stat5a', 'Il2')
+ImmuneDiffType[["Th9"]] <-c('Stat6', 'Irf4', 'Tgfb1', 'Il4', 'Il9', 'Il10')
+ImmuneDiffType[["Th22"]]<-c("Il22", 'Il23a', 'Il6', 'Ahr')
+ImmuneDiffType[["Innate"]]<-c('Tlr4', 'Tlr5', 'Tlr11', 'Il6', 'Cxcr1', 'Cxcr2', 'Il1a', 'Il1b', 'Ccl5', 'Tnf', 'Ifng', 'Ccl2')
+ImmuneDiffType[["AMP"]]<-c('Rnase4', 'Rnase6', 'Mbd1', 'Mbd2', 'Umod', 'Ltf', 'Camp')
+ImmuneDiffType[["Bcells"]] <-c('Jchain', 'Pax5', 'Ms4a1', 'Cd19', 'Ighd', 'Cd27', 'Cd24a', 'Ptprc',  'Cd38', 'Cd79a', 'Ssr1', 'Fkbp11', 'Sec11c', 'Derl3', 'Prdx4', 'Cd79b', 'Vpreb3', 'Sdc1')
+ImmuneDiffType[["Bcellsp"]]<-c("Cd19", "Jchain", "Pax5", "Ms4a1", "Ighd", "Cd79a", "Cd79b", "Ptprc", "H2-Ab1")
+ImmuneDiffType[["neutrophil"]] <-c('Fut4', 'Fcgr3','Cxcr2', 'Mpo', 'Elane', 'Prtn3', 'Lyz1', 'S100a8', 'S100a9',  'Chil1', 'Anxa3', 'Cxcl1', 'Tgm3', 'Mmp9',  'Bpi',  'Ltf', "Gca", 'Camp', 'Ngp', "Chil3", 'Ly6g')
+ImmuneDiffType[["neutros"]] <-c("Itgam", "Csf1r", "Ly6g")
+ImmuneDiffType[["monocytes_macrophages"]] <-c('Itgam', 'Csf1r', 'Adgre1', 'Cd68', 'H2-Ab1', 'Cx3cr1')
+ImmuneDiffType[["DC"]]<-c("Itgax", 'H2-Ab1', 'Bst2')
+ImmuneDiffType[["NKcells"]]<-c('Nkg7', 'Klrk1', "Ncr1")
+ImmuneDiffType[["Mono_Macro"]]<-c('Cd14', 'Fcgr3', 'Cst3', 'C1qc', 'Il1b','Mrc1', 'Msr1', 'Gca', "Ccr2", "Adgre1", 'Ly6c1')
+ImmuneDiffType[["Mast_cells"]]<-c("Slc18a2", 'Fcer1a', 'Hpgds', 'Enpp3', 'Fcgr2b')
+ImmuneDiffType[["Eosinophils"]]<-c('Ifng', 'Tnf')
+
+length(ImmuneDiffType)
+for (i in 1:length(ImmuneDiffType)) {
+  # cell type name
+  ImmuneCellType <- names(ImmuneDiffType[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(Outdir,
+        "/CandidateMarkers/",
+        ImmuneCellType,"/")
+  dir.create(ImmuneCellTypeDir,showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  # generate each feature
+  #ImmuneDiffType[[ImmuneCellType]]
+  for (j in ImmuneDiffType[[ImmuneCellType]]) {
+    
+    
+    FeaturePlots <-
+      FeaturePlot(IMMcells, features =  j, split.by = "DataSet") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 14
+    )
+  }
+  
+}
 
 ```
 
