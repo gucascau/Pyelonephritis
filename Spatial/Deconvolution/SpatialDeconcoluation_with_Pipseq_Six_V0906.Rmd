@@ -1156,7 +1156,7 @@ D7subclusterCellTypeMatrix <-t(D7subcluster[["predictions"]]@data)
 
 D7subclusterCellTypeMatrixNoMax <- D7subclusterCellTypeMatrix[,!colnames(D7subclusterCellTypeMatrix) %in% c("max")]
 # generate the scatter pie plot
-
+colnames(D7subclusterCellTypeMatrixNoMax)
 #D0subclusterCellTypeMatrixNoMax[D0subclusterCellTypeMatrixNoMax < 0.1] <- 0
 InfectedRegionD7SpatialPie<- plotSpatialScatterpie(
   x= D7subcluster,
