@@ -13,7 +13,7 @@ Copyright (c) 2023 Kidney and Urology Tract Center
 Nationwide Children's Hospital
 date: "2023-05-18"
 Description: 
-#   Detection of differentially expressed genes for different timepoints
+#   Detection of differentially expressed genes for different infection regions
 #    - Detection of DEGs comparing the clusters
 #    - Detection of DEGs under several different conditions
 #    - Functional enrichments for the DEGs
@@ -112,10 +112,10 @@ myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 ## set directory pathway:
 
 rm(list=ls())
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyRegions/")
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectionNiches/")
 Indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
 # Here is the Kidney different regions
-Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyRegions/")
+Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectionNiches/")
 
 # Generate the Different folders to store the results
 DEGDir <- paste0(Outdir,"DEGs/")
@@ -160,7 +160,7 @@ Pyelonephritis_Infection
 
 ```
 
-# choose the subset of slides: from "PyeloD0_1", "PyeloD1_2", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1"
+# choose the subset of niches for the following analysis
 ```{r}
 # Define the default assay as SCT 
 DefaultAssay(Pyelonephritis_Infection) <- "SCT"
@@ -169,100 +169,32 @@ DefaultAssay(Pyelonephritis_Infection) <- "SCT"
 ## we only choose the slides from PyeloD0_1, PyeloD1_2, PyeloD3_1, PyeloD5_1, PyeloD7_1, PyeloD28_1
 #SlidesSelected_Condtion<-c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1")
 
-Pyelonephritis_Infection<-subset(Pyelonephritis_Infection, subset= (orig.ident == "PyeloD0_1" |orig.ident == "PyeloD1_2"|orig.ident == "PyeloD3_1"|orig.ident == "PyeloD5_2"|orig.ident == "PyeloD7_1"|orig.ident == "PyeloD28_1"))
-
-str(Pyelonephritis_Infection)
-
-table(Pyelonephritis_Infection@meta.data$orig.ident)
-
-```
-
-# change the order of slides
-```{r}
-## plot the figure
-Pyelonephritis_Infection$orig.ident<-ordered(factor(Pyelonephritis_Infection$orig.ident), levels=c("PyeloD0_1", "PyeloD1_2", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1"))
-
-Pyelonephritis_Infection@meta.data
 Idents(Pyelonephritis_Infection)
+FinalAbcessClustersObjSubSlidesInfection_subcluster<- subset(Pyelonephritis_Infection, idents = c("N12","N13","N14","N15","N16","N17"))
+# Reorder the identity levels
 
-## For all the regions:
-Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$orig.ident
+Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
 
-Idents(Pyelonephritis_Infection)
-DimPlot(Pyelonephritis_Infection, reduction = "umap", group.by = "Annotation",split.by ="orig.ident",label = TRUE,label.size = 2)
-
-Pyelonephritis_InfectionDimplotWithAll<- DimPlot(Pyelonephritis_Infection, reduction = "umap", group.by = "Annotation",label = TRUE,label.size = 6)+ ggtitle("Spatial UMAP")
-
-ggsave("Pyelonephritis_InfectionDimplotWithAll.pdf", plot=Pyelonephritis_InfectionDimplotWithAll, height = 6, width = 8)
-
-Pyelonephritis_InfectionDimplotWithAllWithoutLabel<- DimPlot(Pyelonephritis_Infection, reduction = "umap", group.by = "Annotation",label = FALSE) + ggtitle("Spatial UMAP")
-Pyelonephritis_InfectionDimplotWithAllWithoutLabel
-ggsave("Pyelonephritis_InfectionDimplotWithAllWithoutLabel.pdf", plot=Pyelonephritis_InfectionDimplotWithAllWithoutLabel, height = 6, width = 6)
-
-Pyelonephritis_InfectionSpatialDimWithAllWithoutLabel<- 
-  SpatialDimPlot(Pyelonephritis_Infection, images =selectedslices,crop = TRUE, label = TRUE,label.size = 3, ncol  = 6)
-Pyelonephritis_InfectionSpatialDimWithAllWithoutLabel
-ggsave("Pyelonephritis_InfectionSpatialDimWithAllWithoutLabel.pdf", plot=Pyelonephritis_InfectionSpatialDimWithAllWithoutLabel, height = 5, width = 30)
-
+#DefaultAssay(FinalAbcessClustersObjSubSlidesNonInfection_Subcluster) <- "SCT"
+pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area.pdf", height =12, width = 6)
+SpatialDimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, images =selectedslices,crop = TRUE, label = TRUE,label.size = 2, ncol = 2)
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_dimplot.pdf", height =4, width = 5)
+DimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,label = T)
+dev.off()
 ```
 
-# redefine the default assay by the SCT using the scale data
-```{r}
-Pyelonephritis_Infection[["LOL"]] <- CreateAssayObject(counts = GetAssayData(Pyelonephritis_Infection,
-                                                                                    assay="SCT", slot="data")) #Copy "SCT data" to "LOL counts" and "LOL data"
-Pyelonephritis_Infection <- SetAssayData(Pyelonephritis_Infection, assay = "LOL", 
-                                                slot = "scale.data", 
-                                                new.data = GetAssayData(Pyelonephritis_Infection, assay="SCT",
-                                                                        slot="scale.data")); gc() #"Copy "SCT scale.data" to "LOL scale.data"
-DefaultAssay(Pyelonephritis_Infection) <- "LOL"
-Pyelonephritis_Infection <- DietSeurat(Pyelonephritis_Infection, assays = "LOL", counts=T, data=T, scale.data=T)
-Pyelonephritis_Infection <- RenameAssays(Pyelonephritis_Infection, LOL = 'SCT')
-## set up default of Pyelonephritis_Infection
-
-DefaultAssay(Pyelonephritis_Infection) <- "SCT"
-
-# set the identity as the cluster name
-Idents(Pyelonephritis_Infection) <-Pyelonephritis_Infection@meta.data$Annotation
-Idents(Pyelonephritis_Infection)
-```
-
-
-# Find the specific expressed genes in the infected regions: "Cortex","Medulla","Pelvis","Vascular","Processing Infection"
-# We use the MAST to compare two regions in cluster, here we only concentrate on the infected regions 
-```{r}
-# identify markers that are different between 5_1 and controls
-# the control combined the 5_1,10_1,2_1,10_0,2_0,5_0,5_2
-
-Pyelonephritis_Infection@meta.data<- Pyelonephritis_Infection@meta.data %>%
-  mutate(InfectionCombinedComparing = 
-           case_when(Annotation %in% c("N1","N2","N3","N4","N5") ~ "Cortex",
-                     Annotation %in% c("N6","N7") ~  "Medulla",
-                     Annotation %in% c("N8","N10","N11") ~  "Pelvis",
-                     Annotation %in% c("N9") ~  "Vascular",
-                     #Annotation %in% c("5_1") ~ "Abscess LOC Cortical-Papillary",
-                     #Annotation %in% c("10_1") ~ "Abscess Margin Cortical-Papillary",
-                     #Annotation %in% c("2_1") ~"Abscess LOC Pelvis",
-                    Annotation %in% c("N12","N13","N14","N15","N16","N17") ~ "Processing Infection" )) 
-
-Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$InfectionCombinedComparing
-# change the order or Idents
-Idents(Pyelonephritis_Infection) <- ordered(factor(Idents(Pyelonephritis_Infection)), levels=c("Cortex","Medulla","Pelvis","Vascular","Processing Infection"))
-
-factor(Idents(Pyelonephritis_Infection))
-#levels(factor(Pyelonephritis_Infection@meta.data$InfectionCombinedComparing))
-# make the identity as the abscess regions for all the spots
-
-```
 
 # Identify the DEG in infection regions (We saved it and read)
 #identify all the DEGs in all the Infected cluster regions:  "Cortex","Medulla","Pelvis","Vascular","Processing Infection"
 ```{r}
+DefaultAssay(FinalAbcessClustersObjSubSlidesInfection_subcluster) <- "SCT"
 # check the specific marker by the MAST
-### InfectedCategories_Clustermarkers <- FindAllMarkers(Pyelonephritis_Infection,
-###               min.pct = 0.25,test.use= "MAST") # only markers that are in 25% of cells
+InfectedCategories_Clustermarkers <- FindAllMarkers(FinalAbcessClustersObjSubSlidesInfection_subcluster,
+            min.pct = 0.25,test.use= "MAST") # only markers that are in 25% of cells
 
 # save all biomarkers as a dataframe
-### write.csv(InfectedCategories_Clustermarkers, "Top_Regionalmarkers_Mast.csv")
+write.csv(InfectedCategories_Clustermarkers, "Top_Regionalmarkers_Mast_InfectedRegions.csv")
 
 ```
 
@@ -272,9 +204,10 @@ factor(Idents(Pyelonephritis_Infection))
 InfectedCategories_Clustermarkers <- read.csv("Top_Regionalmarkers_Mast.csv",header = T)
 InfectedCategories_Clustermarkers
 # reorder the levels of cluster
+InfectedCategories_Clustermarkers$cluster
 
-InfectedCategories_Clustermarkers$cluster<-ordered(InfectedCategories_Clustermarkers$cluster, levels=c("Cortex","Medulla","Pelvis","Vascular","Processing Infection"))
-levels(factor(InfectedCategories_Clustermarkers$cluster))
+# InfectedCategories_Clustermarkers$cluster<-ordered(InfectedCategories_Clustermarkers$cluster, levels=c("Cortex","Medulla","Pelvis","Vascular","Processing Infection"))
+# levels(factor(InfectedCategories_Clustermarkers$cluster))
 
 # summarize the frequency of each categories
 InfectedCategories_Clustermarkers %>% group_by(cluster) %>% summarise(n=n()) %>% mutate(frequency= n/sum(n))
@@ -297,7 +230,7 @@ for (t in top_InfectedrmarkersGenes){
   
   # generate the figures for the top 10 biomarkers for each section
   RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
-          SpatialFeaturePlot(Pyelonephritis_Infection,
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,
                              features = t, 
                              images = selectedslices) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
@@ -306,7 +239,7 @@ for (t in top_InfectedrmarkersGenes){
        plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
     
     RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
-          SpatialFeaturePlot(Pyelonephritis_Infection,
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,
                              features = t, 
                              images = selectedslices) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
@@ -315,7 +248,7 @@ for (t in top_InfectedrmarkersGenes){
        plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
     
      RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
-          SpatialFeaturePlot(Pyelonephritis_Infection,
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,
                              features = t, 
                              images = selectedslices) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
@@ -324,7 +257,7 @@ for (t in top_InfectedrmarkersGenes){
        plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
     
       RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
-          SpatialFeaturePlot(Pyelonephritis_Infection,
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,
                              features = t, 
                              images = selectedslices) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,20))
@@ -338,18 +271,25 @@ for (t in top_InfectedrmarkersGenes){
 
 # generate the dotplot and heatmap
 ```{r}
-Idents(Pyelonephritis_Infection)
-levels(Idents(Pyelonephritis_Infection))
+Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
+levels(Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster))
+
+# only for the top 5
+# generate the top 5 genes for each biomarker
+top5_Infectedrmarkers_genes <- as.data.frame(InfectedCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 5)) %>% pull(gene) %>% unique()
 # generate the heatmap
-top_InfectedrmarkersGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+top_InfectedrmarkersGenesheatmap<- DoHeatmap(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = top5_Infectedrmarkers_genes, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
 ?DoHeatmap
 ggsave("top_InfectedrmarkersGenesheatmap.pdf", plot =top_InfectedrmarkersGenesheatmap, height = 10, width = 9 )
 
 top_InfectedrmarkersGeneDotPlot<- 
-   DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+   DotPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = top5_Infectedrmarkers_genes) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
   #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
 
-ggsave("top_InfectedrmarkersGeneDotPlot.pdf", plot =top_InfectedrmarkersGeneDotPlot, height = 4, width = 12 )
+ggsave("top_InfectedrmarkersGeneDotPlot.pdf", plot =top_InfectedrmarkersGeneDotPlot, height = 8, width = 6 )
 
 ```
 
@@ -358,7 +298,7 @@ ggsave("top_InfectedrmarkersGeneDotPlot.pdf", plot =top_InfectedrmarkersGeneDotP
 # change the folder back
 setwd(file.path(DEGDir))
 InfectedCategories_Clustermarkers %>% head()
-SectionClusters <- levels(Idents(Pyelonephritis_Infection))
+SectionClusters <- levels(Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster))
 SectionClusters
 
 # create a gene list for differnt regions
@@ -369,7 +309,7 @@ SectionClusters
 for (m in SectionClusters){
   # put he DEG into the DEGlist for comparision
   # we only consider the Cortex, Medulla, Pelvis 
-  if( m == "Cortex" | m == "Medulla" | m == "Pelvis" | m== "Processing Infection" | m== "Vascular"){
+  if( m == "N12" | m == "N13" | m == "N14" | m== "N15" | m== "N16"| m== "N17"){
      SectionDEGlistWithInfection[[m]] <- InfectedCategories_Clustermarkers %>% filter(cluster %in% m & avg_log2FC >= 0.25) %>% pull(gene)
   }
  }
@@ -380,16 +320,16 @@ SectionDEGlistGOPlotWithInfection <- compareCluster(geneClusters = SectionDEGlis
 # simplify the GO enrichment
 SectionDEGlistGOPlotWithInfectionSimplifed <- clusterProfiler::simplify(SectionDEGlistGOPlotWithInfection)
 
-
-SectionDEGlistGOPlotWithInfectionDotPlot<- dotplot(SectionDEGlistGOPlotWithInfectionSimplifed,font.size = 12,label_format = 80,showCategory = 10) +RotatedAxis()
+SectionDEGlistGOPlotWithInfectionSimplifed
+SectionDEGlistGOPlotWithInfectionDotPlot<- dotplot(SectionDEGlistGOPlotWithInfection,font.size = 12,label_format = 80,showCategory = 10) +RotatedAxis()
 ?dotplot
 #low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
-ggsave(paste0("SectionDEGlistGOPlotDotPlot_withinfection.pdf"), plot = SectionDEGlistGOPlotWithInfectionDotPlot, height = 14, width = 14 )
-write.csv(SectionDEGlistGOPlotWithInfectionSimplifed, "SectionDEGlistWithInfectionGOPlotSimplifed.csv")
+ggsave(paste0("InfectedSectionDEGlistGOPlotDotPlot_withinfection.pdf"), plot = SectionDEGlistGOPlotWithInfectionDotPlot, height = 14, width = 10 )
+write.csv(SectionDEGlistGOPlotWithInfectionSimplifed, "InfectedSectionDEGlistWithInfectionGOPlotSimplifed.csv")
 
 # considering the GO enrichment took a long time, we read the saved files
 
-SectionDEGlistGOPlotWithInfectionSimplifed <- read.csv("SectionDEGlistWithInfectionGOPlotSimplifed.csv", header = T)
+SectionDEGlistGOPlotWithInfectionSimplifed <- read.csv("InfectedSectionDEGlistWithInfectionGOPlotSimplifed.csv", header = T)
 
 ```
 
@@ -607,17 +547,18 @@ ggsave("Pyelonephritis_InfectioncellsHeatmap_Progeny_Decouple.pdf", plot = Pyelo
 ```{r}
 # CollecTRI network
 # set up the directory
+library(decoupleR)
 setwd(TFDir)
 netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
 
-mat <- as.matrix(Pyelonephritis_Infection@assays$SCT@data)
+mat <- as.matrix(FinalAbcessClustersObjSubSlidesInfection_subcluster@assays$SCT@data)
 # Run ulm
-#acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
-#                .mor='mor', minsize = 5)
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
 
-#saveRDS(acts, file="Pyelonephritis_Infection_Transcriptfactor.RDS")
+saveRDS(acts, file="Pyelonephritis_InfectionNiches_Transcriptfactor.RDS")
 # this took a long time,
-acts <- readRDS(file = "Pyelonephritis_Infection_Transcriptfactor.RDS")
+#acts <- readRDS(file = "Pyelonephritis_Infection_Transcriptfactor.RDS")
 
 # Activity inference with Univariate Linear Model (ULM)
 # Extract ulm and store it in tfsulm in pbmc
@@ -628,21 +569,21 @@ Pyelonephritis_Infection[['tfsulm']] <- acts %>%
   Seurat::CreateAssayObject(.)
 
 # Change assay
-DefaultAssay(object = Pyelonephritis_Infection) <- "tfsulm"
+DefaultAssay(object = FinalAbcessClustersObjSubSlidesInfection_subcluster) <- "tfsulm"
 
 # Scale the data
-Pyelonephritis_Infection <- ScaleData(Pyelonephritis_Infection)
-Pyelonephritis_Infection@assays$tfsulm@data <- Pyelonephritis_Infection@assays$tfsulm@scale.data
+FinalAbcessClustersObjSubSlidesInfection_subcluster <- ScaleData(FinalAbcessClustersObjSubSlidesInfection_subcluster)
+FinalAbcessClustersObjSubSlidesInfection_subcluster@assays$tfsulm@data <- FinalAbcessClustersObjSubSlidesInfection_subcluster@assays$tfsulm@scale.data
 
 # Explore the top 20 more varaible TFs
 n_tfs <- 20
 
-t(as.matrix(Pyelonephritis_Infection@assays$tfsulm@data))
-Idents(Pyelonephritis_Infection)
+t(as.matrix(FinalAbcessClustersObjSubSlidesInfection_subcluster@assays$tfsulm@data))
+Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
 # Extract activities from object as a long dataframe
-df <- t(as.matrix(Pyelonephritis_Infection@assays$tfsulm@data)) %>%
+df <- t(as.matrix(FinalAbcessClustersObjSubSlidesInfection_subcluster@assays$tfsulm@data)) %>%
   as.data.frame() %>%
-  mutate(cluster = Idents(Pyelonephritis_Infection)) %>%
+  mutate(cluster = Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)) %>%
   pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
   group_by(cluster, source) %>%
   summarise(mean = mean(score))
@@ -683,25 +624,25 @@ IMMTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F,
                         treeheight_col = 0, treeheight_row=0)
 
 
-ggsave("Pyelonephritis_InfectionHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = IMMTFheatmap, width = 5, height = 5)
+ggsave("Pyelonephritis_InfectedNichesHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = IMMTFheatmap, width = 5, height = 5)
 
 # draw the transcriptor factor activity and their expression
 # generate the figure of transcript factor activity:
 for (m in tfs){
-  p2 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = m))  +
+  p2 <- (SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = m))  +
   ggtitle(paste0(m," activity")) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5)) 
   
   ggsave(paste0("TFActivity_",m,"_Pyelonephritis_Infection_FeaturePlot.pdf"), plot = p2, width = 16, height = 4)
 }
 
-p3 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = "Hbp1"))  +
+p3 <- (SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = "Hbp1"))  +
   ggtitle(paste0("Hbp1"," activity")) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-2,5)) 
 p3  
   ggsave(paste0("TFActivity_","Hbp1","_Pyelonephritis_Infection_FeaturePlot.pdf"), plot = p3, width = 16, height = 4)
 
-  p4 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = "Nfkb1"))  +
+  p4 <- (SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = "Nfkb1"))  +
   ggtitle(paste0("Nfkb1"," activity")) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-2,6)) 
 p4  
@@ -711,7 +652,7 @@ p4
 DefaultAssay(object = Pyelonephritis_Infection) <- "STC"
 
 for (n in tfs){
-  p3 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = n) +
+  p3 <- (SpatialFeaturePlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = n) +
   ggtitle(paste0(m," activity")) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5)))
   
@@ -720,13 +661,13 @@ for (n in tfs){
 }
 
 # add their activity in Dotplot
-Idents(Pyelonephritis_Infection)
+Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
 # get the order of row name
 GeneOrderByPheatmap <- rownames(t(top_acts_mat))[IMMTFheatmap$tree_row$order]
 #IMMTFheatmap$tree_row$order
 
 ?DotPlot
-TFDotPlot <- DotPlot(Pyelonephritis_Infection, features = rev(GeneOrderByPheatmap)) +
+TFDotPlot <- DotPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, features = rev(GeneOrderByPheatmap)) +
   RotatedAxis() + coord_flip()+ 
   #ggtitle("Predicted TF expression")+
    theme(legend.position = "right")
