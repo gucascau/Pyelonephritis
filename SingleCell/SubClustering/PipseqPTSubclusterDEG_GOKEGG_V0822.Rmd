@@ -440,15 +440,6 @@ ggsave(paste0(KEGGoutdir, "InterestingPathwayComparion_Sections_KEGG_comp_format
 
 
 
-
-
-
-
-
-
-
-
-
 ```{r}
 # Overall DEGs compared between various date to Day 0
 Idents(FinalAbcessClustersObjSubSlides) <- FinalAbcessClustersObjSubSlides@meta.data$orig.ident
@@ -829,7 +820,6 @@ TFDotPlot <- DotPlot(PTcells, features = rev(GeneOrderByPheatmap)) +
 ggsave("Immune_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
 
 ```
-
 
 
 # Using PROGENy model from DecoupleR

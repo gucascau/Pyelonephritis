@@ -1,22 +1,34 @@
 ---
-title: "SpatialDeconcoluation_with_Pipseq_SixSamples"
+title: "Spatial_InterestingInfectedRegions_Deconcoluation_with_Pipseq_Six_V1012"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
 Copyright (c) 2023 Kidney and Urology Tract Center
 Nationwide Children's Hospital
-date: "2023-08-23"
+date: "2023-10-12"
 Description: 
-#   Deconvolute the spatial spots using PIPseq single cells 
+#   The script is to profile the interesting infected Abscess regions including D7 Abscess cortex regions
 
 #     Note:
-#    #     We updated the single cells with neutrophil, different status of PT cells.  
-#    #     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
+#    #     We have already got the deconvolution of the spatial transcriptomics
+#    #     We will concentrate on the Abscess neighbourhood
+
+#     Function:
+#           1). Generate overall features of these abscess regions 
+#           2).  Generate the deconvoluted cell types of these abscess regions 
+#           3). Generate the biomarkers and DEGs of these abscess regions
+#           4). Generate the GO enrichments of these abscess regions
+#           5). Generate the Signaling of these abscess regions
+#           6). Generate the transcript factor of these abacess regions
+#           7). Generate the niche-niche communication
+#           8). 
+
 #     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
 ---
 
 # load the library packages
 ```{r}
+rm(list = ls())
 # loading the library packages
 library(Seurat)
 #library(SeuratData)
@@ -54,6 +66,18 @@ library(reshape2)
 library(SPOTlight)
 library(tidyHeatmap)
 library(ComplexHeatmap)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+#install.packages("magick")
+library(magick)
+library(progeny)
+library(pheatmap)
+library(clusterProfiler)
+library(decoupleR)
+
 ```
 
 # Set up the enviroment: 
@@ -64,70 +88,98 @@ library(ComplexHeatmap)
 set.seed(200000)
 
 # single cell directory:
-Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
+#Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
 
-# spatial transcript directory:
-Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/PreProcess/V09052023_PreliminaryResults/"
+# spatial transcript directory that contain the deconvoluted file 
+Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
 
 # Output directory :
-Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/"
 
 # Cell types deconvolution:
 
-Ctdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/CellTypes/"
+CDecodir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/Deconvolution/"
 
-# Cell types heatmap for scaled component
+# BasicSpatialDim
 
-CAbdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/CellTypesAbundance/"
-
-# Cell types heatmap for cell type correlated
-
-CCordir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/CellTypesCorrelation/"
+CAbdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/BasicSpatialDim/"
 
 # Biomarkers
-CBiomadir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/CellTypesBiomarkers/"
+CBiomadir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/CellTypesBiomarkers/"
 
-# InfectionCellTypesScatterPieDir
 
-CPiedir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/CellTypesScatterPieDir/"
+CDEGdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/DEGs/"
 
-# Concentrate on the infection area abscess and margion region
+# GOEnrichment
 
-InfCPiedir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/InfectionCellTypesScatterPieDir/"
-# InfectionCellTypesScatterPieDir
+CGOEndir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/GOenrich/"
+
+# Progeny
+CProgenydir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/Progeny/"
+
+# Transcript factor
+CTFdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/TranscriptFactors/"
+
+# Niche niche Communication
+
+CNichComdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/NicheCommunicate/"
 
 # Concentrate on the infection area abscess from pelvis
 
-InfPelvisdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/InfPelvisRegionDir/"
+InfCortexdir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/"
 
-# Concentrate on the Control area 
+# nichenet path
 
-Contrdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/ControlD0/"
-# Concentrate on the day 7 area
-Day7dir =  "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/Day7/"
-
-# InfectionCellTypesScatterPieDir
+data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
 
 
-dir.create(Ctdir, showWarnings = F)
+dir.create(CDecodir, showWarnings = F)
 dir.create(CAbdir, showWarnings = F)
-dir.create(CCordir, showWarnings = F)
-dir.create(CPiedir, showWarnings = F)
-dir.create(InfCPiedir, showWarnings = F)
-dir.create(Contrdir, showWarnings = F)
 dir.create(CBiomadir, showWarnings = F)
-dir.create(Day7dir, showWarnings = F)
-dir.create(InfPelvisdir, showWarnings = F)
+dir.create(CGOEndir, showWarnings = F)
+dir.create(CProgenydir, showWarnings = F)
+dir.create(CTFdir, showWarnings = F)
+dir.create(CNichComdir, showWarnings = F)
+#dir.create(Day7dir, showWarnings = F)
+dir.create(InfCortexdir, showWarnings = F)
+#dir.create(InfCortexdir, showWarnings = F)
+dir.create(CDEGdir, showWarnings = F)
+
 
 getwd()
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/")
+setwd(InfCortexdir)
 ```
 
-# Read the RDS objects from the spatial and single cells, briefly check the objects
-```{r}
-# Reading the RDS file
-Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS"))
+<!-- # Read the RDS objects from the spatial and single cells, briefly check the objects -->
+<!-- ```{r} -->
+<!-- # Reading the RDS file -->
+<!-- Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS")) -->
 
+<!-- #  -->
+<!-- Pyelonephritis_Infection -->
+
+<!-- SpatialDimPlot(Pyelonephritis_Infection) -->
+<!-- # We have two assays: Spatial and SCT -->
+<!-- Pyelonephritis_Infection[["Spatial"]][1:10,1:10] -->
+
+<!-- Pyelonephritis_Infection[["SCT"]][1:10,1:10] -->
+
+<!-- rownames(Pyelonephritis_Infection[["Spatial"]]) -->
+<!-- colnames(Pyelonephritis_Infection[["Spatial"]]) -->
+<!-- selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9") -->
+<!-- Idents(Pyelonephritis_Infection) -->
+
+<!-- DimPlot(Pyelonephritis_Infection) -->
+<!-- ``` -->
+
+# read the deconvoluted object into Pyelonephritis_Infection_Deconvoluted.RDS
+```{r}
+#saveRDS(file = "Pyelonephritis_Infection_Deconvoluted.RDS", object = Pyelonephritis_Infection)
+
+Pyelonephritis_Infection <- readRDS(file = paste0(Spindir,"Pyelonephritis_Infection_Deconvoluted.RDS"))
+Allimagmes= names(Pyelonephritis_Infection @images)
+
+# Briefly went through all the details
 # 
 Pyelonephritis_Infection
 
@@ -136,447 +188,100 @@ SpatialDimPlot(Pyelonephritis_Infection)
 Pyelonephritis_Infection[["Spatial"]][1:10,1:10]
 
 Pyelonephritis_Infection[["SCT"]][1:10,1:10]
-
+Pyelonephritis_Infection[["predictions"]][1:10,1:10]
 rownames(Pyelonephritis_Infection[["Spatial"]])
 colnames(Pyelonephritis_Infection[["Spatial"]])
 selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
 Idents(Pyelonephritis_Infection)
 
 DimPlot(Pyelonephritis_Infection)
-```
-
-```{r}
-# integration with the scRNA-seq reference.
-
-##############################################################################################
-### First option: Using Seurat itself instead of cluster by themselves, we cluster based on the reference scRNA-seq using Seurat
-##############################################################################################
-# with reference
-allen_reference <- readRDS(file = paste0(Scindir, "PIPSeq_ImmuneSub_Annotated_v0823.RDS"))
-
-allen_reference@meta.data %>% head()
-
-Idents(allen_reference)
-# here we set up 10000 normlizes the full datstet but learns noise models on 10k cells that speeds up SCTransform dramtially wiht no loss in performanace
-library(dplyr)
-allen_reference <- SCTransform(allen_reference, ncells = 10000, verbose = FALSE) %>%
-  RunPCA(verbose = FALSE) %>%
-  RunUMAP(dims = 1:20)
 
 ```
-
-
+# ############################## 
+# only concentrate on the specific abcess regions:
+# ############################## 
 ```{r}
-levels(Idents(allen_reference))
-table(Idents(allen_reference))
+setwd(CAbdir)
 
-#Idents(allen_reference) <- str_split(allen_reference@meta.data$Annot,":",simplify = T)[,2]
-# the annotation is stored in the 'subclass' column of object metadata
-DimPlot(allen_reference,  label = TRUE)
+# we only select the Day 7 
+Pyelonephritis_Infection$orig.ident
+Pyelonephritis_InfectionSubslidesD7 <-
+    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
+Pyelonephritis_InfectionSubslidesD7
+  # there seems to be an error in the susetting, so we removed other igmages
+  #names(Pyelonephritis_InfectionSubslides@images)
+SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)[5]
+SelectedImageName
+OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
+OtherImages
+Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
+Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
+# for a specific regions and specific clusters
+# get the coordate of these cluster
+coords <- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
+coords %>% head()
+Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
+summary(coords)
+Pyelonephritis_InfectionSubslidesD7@images$slice8
 
-# After subsetting, we renormalize spatial transcriptomics
-Pyelonephritis_Infection <- SCTransform(Pyelonephritis_Infection, assay = "Spatial", verbose = FALSE) %>%
-  RunPCA(verbose = FALSE)
+# we then select the regions for the cluster : , invert = TRUE
+D7subcluster <- subset (Pyelonephritis_InfectionSubslidesD7,  (slice8_imagerow >110 & slice8_imagerow <200 )  & (slice8_imagecol < 330 & slice8_imagecol> 220))
+D7subcluster <- subset (D7subcluster, idents = c("N13","N14","N15","N16","N17"))
+InfectedRegionD7Spatial <-SpatialDimPlot(D7subcluster,crop = TRUE, label = FALSE)
+InfectedRegionD7Spatial
 
-anchors <- FindTransferAnchors(reference = allen_reference, query = Pyelonephritis_Infection, normalization.method = "SCT")
 
-predictions.assay <- TransferData(anchorset = anchors, 
-                                  refdata = Idents(allen_reference),
-                                  prediction.assay = TRUE,
-                                  weight.reduction =
-                                    Pyelonephritis_Infection[["pca"]], dims = 1:20)
-Pyelonephritis_Infection[["predictions"]] <- predictions.assay
-DefaultAssay(Pyelonephritis_Infection) <- "predictions"
 
-# set up the levels of the predicted types
-rownames(Pyelonephritis_Infection[["predictions"]]@data)
+InfectedRegionD7Spatial <-SpatialDimPlot(D7subcluster,label = TRUE, pt.size.factor = 4)
+InfectedRegionD7Spatial
+ggsave("Spatial_infectedPelivis_day7_SpatialDimplot.pdf",
+      plot = InfectedRegionD7Spatial,
+      height = 3,
+      width = 4 )
+
+InfectedRegionD7SpatialDim<- DimPlot(D7subcluster,label = TRUE)
+ggsave("Spatial_infectedPelivis_day7_Dimplot.pdf",
+      plot = InfectedRegionD7SpatialDim,
+      height = 3,
+      width = 4 )
+
+# define the cell type order
 # set up the order 
 CelltypeOrder <- c("heaPT-S1","heaPT-S2","heaPT-S3","heaPT-S4", "heaPT-S5", "DegPT", "MalaPT" , "InfiPT", "HybridPT", "CNT" ,"DTL" ,"TAL", "DCT-TAL","IC","PC" ,"URO","END","FIB", "PL","ResIMM","RecMAC","M1-M2" ,"NEU","T","B", "NK","max")
 
- ordered((rownames(Pyelonephritis_Infection[["predictions"]]@data)),levels =CelltypeOrder)
- 
-# the cell type proportion of each spot
- t(Pyelonephritis_Infection[["predictions"]]@data)
- 
-
 ```
-
-# Generate the feature plot for each cell types
+# ############################## 
+# Generate the deconvoluted details
+# ############################## 
 ```{r}
-setwd(Ctdir)
-myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
-# generate the feature plots for each cell types
-Celltypes<- levels(Idents(allen_reference))
-Celltypes
-for (i in Celltypes){
-  
-  CellTypeSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1.6, crop = TRUE,  images = selectedslices) &
-          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
-  
-  ggsave(filename = paste0(i,"_SpatialFeaturePrediction.pdf"), plot = CellTypeSpatialFeature, height = 4, width = 16)
-  
-}
-```
+setwd(CDecodir)
+# the prediction of the object
+D7subcluster[["predictions"]]
+InfectedMat_Pelvis<- t(D7subcluster[["predictions"]]@data)
+colnames(InfectedMat_Pelvis) <- ordered (colnames(InfectedMat_Pelvis), levels =CelltypeOrder)
 
-# generate the heatmap 
-```{r}
-# measure the different frequency of each cluster
-setwd(CAbdir)
-######################################################################
-# ### measure the proportion of each spots of cell types
-### this stored in the matrix of Pyelonephritis.integrated[["predictions"]]@data
-#################################################################
-
-# the matrix for the predicted cell types and spot id
-row.names(Pyelonephritis_Infection[["predictions"]]@data)
-
-colnames(Pyelonephritis_Infection[["predictions"]]@data)
-
-#Pyelonephritis.integrated[["predictions"]]@data[, ]
-################
-# the matrix for the cluster of the spot ID
-Pyelonephritis_Infection@meta.data
-
-# cluster ID Pyelonephritis.integrated$seurat_clusters
-
-## merge the Pyelonephritis.integrated@meta.data and Pyelonephritis.integrated[["predictions"]]@data
-
-# This is the predicted cell proportion for each spot
-t(Pyelonephritis_Infection[["predictions"]]@data)
-
-Pyelonephritis_Infection@meta.data %>% head()
-# extract the orig.ident, subcluter and conditiongroup for each spot
-Pyelonephritis_Infection@meta.data
-Table1 <- Pyelonephritis_Infection@meta.data[,c("orig.ident","Annotation")]
-## merge is way too troublesome, therefore
-FinalIntergratedTable<- merge(Pyelonephritis_Infection@meta.data[,c("orig.ident","Annotation")], t(Pyelonephritis_Infection[["predictions"]]@data), all=TRUE, by="row.names")
-
-FinalIntergratedTable
-colnames(FinalIntergratedTable)
-
-##########################################################################################
-# The heat map figure to show the different compostion within timepoints in the cluster spots
-###########################################################################################
-### We combined all the dataset without group by orig.ident and measure the different composition
-
-CelltypeOrder <- c("heaPT-S1","heaPT-S2","heaPT-S3","heaPT-S4", "heaPT-S5", "DegPT", "MalaPT" , "InfiPT", "HybridPT", "CNT","DTL","TAL", "DCT-TAL","IC","PC" ,"URO","END","FIB", "PL","ResIMM","RecMAC","M1-M2" ,"NEU","T","B", "NK")
-levels(Idents(Pyelonephritis_Infection))
-ClusterOrder <- levels(Idents(Pyelonephritis_Infection))
-CelltypeOrder
-ClusterAllCluster_Median <-
-  FinalIntergratedTable %>% group_by(Annotation) %>% summarise(
-    `heaPT-S1` = median(`heaPT-S1`),
-   `heaPT-S2` = median(`heaPT-S2`),
-    `heaPT-S3` = median(`heaPT-S3`),
-    `heaPT-S4` = median(`heaPT-S4`),
-    `heaPT-S5` = median(`heaPT-S5`),
-    DegPT = median(`DegPT`),
-    MalaPT = median(`MalaPT`),
-    InfiPT = median(`InfiPT`),
-    HybridPT = median(`HybridPT`),
-    CNT = median(`CNT`),
-    DTL = median(`DTL`),
-    TAL = median(`TAL`),
-    `DCT-TAL` = median(`DCT-TAL`),
-    IC = median(`IC`),
-    PC = median(`PC`),
-    URO = median(`URO`),
-    END = median(`END`),
-    FIB =
-      median(`FIB`),
-    PL = median(`PL`),
-    ResIMM = median(`ResIMM`),
-    RecMAC = median(`RecMAC`),
-   `M1-M2` = median(`M1-M2`),
-    NEU = median(`NEU`),
-    `T` = median(`T`),
-    B = median(`B`),
-   NK = median(`NK`),
-    .groups = 'drop'
-  ) %>% as.data.frame()
+# change the order
+InfectedMat_Pelvis<- InfectedMat_Pelvis[ ,CelltypeOrder]
+# for final celltype matrix: 
+InfectedMat_PelvisCellType<- InfectedMat_Pelvis[,!colnames(InfectedMat_Pelvis) %in% c("max")]
+InfectedMat_PelvisCellTypeNozero <- InfectedMat_PelvisCellType[,colSums(InfectedMat_PelvisCellType)>0]
 
 
+# correlation
+InfectedMat_PelvisCellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_PelvisCellTypeNozero)
+InfectedMat_PelvisCellTypeInteractions<- plotInteractions(InfectedMat_PelvisCellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 
-write.csv(ClusterAllCluster_Median, file = "ClusterAllCluster_Median.csv")
+ggsave("SpatialScatterPieInfectedPelvis_CorrelationMatrix.pdf", plot =InfectedMat_PelvisCellTypeCorrelationMatrix, height = 6, width = 6 )
 
-### we calculate the median value for each cluster and also based on the timepoints
-### we used the median value to  scale the cell-type compositions within each niche. 
-ClusterTimepointGroup_Median<-FinalIntergratedTable %>% group_by(orig.ident, Annotation) %>% summarise(
-    `heaPT-S1` = median(`heaPT-S1`),
-   `heaPT-S2` = median(`heaPT-S2`),
-    `heaPT-S3` = median(`heaPT-S3`),
-    `heaPT-S4` = median(`heaPT-S4`),
-    `heaPT-S5` = median(`heaPT-S5`),
-    DegPT = median(`DegPT`),
-    MalaPT = median(`MalaPT`),
-    InfiPT = median(`InfiPT`),
-    HybridPT = median(`HybridPT`),
-    CNT = median(`CNT`),
-    DTL = median(`DTL`),
-    TAL = median(`TAL`),
-    `DCT-TAL` = median(`DCT-TAL`),
-    IC = median(`IC`),
-    PC = median(`PC`),
-    URO = median(`URO`),
-    END = median(`END`),
-    FIB =
-      median(`FIB`),
-    PL = median(`PL`),
-    ResIMM = median(`ResIMM`),
-    RecMAC = median(`RecMAC`),
-   `M1-M2` = median(`M1-M2`),
-    NEU = median(`NEU`),
-    `T` = median(`T`),
-    B = median(`B`),
-   NK = median(`NK`),
-    .groups = 'drop'
-  ) %>% as.data.frame()
-write.csv(ClusterTimepointGroup_Median, file = "ClusterTimepointGroup_Median.csv")
-
-### draw the heatmap for these combined clusters
-
-# generate the mean value for each column
-
-col_fun <- circlize::colorRamp2(c(0, 0.01, 1), c("white", "blue", "red"))
-
-pdf(file = "Spatial_infected_All_FinalIntergratedTableAbcessHeatmap.pdf", height = 8, width = 8)
-FinalIntergratedTableAbcessForHeatmap <-FinalIntergratedTable %>% dplyr::select(-c("Row.names",'orig.ident',"max")) %>% group_by(Annotation) %>% summarise_all("mean") %>% remove_rownames %>% column_to_rownames(var="Annotation") %>% as.matrix()
-FinalIntergratedTableAbcessForHeatmap2<- FinalIntergratedTableAbcessForHeatmap[,colSums(FinalIntergratedTableAbcessForHeatmap)>0]
-FinalIntergratedTableAbcessHeatmap<-FinalIntergratedTableAbcessForHeatmap[,colSums(FinalIntergratedTableAbcessForHeatmap)>0] %>% Heatmap(cluster_rows =F, cluster_columns = F, show_row_dend=F, show_column_dend = F,column_names_rot = 45,name = "mean",col= col_fun, border = T)  
-
-print(FinalIntergratedTableAbcessHeatmap)
-dev.off()
-
-ClusterAllCluster_Median %>% group_by(Annotation) 
-
-Combined_Median_tidy <- ClusterAllCluster_Median %>% mutate_at( vars(-Annotation),scale) %>% pivot_longer(cols = -c(Annotation), names_to = "Property", values_to = "Value") 
-Combined_Median_tidy
-names(Combined_Median_tidy)
-### reorder the levels
-Combined_Median_tidy$Property<- ordered(factor(Combined_Median_tidy$Property),
-                                levels=CelltypeOrder)
-
-na.omit(Combined_Median_tidy)
-pdf("Combined_Median_tidy_Heatmap.pdf",height = 6, width = 8)
-Combined_Median_tidyHeatmap<- na.omit(Combined_Median_tidy) %>% heatmap(
-  Property,
-  Annotation,
-  Value,
- # scale = "none",
-  cluster_rows = FALSE,
-  cluster_columns = TRUE ,
-  palette_value = circlize::colorRamp2(
-    seq(0, 1, length.out = 11),
-    rev(RColorBrewer::brewer.pal(11, "RdBu"))
-  )
-)
-Combined_Median_tidyHeatmap
-dev.off()
-
-
-## setting up the conditions 
-Condition<- levels(ClusterTimepointGroup_Median$orig.ident)
-Condition
-## run the for liips to generate the heatmap figures
-
-### generate multiple heatmap plots
-
-#pdf("Combined_heatmaps_Seurat_0320.pdf", height = 4, width = 40)
-
-## attention par() and layout() not work for ggplot and 
-# par(mfrow=c(11,1))
-## instead we should use grid.arrange()
-## grid.arrange(plot1, plot2, ncol=2)
-ClusterTimepointGroup_Median$Annotation <- ordered(factor(ClusterTimepointGroup_Median$Annotation), levels= ClusterOrder)
-factor(ClusterTimepointGroup_Median$Annotation)
-## create a new empty list and new number
-i=0
-my_vect <- c()
-for (Pdate in Condition){
-  ### generate the transfered objects for each condition
-  ### 
- i =i+1
-  Pdate_Median_tidy<- ClusterTimepointGroup_Median %>% filter(orig.ident==Pdate)  %>% mutate_at(vars (-orig.ident, -Annotation),scale) %>% pivot_longer(cols = -c(orig.ident, Annotation), names_to = "Property", values_to ="Value") 
-  Pdate_Median_tidy
-  ### change the levels of Property at each condition
-  ### tranfer the ClusterTimepointGroup_Median into a tide "element-feature-independent variables"  data frame, where the independent variable
-  ### similar function to melt, but this will transfer the objects
-  levels(factor(Pdate_Median_tidy$Property))
-  Pdate_Median_tidy$Property<- ordered(factor(Pdate_Median_tidy$Property), 
-                                       levels=CelltypeOrder)
-  
-  ## change the NA value to Zero
-  #PyeloD0_1_Median_tidy$Value[is.nan(PyeloD0_1_Median_tidy$Value)]<-0
-  # ignore the na.omit
-  na.omit(Pdate_Median_tidy)
-  
- pdf(paste0(Pdate,"_Median_tidyHeatmap.pdf"),height = 5, width = 6)
-  #PyeloD3_1_Median_tidyHeatmap<- na.omit(PyeloD3_1_Median_tidy) %>% heatmap(Property, seurat_clusters, Value, scale="row",cluster_rows = FALSE, cluster_columns = TRUE ,palette_value = c( "#E6E6FA", "#FFFFFF","#F1948A")) 
-  
- Pdate_Median_tidy
-  Pdate_Median_tidyHeatmap<- na.omit(Pdate_Median_tidy) %>% heatmap(Property, Annotation, Value, scale="none",cluster_rows = FALSE, cluster_columns = FALSE ,palette_value=circlize::colorRamp2(seq(-4, 4, length.out = 11), rev(RColorBrewer::brewer.pal(11, "RdBu")) ) )
-  
-  #PyeloD3_1_Median_tidyHeatmap<- na.omit(PyeloD3_1_Median_tidy) %>% heatmap(Property, seurat_clusters, Value, scale="row",cluster_rows = FALSE, cluster_columns = FALSE , palette_value = c("blue","white","red"), color_legend_min=-4, color_legend_max=4)
-  
-  #my_vect<- append(my_vect,Pdate_Median_tidyHeatmap)
-  #plots[[i]]<- Pdate_Median_tidyHeatmap
-  print(Pdate_Median_tidyHeatmap)
-  dev.off()
-   pdf(paste0(Pdate,"_MeanProp_tidyHeatmap.pdf"),height = 5, width = 6)
-  
-   MeanPropForHeatmap <-FinalIntergratedTable %>% filter(orig.ident==Pdate) %>% dplyr::select(-c("Row.names",'orig.ident',"max")) %>% group_by(Annotation) %>% summarise_all("mean") %>% remove_rownames %>% column_to_rownames(var="Annotation") %>% as.matrix()
-   # reorder the matrix
-   MeanPropForHeatmapReordered <- MeanPropForHeatmap[,CelltypeOrder]
-   MeanPropForHeatmapReordered
-   # eliminate the annotation with zero sum
-   MeanPropForHeatmapNoZeroHeatmap <-MeanPropForHeatmapReordered[,colSums(MeanPropForHeatmapReordered)>0]%>% Heatmap(cluster_rows =F, cluster_columns = F, show_row_dend=F, show_column_dend = F,column_names_rot = 45,name = "mean",col= col_fun, border = T)  
-  print(MeanPropForHeatmapNoZeroHeatmap)
-  dev.off()
-  
-}
-```
-
-
-```{r}
-###############################################################################################
-# spearman correlation of the celltype matrix 
-###############################################################################################
-setwd(CCordir)
-levels(as.factor(ClusterTimepointGroup_Median$Annotation))
-
-FinalIntergratedTable
-for (Pdate in Condition){
-  ### generate the transfered objects for each condition
-  ### 
-  #i =i+1
-  #Pdate=c("PyeloD0_1")
-  Pdate_Median_tidy_matrix <-FinalIntergratedTable %>% filter(orig.ident==Pdate) %>% dplyr::select(-c("Row.names",'orig.ident','Annotation',"max"))
-
-  
-  #Pdate_Median_tidy_matrix
-  #Pdate_Median_tidy_matrix<- ClusterTimepointGroup_Median %>% filter(orig.ident==Pdate) 
-  
-  #%>% mutate_at(vars (-orig.ident, -seurat_clusters),scale) %>% pivot_longer(cols = -c(orig.ident, seurat_clusters), names_to = "Property", values_to ="Value") 
-  
- 
-  Pdate_Median_tidy_matrix_cor<-cor(as.matrix(Pdate_Median_tidy_matrix),method = "spearman")
-  
-  ## replace the NA into zerro
-  Pdate_Median_tidy_matrix_cor <- replace(Pdate_Median_tidy_matrix_cor, is.na(Pdate_Median_tidy_matrix_cor),0)
-  
-  #testRes = cor.mtest(BiomarkerExpCor, conf.level = 0.95)
-  Pdate_Median_tidy_matrix_cor_melt = melt(Pdate_Median_tidy_matrix_cor)
-  
-  ## create a dataframe
-  
-  #Pdate_Median_tidy_matrix_cor_melt$name= rep(Pdate, length(Pdate_Median_tidy_matrix_cor_melt$Var1))
- 
-  ## merge different dataframe
-  
-  pdf(paste0(Pdate,"_Correlation_tidyHeatmap.pdf"),height = 6, width = 8)
-  #pdf("BioMarkerExpCorrelation.pdf", width = 10, height =10)
-  ## generate the coeffecient figure
-  corrplot(Pdate_Median_tidy_matrix_cor, order = 'hclust', type='upper',tl.col = 'black', insig='blank',
-           addCoef.col ='black', number.cex = 0.5, tl.cex= 0.5, tl.srt = 45, diag=FALSE,col = colorRampPalette(c("LightBlue","white","FireBrick"))(100))
-  dev.off()
-  
-  ## other way to plot
-  # Pdate_Median_tidy_matrix_cor = rcorr(as.matrix(Pdate_Median_tidy_matrix), type='spearman')
-  # 
-  # Pdate_Median_tidy_matrix_cor_melt = melt(Pdate_Median_tidy_matrix_cor$r)
-  # 
-  # 
-  # pdf(paste0(Pdate,"_Correlation_tidyHeatmap.pdf"),height = 6, width = 8)
-  # 
-  # #txtsize <- par('din')[2] / 2
-  # ggplot(Pdate_Median_tidy_matrix_cor_melt, aes(x=Var1, y=Var2, fill=value)) + geom_tile() + 
-  #   theme(axis.text.x = element_text(angle=90, hjust=TRUE))
-  # dev.off()
-   #+
-   # xlab("") + ylab("") + 
-   # geom_text(label=Pdate_Median_tidy_matrix_cor_melt$label, size=txtsize) + 
-   # geom_text(label=Pdate_Median_tidy_matrix_cor_melt$strike, size=txtsize * 4, color="red", alpha=0.4) 
-
- 
-}
-
-```
-
-# spatial scatterpie for each slide
-```{r}
-Pyelonephritis_Infection@meta.data %>% head()
-Idents(Pyelonephritis_Infection)
-
-Pyelonephritis_Infection[["slice1"]]@coordinates
-Pyelonephritis_Infection@meta.data %>% head()
-
-# we selected the specific image for each 
-
-selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
-
-# check all the images and all the identity
-AllIdentities <-
-  levels(Pyelonephritis_Infection@meta.data$orig.ident)
- levels(Pyelonephritis_Infection@meta.data$orig.ident)
-
- 
-Allimagmes= names(Pyelonephritis_Infection @images)
-AllIdentities
-Allimagmes
-```
-
-# generate the scatterpie for each slide
-```{r}
-#
-CPiedir
-setwd(CPiedir)
-Condition
-CelltypeOrder
-m=0
-# Attention that the PyeloD5_2 is too small, we adjusted a little bit accordingly
-for (Pdate in Condition) {
-  m=m+1
-  # We run the script specific for day 5
-  # m=4
-  # Pdate <- c("PyeloD5_2") 
-  Pyelonephritis_InfectionSubslides <-
-    subset (Pyelonephritis_Infection, orig.ident == Pdate)
-  SelectedImageName <-
-    names(Pyelonephritis_InfectionSubslides@images)[m]
-  SelectedImageName
-  OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
-  OtherImages
-  Pyelonephritis_InfectionSubslides@images[OtherImages] = NULL
-  
-  #nrow(Pyelonephritis_InfectionSubslidesD7@meta.data )
-  #SpatialDimPlot(Pyelonephritis_InfectionSubslides, crop = T)
-  
-  # the prediction of the object
-  
-  Pyelonephritis_InfectionSubslides[["predictions"]]
-  InfectedMat <-
-    t(Pyelonephritis_InfectionSubslides[["predictions"]]@data)
-  colnames(InfectedMat) <-
-    ordered (colnames(InfectedMat), levels = CelltypeOrder)
-  #InfectedMat
-  # change the order
-  InfectedMat <- InfectedMat[, CelltypeOrder]
-  # for final celltype matrix:
-  InfectedMat <-
-    InfectedMat[,!colnames(InfectedMat) %in% c("max")]
-  
-  InfectedMat
-  # correlation
-  plotCorrelationMatrix(InfectedMat)
-  plotInteractions(InfectedMat, "heatmap")
-  
-  # scatterpie plot
-  # scatterpie plot
-  #
-  ct <- colnames(InfectedMat)
-  # we did not add the low proportion in the scatterpie
-  InfectedMat[InfectedMat < 0.01] <- 0
-  paletteMartin <- c(
+ggsave("SpatialScatterPieInfectedPelvis_HeatmapColocalization.pdf", plot =InfectedMat_PelvisCellTypeInteractions, height = 6, width = 6 )
+# scatterpie plot
+# scatterpie plot
+# 
+ct <- colnames(InfectedMat_PelvisCellType)
+ct
+# we did not add the low proportion in the scatterpie
+InfectedMat_PelvisCellType[InfectedMat_PelvisCellType < 0.1] <- 0
+paletteMartin <- c(
     "#b6dbff", # HeaPT-S1
     "#99CCFF", # HeaPT-S2
     "#0099FF", # HeaPT-S3
@@ -604,70 +309,56 @@ for (Pdate in Condition) {
     "#E2D1F9", #B
     "#CC0033" #NK
   )
+#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
 
-  #DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
-  
-  # choose three color
-  # pal<-colorRampPalette(c("LightBlue","white","FireBrick"))(length(ct))
-  # choose the selected color
- pal <- colorRampPalette(paletteMartin)(length(ct))
-  
-  # choose the spectral range colors:
-  # https://earlglynn.github.io/RNotes/package/RColorBrewer/index.html
-  # pal <- (colorRampPalette(brewer.pal(10, "Paired"))(length(ct)))
-  
-  names(pal) <- ct
-  #pal
-  #SPOTlight:::. extract_image(Pyelonephritis_Infection )
-  #rownames(Pyelonephritis_Infection)
-  SpatialScatterPie <- plotSpatialScatterpie(
-    x = Pyelonephritis_InfectionSubslides,
-    y = InfectedMat,
-    cell_types = colnames(InfectedMat),
+# choose three color
+# pal<-colorRampPalette(c("LightBlue","white","FireBrick"))(length(ct))
+# choose the selected color
+pal <- colorRampPalette(paletteMartin)(length(ct))
+
+# choose the spectral range colors:
+# https://earlglynn.github.io/RNotes/package/RColorBrewer/index.html
+#pal <- (colorRampPalette(brewer.pal(11,"Paired"))(length(ct)))
+
+names(pal) <- ct
+#pal
+rownames(D7subcluster)
+colnames(D7subcluster)
+str(D7subcluster)
+#SPOTlight:::. extract_image(Pyelonephritis_Infection )
+#rownames(Pyelonephritis_Infection)
+SpatialScatterPiePelvis <-plotSpatialScatterpie(
+  x= D7subcluster,
+  y= InfectedMat_PelvisCellType,
+  cell_types = colnames(InfectedMat_PelvisCellType),
     img = TRUE,
     scatterpie_alpha = 1,
-    pie_scale=0.4 
-    # pie_scale = 0.3# for Day 5
-  ) +
-    scale_fill_manual(values = pal,
-                      breaks = names(pal)) + 
-    coord_sf(xlim = c(50, 500), ylim = c(50, 500))
-  SpatialScatterPie
-  ggsave(
-    paste0(
-      Pdate,
-      "_SpatialScatterPie.pdf"),
-      plot = SpatialScatterPie,
-      height = 3,
-      width = 4.5
-    )
-    
-}
+    pie_scale = 1) +
+    scale_fill_manual(
+        values = pal,
+        breaks = names(pal)) +coord_sf(xlim = c(220, 340), ylim = c(150, 280))
 
+SpatialScatterPiePelvis
+# subset (Pyelonephritis_InfectionSubslidesD7, (slice8_imagerow >310 & slice8_imagerow <450 )  & (slice8_imagecol < 330 & slice8_imagecol> 220) )
 
-#plotInteractions(InfectedMat_D7CellType, "network")
-
+ggsave("SpatialScatterPiePelvis.pdf",plot = SpatialScatterPiePelvis, height = 3,width = 4.5)
+# colnames(DeconvolutedMatrix)
+# ncol(Pyelonephritis_Infection)
+# nrow(DeconvolutedMatrix)
+InfectedMat_PelvisCellType
+pdf(file = "SpatialScatterPiePelvis_CellTypeNetwork.pdf", height = 8,width = 8)
+plotInteractions(InfectedMat_PelvisCellType, "network")
+dev.off()
 
 ```
-
-# save the object into Pyelonephritis_Infection_Deconvoluted.RDS
-```{r}
-setwd(Outdir)
-saveRDS(file = "Pyelonephritis_Infection_Deconvoluted.RDS", object = Pyelonephritis_Infection)
-
-Pyelonephritis_Infection <- readRDS( file = "Pyelonephritis_Infection_Deconvoluted.RDS")
-Allimagmes= names(Pyelonephritis_Infection @images)
-
-```
-
-
-
+# ############################## 
 # Generate the biomarkers within timepoints
+# ############################## 
 ```{r}
 
 setwd(CBiomadir)
 # generate the Dotplot for the biomarkers
-DefaultAssay(Pyelonephritis_Infection) <-"SCT"
+DefaultAssay(D7subcluster) <-"SCT"
 Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
                       "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
 
@@ -686,22 +377,744 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
                     "C1qa","C1qb","Aif1", # Macrophage
                     "Cxcr6","Cd247","Cd3e", # T cells
                     "Igkc","Cd79a","Cd79b", # B cells
-                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+                    "Ccl5","Nkg7","Cd7", # NK/Cd8 cells
+                    "Cx3cr1", "Ccr2", "H2-Ab1", # reactivate 
+                 "Nos2","Ifngr1","Il17a","Il1b","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b", #Macrophage 1
+                 "Arg1","Il13","Cd163","Mrc1", "Cd68" # Macrophage 2
 )
 
-SpatialAllMarkersDotPlot<- DotPlot(Pyelonephritis_Infection, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
 
-ggsave("SpatialAllMarkersDotPlot.pdf", plot = SpatialAllMarkersDotPlot, height = 6, width = 14)
-#Pyelonephritis_InfectionSubslidesD0
-
-for (i in Finalcelltypemarkers){
-   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1.6, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+ for (i in Finalcelltypemarkers){
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(D7subcluster, features = i, pt.size.factor = 4, crop = TRUE)
+   #& ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
   
-  ggsave(filename = paste0(i,"_SpatialFeaturePrediction_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
+  ggsave(filename = paste0(i,"_SpatialFeatureAllMarkersDotPlot_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
   
 }
 
 ```
+
+
+# ############################## 
+# DEGs and GO enrichment
+# ############################## 
+
+# Biomarker detection from these cluster of PT
+```{r}
+setwd(CDEGdir)
+
+DefaultAssay(D7subcluster) <- "SCT"
+
+
+? FindAllMarkers
+D7subcluster <- ScaleData(object = D7subcluster, features = rownames(D7subcluster))
+# MAST was used to calculate the cluster
+Pelvis_nichesBiomarkers <-
+  FindAllMarkers(
+    object = D7subcluster,
+    logfc.threshold = 0.25,
+    test.use = "MAST",
+    min.pct = 0.25
+  ) # only markers that are in 25% of cells
+# save all biomarkers as a dataframe
+write.csv(Pelvis_nichesBiomarkers, "Pelvis_nichesBiomarkers_Mast.csv")
+
+Pelvis_nichesBiomarkers
+```
+
+# Draw the dotplot, heatmap and featureplot for the biomarkers in each cluster
+```{r}
+# select the top 3 genes in each cluster and perform the heatmap
+Pelvis_nichesBiomarkersTop5 <-
+  as.data.frame(Pelvis_nichesBiomarkers) %>% filter (avg_log2FC > 0.25) %>% group_by(cluster) %>% slice_max(order_by = avg_log2FC, n = 5) %>% pull (gene)
+
+Pelvis_nichesBiomarkersTop5 %>% unique()
+
+Pelvis_nichesBiomarkersTop5Heatmap<- DoHeatmap(D7subcluster, features = Pelvis_nichesBiomarkersTop5 , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
+ggsave(
+  "Pelvis_nichesBiomarkersTop5_heatmap.pdf",
+  plot = Pelvis_nichesBiomarkersTop5Heatmap,
+  height = 5,
+  width = 5
+)
+
+
+PelvisPelvisPTSubBiomarkersTop5DotPlot <-
+  DotPlot(D7subcluster, features = Pelvis_nichesBiomarkersTop5 %>% unique()) +
+  RotatedAxis()
+
+ggsave(
+  "PelvisPelvisPTSubBiomarkersTop5DotPlot.pdf",
+  plot = PelvisPelvisPTSubBiomarkersTop5DotPlot,
+  height = 4,
+  width = 8
+)
+
+# Select the top 5 biomarkers
+Top5PTMarker <-
+  as.data.frame(Pelvis_nichesBiomarkers) %>% 
+  filter (avg_log2FC > 0.25) %>% group_by(cluster) %>% 
+  slice_max(order_by = avg_log2FC, n = 5) %>% pull (gene) %>% unique()
+? FeaturePlot
+
+for (i in Top5PTMarker) {
+  
+  PTmarkerSpatialFeature <-
+    SpatialFeaturePlot(D7subcluster, features = i, slot = "scale.data",pt.size.factor = 4)
+  
+  ggsave(
+    paste0(i, "_PTSubBiomarkerFeatureSplit.pdf"),
+    plot = PTmarkerSpatialFeature,
+    height = 4,
+    width = 4.5
+  )
+  
+}
+
+```
+
+
+```{r}
+setwd(CGOEndir)
+# Generate a table for figure
+Pelvis_nichesBiomarkers %>% head()
+Pelvis_infectionSpecifcUpgeneFreqFigure <-
+  table(Pelvis_nichesBiomarkers$cluster) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq)) + geom_bar(stat = "identity") + theme_classic() +
+  xlab("Pelvis Niches") + ylab("Differentially expressed gene number")
+
+Pelvis_infectionSpecifcUpgeneFreqFigure
+ggsave(
+  "Pelvis_nichesBiomarkersnumbersFigure.pdf",
+  plot = Pelvis_infectionSpecifcUpgeneFreqFigure,
+  height = 3,
+  width = 3.5
+)
+
+# Create a GO comparison for the figure
+Pelvis_infectionSpecifcUpgene <- list()
+
+Idents(D7subcluster)
+for (n in Idents(D7subcluster)) {
+  # put he DEG into the up-regulated gene for comparision
+  Pelvis_infectionSpecifcUpgene[[n]] <-
+    Pelvis_nichesBiomarkers %>% filter(cluster %in% n &
+                                        avg_log2FC >= 0.25) %>% pull(gene)
+  #}
+}
+Pelvis_infectionSpecifcUpgene$N8%>% head()
+Pelvis_infectionSpecifcUpgene$N10%>% head()
+Pelvis_infectionSpecifcUpgene$N11%>% head()
+Pelvis_infectionSpecifcUpgene$N12%>% head()
+Pelvis_infectionSpecifcUpgene$N15%>% head()
+
+Pelvis_infectionSpecifcUpgeneReorder<- Pelvis_infectionSpecifcUpgene[c("N8","N10","N11","N12","N15")]
+# change the name order: 
+#names(Pelvis_infectionSpecifcUpgene) <- c("N8","N10","N11","N12","N15")
+
+Pelvis_infectionSpecifcUpgeneReorder$N8%>% head()
+Pelvis_infectionSpecifcUpgeneReorder$N10%>% head()
+Pelvis_infectionSpecifcUpgeneReorder$N11%>% head()
+Pelvis_infectionSpecifcUpgeneReorder$N12%>% head()
+Pelvis_infectionSpecifcUpgeneReorder$N15%>% head()
+
+# Comparing the Cluster
+Pelvis_infectionSpecifcUpgeneGOenrich <-
+  clusterProfiler::compareCluster(
+    geneClusters = Pelvis_infectionSpecifcUpgeneReorder,
+    fun = "enrichGO",
+    OrgDb = "org.Mm.eg.db",
+    ont = "BP",
+    keyType = 'SYMBOL'
+  )
+
+write.csv(Pelvis_infectionSpecifcUpgeneGOenrich,
+          "Pelvis_infectionSpecifcUpgeneGOenrich.csv")
+
+#Pelvis_infectionSpecifcUpgeneGOenrich
+#Pelvis_infectionSpecifcUpgeneGOenrich@compareClusterResult %>% head()
+
+# Here we only concentrate on selected features
+selectedPathway<- c("regulation of innate immune response","regulation of adaptive immune response","response to lipopolysaccharide","defense response to bacterium","neutrophil activation", "pattern recognition receptor signaling pathway","phagocytosis", "I-kappaB kinase/NF-kappaB signaling","receptor signaling pathway via STAT","tumor necrosis factor production","T cell differentiation","extracellular matrix organization", "epithelium migration","keratinocyte differentiation","Wnt signaling pathway","regulation of apoptotic signaling pathway")
+
+
+Pelvis_infectionSpecifcUpgeneGOenrichDotPlot <-
+  dotplot(
+    Pelvis_infectionSpecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = selectedPathway
+  )
+? dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(
+  "Pelvis_infectionSpecifcUpgeneGOenrichDotPlot.pdf",
+  plot = Pelvis_infectionSpecifcUpgeneGOenrichDotPlot,
+  height = 7,
+  width = 7.5
+)
+
+```
+
+
+# ############################## 
+# signaling pathway
+# ############################## 
+```{r}
+setwd(CProgenydir)
+## we set up with a high memory
+
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+Idents(D7subcluster)
+# create cluster data frame with the cells, Celltypes
+PelvisCluster<- data.frame(Cell = names(Idents(D7subcluster)),   
+                              CellType = as.character(Idents(D7subcluster)),
+                              stringsAsFactors = FALSE)
+
+?progeny
+D7subcluster <- progeny(D7subcluster, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE,assay_name = "SCT")
+D7subcluster
+# setup the default assay as progeny
+DefaultAssay(object = D7subcluster) <- "progeny"
+
+D7subcluster <- Seurat::ScaleData(D7subcluster, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(D7subcluster, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df
+#progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, PelvisCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+PelvisForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+
+# generate the heatmap for PT
+pdf(file="PelvisForHeatmap_Progeny_ForHeatmap.pdf",height = 3, width = 3.5)
+progeny_hmap = pheatmap(PelvisForHeatmap,fontsize=8, 
+                        fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+                        cex=1, clustering_distance_rows="euclidean", cex=1,
+                        # clustering_distance_cols="euclidean", clustering_method="complete", 
+                        color=myColor, breaks = progenyBreaks, 
+                        main = "PROGENy (500)", angle_col = 45,
+                        border_color = NA,
+                        treeheight_col = 0,   treeheight_row=0)
+
+progeny_hmap
+dev.off()
+test<- FeaturePlot(D7subcluster, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(D7subcluster, features = i) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_PelvisInfected_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 6)
+  
+  p3 <- (SpatialFeaturePlot(D7subcluster, features = i, pt.size.factor = 4) +ggtitle(paste0(i," activity")))
+  ggsave(paste0(i, "_PelvisInfected_cluster_SpatialfeaturePlot.pdf"), plot = p3, width = 6, height = 6)
+  
+}
+
+```
+# ############################## 
+# Transcript factor
+# ############################## 
+```{r}
+
+# Transcription factor activity inference from Immune scRNA-seq
+
+# CollecTRI network
+# set up the directory
+setwd(CTFdir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+D7subcluster@assays$SCT@data %>% head()
+mat <- as.matrix(D7subcluster@assays$SCT@data)
+# Run ulm
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
+
+
+saveRDS(acts, file="Pelvis_Transcriptfactor.RDS")
+
+
+#acts <- readRDS("PT_Transcriptfactor.RDS")
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+D7subcluster[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = D7subcluster) <- "tfsulm"
+
+# Scale the data
+D7subcluster <- ScaleData(D7subcluster)
+D7subcluster@assays$tfsulm@data <- D7subcluster@assays$tfsulm@scale.data
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 20
+
+t(as.matrix(D7subcluster@assays$tfsulm@data))
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(D7subcluster@assays$tfsulm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(D7subcluster)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+df
+df %>% filter(grepl("Egfr",source))
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+
+# drop "Znf335" due to not exist in the expression
+#tfs2 <- tfs[!tfs == "Tnf"]
+
+#tfs[!tfs == "Znf335"]
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+PTTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F, 
+                        color=my_color,fontsize=12, fontsize_row = 10, 
+                        breaks = my_breaks, 
+                        #main = "Predicted TF activities", 
+                        #angle_col = 90,
+                        treeheight_col = 0, treeheight_row=0)
+
+
+ggsave("PelvisInfectionHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PTTFheatmap, width = 3, height = 4)
+
+# draw the transcriptor factor activity and their expression
+# generate the figure of transcript factor activity:
+for (m in tfs){
+  p2 <- (SpatialFeaturePlot(D7subcluster, features = m,pt.size.factor = 4) +
+  #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(m, ' activity')))
+  
+  ggsave(paste0("TFActivity_",m,"_PelvisInfection_SpatialFeaturePlot.pdf"), plot = p2, width = 6, height = 6)
+}
+
+D7subcluster
+DefaultAssay(object = D7subcluster) <- "SCT"
+
+for (n in tfs){
+  p3 <- (FeaturePlot(D7subcluster, features = n,slot= "scale.data") + 
+  #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression')))
+  
+  p4 <- (SpatialFeaturePlot(D7subcluster, features = n, pt.size.factor = 4, slot= "scale.data") +
+ # scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression (time)')))
+ 
+  ggsave(paste0("TFExpression_",n,"_D7subcluster_FeaturePlot.pdf"), plot = p3, width = 6, height = 6)
+  ggsave(paste0("TFExpression_",n,"_D7subcluster_SpatilFeaturePlot.pdf"), plot = p4, width = 6, height = 6)
+
+}
+
+
+# add their activity in Dotplot
+Idents(D7subcluster)
+# get the order of row name
+GeneOrderByPheatmap <- rownames(t(top_acts_mat))[PTTFheatmap$tree_row$order]
+#IMMTFheatmap$tree_row$order
+GeneOrderByPheatmap
+?DotPlot
+TFDotPlot <- DotPlot(D7subcluster, features = rev(GeneOrderByPheatmap)) +
+  RotatedAxis() + coord_flip()+ 
+  #ggtitle("Predicted TF expression")+
+   theme(legend.position = "right")
+ggsave("Pelvis_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
+
+```
+
+
+
+# Please ignore the following datasets
+
+
+# ############################## 
+# niche-niche communications
+# ############################## 
+
+# refernece: https://github.com/saeyslab/nichenetr/blob/master/vignettes/differential_nichenet.md
+# Run the nichenet_seruratobj_aggregate for the different regions
+```{r}
+DefaultAssay(D7subcluster) <- "SCT"
+D7subcluster@meta.data %>% head()
+#Idents(D7subcluster) <- D7subcluster@meta.data$Sub2
+
+# reset the identity, Combine the PT cells
+
+Idents(D7subcluster)
+D7subcluster@meta.data
+# adjust the levels
+# Idents(D7subcluster) <-
+# ordered(factor(Idents(D7subcluster)), levels=c( "5_1","10_1","10_0","2_1","2_0","5_0","5_2","4","7","0","1","9","6","3","8"))
+
+levels(Idents(D7subcluster))
+```
+
+# use the wrap 
+```{r}
+# sender
+sender_cluster <- c("N8","N10","N11","N12","N15")
+
+# define receive cluster
+
+receiver_cluster <- c("N15")
+D7subcluster@meta.data %>% head()
+```
+
+
+```{r}
+
+ligand_target_matrix <-
+    readRDS(paste0(data_path, "ligand_target_matrix_nsga2r_final_mouse.rds"))
+
+lr_network <-
+    readRDS(paste0(data_path, "lr_network_mouse_21122021.rds"))
+
+ligand_target_matrix %>% head()
+lr_network = lr_network %>% dplyr::distinct(from, to)
+
+weighted_networks <-
+    readRDS(paste0(data_path, "weighted_networks_nsga2r_final_mouse.rds"))
+
+weighted_networks_lr <-
+    weighted_networks$lr_sig %>%
+    inner_join(lr_network %>% distinct(from, to),
+               by = c("from", "to"))
+
+
+D7subcluster = alias_to_symbol_seurat(D7subcluster, "mouse")
+
+D7subcluster@meta.data %>% head()
+D7subcluster@meta.data$IntegrateAnnot %>% table() 
+
+head(weighted_networks$gr) 
+DimPlot(D7subcluster)
+
+# If you use convert_to_alias before here, this one won't work
+D7subcluster = Seurat::PrepSCTFindMarkers(D7subcluster, assay = "SCT", verbose = FALSE)
+lr_network = lr_network %>% dplyr::rename(ligand = from, receptor = to) %>% distinct(ligand, receptor)
+
+# define niches
+niches <- list()
+niches = list(
+    "Abcess_niche" = list(
+      "sender" = c("N12","N11","N10","N8"),
+      "receiver" = c("N15")),
+    "Margen_niche" = list(
+      "sender" = c("N15","N11","N10","N8"),
+      "receiver" = c("N12"))
+  )
+
+
+lr_network %>% head()
+D7subcluster %>% subset(features = lr_network$ligand %>% intersect(rownames(D7subcluster)))
+# calcualte the niches difference 
+DE_sender = nichenetr::calculate_niche_de(seurat_obj  = D7subcluster %>% subset(features = lr_network$ligand %>% intersect(rownames(D7subcluster))), niches = niches, type = "sender", assay_oi = "SCT") # only ligands important for sender cell types
+DE_receiver = nichenetr::calculate_niche_de(seurat_obj  = D7subcluster %>% subset(features = lr_network$receptor %>% unique()), niches = niches, type = "receiver", assay_oi = "SCT") # only receptors now, later on: DE analysis to find targets
+
+
+DE_sender = DE_sender %>% mutate(avg_log2FC = ifelse(avg_log2FC == Inf, max(avg_log2FC[is.finite(avg_log2FC)]), ifelse(avg_log2FC == -Inf, min(avg_log2FC[is.finite(avg_log2FC)]), avg_log2FC)))
+DE_receiver = DE_receiver %>% mutate(avg_log2FC = ifelse(avg_log2FC == Inf, max(avg_log2FC[is.finite(avg_log2FC)]), ifelse(avg_log2FC == -Inf, min(avg_log2FC[is.finite(avg_log2FC)]), avg_log2FC)))
+
+# Process DE results:
+expression_pct = 0.10
+DE_sender_processed = nichenetr::process_niche_de(DE_table = DE_sender, niches = niches, expression_pct = expression_pct, type = "sender")
+DE_receiver_processed =nichenetr::process_niche_de(DE_table = DE_receiver, niches = niches, expression_pct = expression_pct, type = "receiver")
+# Combine sender-receiver DE based on L-R pairs:
+specificity_score_LR_pairs = "min_lfc"
+DE_sender_receiver = nichenetr::combine_sender_receiver_de(DE_sender_processed, DE_receiver_processed, lr_network, specificity_score = specificity_score_LR_pairs)
+DE_sender_receiver
+
+# 4. Calculate ligand activities and infer active ligand-target links
+
+lfc_cutoff = 0.15 # recommended for 10x as min_lfc cutoff. 
+specificity_score_targets = "min_lfc"
+
+DE_receiver_targets = nichenetr::calculate_niche_de_targets(seurat_obj = D7subcluster, niches = niches, lfc_cutoff = lfc_cutoff, expression_pct = expression_pct, assay_oi = "SCT") 
+
+DE_receiver_processed_targets = nichenetr::process_receiver_target_de(DE_receiver_targets = DE_receiver_targets, niches = niches, expression_pct = expression_pct, specificity_score = specificity_score_targets)
+  
+background = DE_receiver_processed_targets  %>% pull(target) %>% unique()
+
+geneset_Abcess = DE_receiver_processed_targets %>% filter(receiver == niches$Abcess_niche$receiver & target_score >= lfc_cutoff & target_significant == 1 & target_present == 1) %>% pull(target) %>% unique()
+geneset_Margin = DE_receiver_processed_targets %>% filter(receiver == niches$Margen_niche$receiver & target_score >= lfc_cutoff & target_significant == 1 & target_present == 1) %>% pull(target) %>% unique()
+
+# Good idea to check which genes will be left out of the ligand activity analysis (=when not present in the rownames of the ligand-target matrix).
+# If many genes are left out, this might point to some issue in the gene naming (eg gene aliases and old gene symbols, bad human-mouse mapping)
+geneset_Abcess %>% setdiff(rownames(ligand_target_matrix))
+### [1] "Wfdc17"        "AW112010"      "2900097C17Rik" "B430306N03Rik" "AC149090.1"
+geneset_Margin %>% setdiff(rownames(ligand_target_matrix))
+
+
+length(geneset_Abcess)
+## [1] 17
+length(geneset_Margin)
+
+
+
+nichenet_output = nichenet_seuratobj_aggregate(
+  seurat_obj = D7subcluster, 
+  receiver = "PT", 
+  condition_colname = "DataSet", condition_oi = "7DPI", condition_reference = "0DPI", 
+  sender = c("FIB","M1M2","RecMAC","NEU","ResIMM","T"), 
+  ligand_target_matrix = ligand_target_matrix,
+  lr_network = lr_network,
+  weighted_networks = weighted_networks)
+
+nichenet_output$ligand_target_heatmap
+nichenet_output$ligand_receptor_heatmap
+
+ggsave(filename = "PIPseq_Cell_Cell_Communication_v1011.pdf",nichenet_output$ligand_activity_target_heatmap, width = 28, height = 9)
+
+ggsave(filename = "PIPseq_Cell_Cell_Communication_ligandtargetheatmap_v1011.pdf",nichenet_output$ligand_target_heatmap, width = 15, height = 9)
+ggsave(filename = "PIPseq_Cell_Cell_Communication_ligandreceptor_heatmapp_v1011.pdf",nichenet_output$ligand_receptor_heatmap, width = 15, height = 9)
+
+
+```
+
+# draw the Circos plots
+```{r}
+# Calculate average ligand expression in sender cells
+# avg_expression_ligands = AverageExpression(seuratObj %>% subset(subset = aggregate == "LCMV"),features = nichenet_output$top_ligands) # if want to look specifically in LCMV-only cells
+avg_expression_ligands = AverageExpression(D7subcluster, features = nichenet_output$top_ligands)
+
+# Assign ligands to sender cells
+sender_ligand_assignment = avg_expression_ligands$RNA %>% apply(1, function(ligand_expression){
+  ligand_expression > (ligand_expression %>% mean() + ligand_expression %>% sd())
+  }) %>% t()
+sender_ligand_assignment = sender_ligand_assignment %>% apply(2, function(x){x[x == TRUE]}) %>% purrr::keep(function(x){length(x) > 0})
+names(sender_ligand_assignment)
+
+# Determine now which prioritized ligands are expressed by CAFs and or endothelial cells
+
+all_assigned_ligands = sender_ligand_assignment %>% lapply(function(x){names(x)}) %>% unlist()
+all_assigned_ligands
+unique_ligands = all_assigned_ligands %>% table() %>% .[. == 1] %>% names()
+
+general_ligands = nichenet_output$top_ligands %>% setdiff(unique_ligands)
+
+
+sender_ligand_assignment$`FIB` %>% names()%>% setdiff(general_ligands)
+
+
+FIB_specific_ligands = sender_ligand_assignment$`FIB` %>% names() %>% setdiff(general_ligands)
+
+FIB_specific_ligands
+
+PT_specific_ligands = sender_ligand_assignment$`PT` %>% names() %>% setdiff(general_ligands)
+
+PT_specific_ligands
+
+RecMAC_specific_ligands = sender_ligand_assignment$`RecMAC` %>% names() %>% setdiff(general_ligands)
+
+RecMAC_specific_ligands
+
+NEU_specific_ligands = sender_ligand_assignment$`NEU` %>% names() %>% setdiff(general_ligands)
+
+NEU_specific_ligands
+
+M1M2_specific_ligands = sender_ligand_assignment$`M1M2` %>% names() %>% setdiff(general_ligands)
+
+M1M2_specific_ligands
+
+
+#IC_specific_ligands = sender_ligand_assignment$IC %>% names() %>% setdiff(general_ligands)
+#IC_specific_ligands
+
+#PC_specific_ligands = sender_ligand_assignment$PC %>% names() %>% setdiff(general_ligands)
+#PC_specific_ligands
+PT_specific_ligands
+ligand_type_indication_df = tibble(
+  ligand_type = c(rep("PT-specific", times = PT_specific_ligands %>% length()),
+                  rep("NEU-specific", times = NEU_specific_ligands %>% length()),
+                  rep("RecMAC-specific", times = RecMAC_specific_ligands %>% length()),
+                  rep("M1M2-specific", times = M1M2_specific_ligands %>% length()),
+                   rep("FIB-specific", times = FIB_specific_ligands %>% length()),
+                  #rep("IC-specific", times = IC_specific_ligands %>% length()),
+                  rep("General", times = general_ligands %>% length())),
+  ligand = c(PT_specific_ligands, NEU_specific_ligands, RecMAC_specific_ligands, M1M2_specific_ligands, FIB_specific_ligands, general_ligands))
+
+ligand_type_indication_df
+```
+
+```{r}
+# Define the ligand-target links of interest
+active_ligand_target_links_df = nichenet_output$ligand_target_df %>% mutate(target_type = "7DPI") %>% inner_join(ligand_type_indication_df) # if you want ot make circos plots for multiple gene sets, combine the different data frames and differentiate which target belongs to which gene set via the target type
+
+active_ligand_target_links_df
+
+cutoff_include_all_ligands = active_ligand_target_links_df$weight %>% quantile(0.40)
+
+active_ligand_target_links_df_circos = active_ligand_target_links_df %>% filter(weight > cutoff_include_all_ligands)
+
+ligands_to_remove = setdiff(active_ligand_target_links_df$ligand %>% unique(), active_ligand_target_links_df_circos$ligand %>% unique())
+targets_to_remove = setdiff(active_ligand_target_links_df$target %>% unique(), active_ligand_target_links_df_circos$target %>% unique())
+  
+```
+
+# Prepare the circos visualization: give each segment of ligands and targets a specific color and order
+```{r}
+circos_links = active_ligand_target_links_df %>% filter(!target %in% targets_to_remove &!ligand %in% ligands_to_remove)
+circos_links
+
+grid_col_ligand =c("General" = "steelblue2",
+            "RecMAC-specific" = "red",
+            "NEU-specific" = "violet",
+            "M1M2-specific" = "darkgreen",
+            "FIB-specific" = "lawngreen",
+            "PT-specific" = "royalblue"
+            )
+grid_col_target =c(
+            "7DPI" = "darkgray")
+
+grid_col_tbl_ligand = tibble(ligand_type = grid_col_ligand %>% names(), color_ligand_type = grid_col_ligand)
+grid_col_tbl_target = tibble(target_type = grid_col_target %>% names(), color_target_type = grid_col_target)
+
+circos_links = circos_links %>% mutate(ligand = paste(ligand," ")) # extra space: make a difference between a gene as ligand and a gene as target!
+circos_links = circos_links %>% inner_join(grid_col_tbl_ligand) %>% inner_join(grid_col_tbl_target)
+
+circos_links
+
+links_circle = circos_links %>% dplyr::select(ligand,target, weight)
+
+ligand_color = circos_links %>% distinct(ligand,color_ligand_type)
+grid_ligand_color = ligand_color$color_ligand_type %>% set_names(ligand_color$ligand)
+target_color = circos_links %>% distinct(target,color_target_type)
+grid_target_color = target_color$color_target_type %>% set_names(target_color$target)
+
+grid_col =c(grid_ligand_color,grid_target_color)
+
+
+# give the option that links in the circos plot will be transparant ~ ligand-target potential score
+transparency = circos_links %>% mutate(weight =(weight-min(weight))/(max(weight)-min(weight))) %>% mutate(transparency = 1-weight) %>% .$transparency 
+
+transparency
+
+# prepare circos
+target_order = circos_links$target %>% unique()
+
+ligand_order = c(PT_specific_ligands, NEU_specific_ligands, RecMAC_specific_ligands, M1M2_specific_ligands, FIB_specific_ligands, general_ligands) %>% c(paste(.," ")) %>% intersect(circos_links$ligand)
+order = c(ligand_order,target_order)
+# Prepare the circos visualization: define the gaps between the different segments
+width_same_cell_same_ligand_type = 0.5
+width_different_cell = 6
+width_ligand_target = 15
+width_same_cell_same_target_type = 0.5
+
+gaps = c(
+  # width_ligand_target,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "FIB-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "NEU-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "RecMAC-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "M1M2-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+    rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "PT-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "General") %>% distinct(ligand) %>% nrow() -1)),
+  width_ligand_target,
+  rep(width_same_cell_same_target_type, times = (circos_links %>% filter(target_type == "7DPI") %>% distinct(target) %>% nrow() -1)),
+  width_ligand_target
+  )
+```
+
+```{r}
+circos.par(gap.degree = gaps)
+chordDiagram(links_circle, directional = 1,order=order,link.sort = TRUE, link.decreasing = FALSE, grid.col = grid_col,transparency = 0, diffHeight = 0.005, direction.type = c("diffHeight", "arrows"),link.arr.type = "big.arrow", link.visible = links_circle$weight >= cutoff_include_all_ligands,annotationTrack = "grid", 
+    preAllocateTracks = list(track.height = 0.075))
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+    circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+        facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 1)
+}, bg.border = NA) #
+
+circos.clear()
+```
+
+```{r}
+svg("ligand_receptor_circos.svg", width = 12, height = 12)
+circos.par(gap.degree = gaps)
+chordDiagram(links_circle, directional = 1,order=order,link.sort = TRUE, link.decreasing = FALSE, grid.col = grid_col,transparency = transparency, diffHeight = 0.005, direction.type = c("diffHeight", "arrows"),link.arr.type = "big.arrow", link.visible = links_circle$weight >= cutoff_include_all_ligands,annotationTrack = "grid",
+    preAllocateTracks = list(track.height = 0.075))
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+    circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+        facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 0.8)
+}, bg.border = NA) #
+circos.clear()
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
 
 # ################
 # Generate the Day 0
@@ -1144,7 +1557,7 @@ Idents(Pyelonephritis_InfectionSubslidesD7)
 # For interesting infection regions : for the abscess of the pelvis
 # we generate pie plot for day7 under infection regions for the pelvis abscess regions
 ```{r}
-setwd(InfPelvisdir)
+setwd(InfCortexdir)
 Pyelonephritis_Infection$orig.ident
 Pyelonephritis_InfectionSubslidesD7 <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")

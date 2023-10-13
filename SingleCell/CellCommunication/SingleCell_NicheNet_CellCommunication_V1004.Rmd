@@ -1,0 +1,1160 @@
+---
+title: "SingleCell_NicheNet_CellCommunication"
+author: "Xin Wang"
+date: "2023-07-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## loading the libraries
+
+```{r libraries, cache=FALSE, warning=FALSE, error=FALSE, message=FALSE,}
+
+# loading libraries required for seurat
+library(Seurat)
+#library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+#install.packages("scater")
+#library(scater)
+#library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+#library(SeuratDisk)
+
+# loading for the table bubble updates
+library(L1pack)
+library(reshape)
+library(tidyverse)
+library(stringr)
+library(cowplot)
+
+# loading the libraries for plot and colors
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+
+# loading libraries required for the DEG and functionally enrichment
+#install.packages("msigdbr")
+library(msigdbr)
+library(fgsea)
+library(data.table)
+library(RColorBrewer)
+library(ggrepel)
+library(DESeq2)
+library(pheatmap)
+#BiocManager::install("MAST")
+library(MAST)
+#BiocManager::install("monocle")
+library(monocle)
+library(edgeR)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(enrichplot)
+
+#BiocManager::install("ReactomePA")
+library(ReactomePA)
+
+# install thje KEGG packages
+#MusKEGG<- search_kegg_organism('Mus musculus', by='scientific_name')
+#dim(MusKEGG)
+#head(MusKEGG)
+# loading for KEGG analyes
+library("pathview")
+library(Rcpp)
+#devtools::install_github('cole-trapnell-lab/monocle3', ref="develop")
+library(RColorBrewer)
+
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+library(tidyverse)
+library(Seurat)
+library(nichenetr)
+library(cowplot)
+library(ggpubr)
+#install.packages("devtools")
+#devtools::install_github("saeyslab/nichenetr",force = TRUE)
+library(circlize)
+
+
+```
+
+# The unrelated section 
+# Please ignore this part, this is only for notes. Reminder me the best way to process the datasets
+# note: Spatial Featureplot that can be applied to all the figures
+```{r}
+# library(RColorBrewer)
+# myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+# BacterialInfectEpithelial <- SpatialFeaturePlot(allen_reference_day7, features = c("Hcls1","Rhog","Itga5","Actb","Arpc3","Arpc1b","Arpc2","Actr3","Pik3cd","Fn1","Elmo1","Cdh1","Wasl"), images = selectedslices, ncol = 6, slot="scale.data") & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,12))
+```
+
+# note: Spatial Featureplot for multiple genes in one figure that can be applied to all the figures
+```{r}
+# # this can measure multiple genes in
+# Cell_type_marker_gene_list <- list (c("Tnf","Birc3","Bcl2l11","Fas"))
+# allen_reference_day7<- AddModuleScore(object = allen_reference_day7, 
+#                                                  features = Cell_type_marker_gene_list, 
+#                                                  name = "Cell_type_marker_gene_score")
+# SpatialFeaturePlot(allen_reference_day7, features = "Cell_type_marker_gene_score1",images = selectedslices, ncol = 6, slot="scale.data") & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+# 
+#  #DimPlot(allen_reference_day7)
+# SpatialDimPlot(allen_reference_day7, 
+#                images = selectedslices)
+# 
+# # highlight the cells
+# # get cell by identity
+# levels(factor(allen_reference_day7@meta.data$InfectionComparision))
+# 
+# CellsByIdentities(object = allen_reference_day7, idents = c("8","3","6","9"))
+# 
+# HighlighedCells<- CellsByIdentities(object = allen_reference_day7, idents = c("8","3","6"))
+# SpatialDimPlot(allen_reference_day7, group.by = "InfectionComparision", images = selectedslices)
+# 
+#   Idents(allen_reference_day7) <- allen_reference_day7@meta.data$InfectionComparision
+# TestSPatailDimplot<-SpatialDimPlot(allen_reference_day7, images = selectedslices,  label=T, label.size=1)
+# ggsave(TestSPatailDimplot, filename = "TestProcessedDimplot.pdf", height = 6, width = 30)
+# 
+# ## still have some problems
+# SpatialDimPlot(allen_reference_day7, cells.highlight = HighlighedCells , images = selectedslices, cols = "red",facet.highlight =T)
+# ?SpatialDimPlot
+# #&ggplot2::scale_fill_gradientn(colours = myPalette(8))
+# Idents(allen_reference_day7)
+
+#ImageFeaturePlot(allen_reference_day7, features = Cell_type_marker_gene_list)
+```
+
+# The main analyses section:
+# setting up the environments and randomization
+```{r}
+## set pathway:
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V1011/")
+Indir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
+outdir ="/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V1011/"
+getwd()
+
+data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
+
+
+
+# set the seed
+set.seed(11122111)
+```
+
+<!-- # read the input object that have been well convoluted and annotated -->
+<!-- ```{r} -->
+<!-- Pyelonephritis_Infection <- readRDS(file = paste0(Indir,"Pyelonephritis_Infection_decovoluted.rds")) -->
+
+<!-- rownames(Pyelonephritis_Infection) -->
+<!-- colnames(Pyelonephritis_Infection) -->
+<!-- selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9") -->
+
+<!-- Pyelonephritis_Infection -->
+
+<!-- ``` -->
+
+<!-- # choose the subset of slides: from "PyeloD0_1", "PyeloD1_2", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1" -->
+<!-- ```{r} -->
+<!-- # Define the default assay as SCT  -->
+<!-- DefaultAssay(Pyelonephritis_Infection) <- "SCT" -->
+
+<!-- # select the subset of spatial transcriptomics -->
+<!-- ## we only choose the slides from PyeloD0_1, PyeloD1_2, PyeloD3_1, PyeloD5_1, PyeloD7_1, PyeloD28_1 -->
+<!-- #SlidesSelected_Condtion<-c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1") -->
+
+<!-- allen_reference_day7<-subset(Pyelonephritis_Infection, subset= (orig.ident == "PyeloD0_1" |orig.ident == "PyeloD1_2"|orig.ident == "PyeloD3_1"|orig.ident == "PyeloD5_2"|orig.ident == "PyeloD7_1"|orig.ident == "PyeloD28_1")) -->
+
+<!-- str(allen_reference_day7) -->
+
+<!-- table(allen_reference_day7@meta.data$orig.ident) -->
+
+<!-- ``` -->
+
+<!-- # change the order of slides -->
+<!-- ```{r} -->
+<!-- ## plot the figure -->
+<!-- FinalAbcessClustersObjSubSlides$orig.ident<-ordered(factor(FinalAbcessClustersObjSubSlides$orig.ident), levels=c("PyeloD0_1", "PyeloD1_2", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1")) -->
+
+<!-- FinalAbcessClustersObjSubSlides@meta.data -->
+<!-- Idents(FinalAbcessClustersObjSubSlides) -->
+
+<!-- ## For all the regions: -->
+<!-- Idents(FinalAbcessClustersObjSubSlides) <- FinalAbcessClustersObjSubSlides@meta.data$orig.ident -->
+
+<!-- Idents(FinalAbcessClustersObjSubSlides) -->
+<!-- DimPlot(FinalAbcessClustersObjSubSlides, reduction = "umap", group.by = "Sub2",split.by ="orig.ident",label = TRUE,label.size = 2) -->
+
+<!-- ``` -->
+
+<!-- # redefine the default assay by the SCT using the scale data -->
+<!-- ```{r} -->
+<!-- FinalAbcessClustersObjSubSlides[["LOL"]] <- CreateAssayObject(counts = GetAssayData(FinalAbcessClustersObjSubSlides, -->
+<!--                                                                                     assay="SCT", slot="data")) #Copy "SCT data" to "LOL counts" and "LOL data" -->
+<!-- FinalAbcessClustersObjSubSlides <- SetAssayData(FinalAbcessClustersObjSubSlides, assay = "LOL",  -->
+<!--                                                 slot = "scale.data",  -->
+<!--                                                 new.data = GetAssayData(FinalAbcessClustersObjSubSlides, assay="SCT", -->
+<!--                                                                         slot="scale.data")); gc() #"Copy "SCT scale.data" to "LOL scale.data" -->
+<!-- DefaultAssay(FinalAbcessClustersObjSubSlides) <- "LOL" -->
+<!-- FinalAbcessClustersObjSubSlides <- DietSeurat(FinalAbcessClustersObjSubSlides, assays = "LOL", counts=T, data=T, scale.data=T) -->
+<!-- FinalAbcessClustersObjSubSlides <- RenameAssays(FinalAbcessClustersObjSubSlides, LOL = 'SCT') -->
+<!-- ## set up default of FinalAbcessClustersObjSubSlides -->
+
+<!-- DefaultAssay(FinalAbcessClustersObjSubSlides) <- "SCT" -->
+
+<!-- ``` -->
+
+# upload the single cells objects
+```{r}
+
+# with reference
+allen_reference <- readRDS(paste0(Indir,"PIPSeq_ImmuneSub_Annotated_v0823.RDS"))
+
+allen_reference[[]]
+Idents(allen_reference)<- allen_reference$ImmuneSub
+Idents(allen_reference)
+allen_reference$DataSet
+```
+
+# We only focused on the Day7 of infection
+```{r}
+
+#allen_reference_day0_7 <- subset(allen_reference, subset= (DataSet == "7DPI" |DataSet == "0DPI")) 
+
+allen_reference_day7 <- subset(allen_reference, subset= (DataSet == "7DPI" |DataSet == "0DPI")) 
+
+Idents(allen_reference_day7) 
+DimPlot(allen_reference_day7,label = T)
+```
+
+
+# Run the nichenet_seruratobj_aggregate for the different regions
+```{r}
+DefaultAssay(allen_reference_day7) <- "RNA"
+allen_reference_day7@meta.data %>% head()
+#Idents(allen_reference_day7) <- allen_reference_day7@meta.data$Sub2
+
+# reset the identity, Combine the PT cells
+
+allen_reference_day7@meta.data<- allen_reference_day7@meta.data %>%   mutate(IntegrateAnnot = 
+           ifelse(Raw_cell_type == "PT", Raw_cell_type,ImmuneSub)) 
+# change M1-M2 to M1M2
+allen_reference_day7@meta.data<- allen_reference_day7@meta.data %>%   mutate(IntegrateAnnot2 = 
+           ifelse(IntegrateAnnot == "M1-M2", "M1M2", IntegrateAnnot)) 
+
+
+Idents(allen_reference_day7) <- allen_reference_day7@meta.data$IntegrateAnnot2
+
+Idents(allen_reference_day7)
+allen_reference_day7@meta.data
+# adjust the levels
+# Idents(allen_reference_day7) <-
+# ordered(factor(Idents(allen_reference_day7)), levels=c( "5_1","10_1","10_0","2_1","2_0","5_0","5_2","4","7","0","1","9","6","3","8"))
+
+
+levels(Idents(allen_reference_day7))
+```
+
+# use the wrap 
+```{r}
+# sender
+sender_cluster <- c("FIB","M1M2","RecMAC","NEU","ResIMM")
+
+# define receive cluster
+
+receiver_cluster <- c("PT")
+allen_reference_day7@meta.data %>% head()
+```
+
+
+```{r}
+
+
+ligand_target_matrix <-
+    readRDS(paste0(data_path, "ligand_target_matrix_nsga2r_final_mouse.rds"))
+
+lr_network <-
+    readRDS(paste0(data_path, "lr_network_mouse_21122021.rds"))
+
+ligand_target_matrix %>% head()
+lr_network = lr_network %>% dplyr::distinct(from, to)
+
+weighted_networks <-
+    readRDS(paste0(data_path, "weighted_networks_nsga2r_final_mouse.rds"))
+
+weighted_networks_lr <-
+    weighted_networks$lr_sig %>%
+    inner_join(lr_network %>% distinct(from, to),
+               by = c("from", "to"))
+
+
+allen_reference_day7 = alias_to_symbol_seurat(allen_reference_day7, "mouse")
+
+allen_reference_day7@meta.data %>% head()
+allen_reference_day7@meta.data$IntegrateAnnot %>% table() 
+
+head(weighted_networks$gr) 
+DimPlot(allen_reference_day7, group.by = "DataSet")
+
+# sender
+
+sender_cluster <- c("FIB","M1M2","RecMAC","NEU","ResIMM")
+
+# define receive cluster
+
+receiver_cluster <- c("PT")
+
+DefaultAssay(allen_reference_day7) <-"RNA"
+
+nichenet_output = nichenet_seuratobj_aggregate(
+  seurat_obj = allen_reference_day7, 
+  receiver = "PT", 
+  condition_colname = "DataSet", condition_oi = "7DPI", condition_reference = "0DPI", 
+  sender = c("FIB","M1M2","RecMAC","NEU","ResIMM","T"), 
+  ligand_target_matrix = ligand_target_matrix,
+  lr_network = lr_network,
+  weighted_networks = weighted_networks)
+
+nichenet_output$ligand_target_heatmap
+nichenet_output$ligand_receptor_heatmap
+
+ggsave(filename = "PIPseq_Cell_Cell_Communication_v1011.pdf",nichenet_output$ligand_activity_target_heatmap, width = 28, height = 9)
+
+ggsave(filename = "PIPseq_Cell_Cell_Communication_ligandtargetheatmap_v1011.pdf",nichenet_output$ligand_target_heatmap, width = 15, height = 9)
+ggsave(filename = "PIPseq_Cell_Cell_Communication_ligandreceptor_heatmapp_v1011.pdf",nichenet_output$ligand_receptor_heatmap, width = 15, height = 9)
+
+
+```
+
+# draw the Circos plots
+```{r}
+# Calculate average ligand expression in sender cells
+# avg_expression_ligands = AverageExpression(seuratObj %>% subset(subset = aggregate == "LCMV"),features = nichenet_output$top_ligands) # if want to look specifically in LCMV-only cells
+avg_expression_ligands = AverageExpression(allen_reference_day7, features = nichenet_output$top_ligands)
+
+# Assign ligands to sender cells
+sender_ligand_assignment = avg_expression_ligands$RNA %>% apply(1, function(ligand_expression){
+  ligand_expression > (ligand_expression %>% mean() + ligand_expression %>% sd())
+  }) %>% t()
+sender_ligand_assignment = sender_ligand_assignment %>% apply(2, function(x){x[x == TRUE]}) %>% purrr::keep(function(x){length(x) > 0})
+names(sender_ligand_assignment)
+
+# Determine now which prioritized ligands are expressed by CAFs and or endothelial cells
+
+all_assigned_ligands = sender_ligand_assignment %>% lapply(function(x){names(x)}) %>% unlist()
+all_assigned_ligands
+unique_ligands = all_assigned_ligands %>% table() %>% .[. == 1] %>% names()
+
+general_ligands = nichenet_output$top_ligands %>% setdiff(unique_ligands)
+
+
+sender_ligand_assignment$`FIB` %>% names()%>% setdiff(general_ligands)
+
+
+FIB_specific_ligands = sender_ligand_assignment$`FIB` %>% names() %>% setdiff(general_ligands)
+
+FIB_specific_ligands
+
+PT_specific_ligands = sender_ligand_assignment$`PT` %>% names() %>% setdiff(general_ligands)
+
+PT_specific_ligands
+
+RecMAC_specific_ligands = sender_ligand_assignment$`RecMAC` %>% names() %>% setdiff(general_ligands)
+
+RecMAC_specific_ligands
+
+NEU_specific_ligands = sender_ligand_assignment$`NEU` %>% names() %>% setdiff(general_ligands)
+
+NEU_specific_ligands
+
+M1M2_specific_ligands = sender_ligand_assignment$`M1M2` %>% names() %>% setdiff(general_ligands)
+
+M1M2_specific_ligands
+
+
+#IC_specific_ligands = sender_ligand_assignment$IC %>% names() %>% setdiff(general_ligands)
+#IC_specific_ligands
+
+#PC_specific_ligands = sender_ligand_assignment$PC %>% names() %>% setdiff(general_ligands)
+#PC_specific_ligands
+PT_specific_ligands
+ligand_type_indication_df = tibble(
+  ligand_type = c(rep("PT-specific", times = PT_specific_ligands %>% length()),
+                  rep("NEU-specific", times = NEU_specific_ligands %>% length()),
+                  rep("RecMAC-specific", times = RecMAC_specific_ligands %>% length()),
+                  rep("M1M2-specific", times = M1M2_specific_ligands %>% length()),
+                   rep("FIB-specific", times = FIB_specific_ligands %>% length()),
+                  #rep("IC-specific", times = IC_specific_ligands %>% length()),
+                  rep("General", times = general_ligands %>% length())),
+  ligand = c(PT_specific_ligands, NEU_specific_ligands, RecMAC_specific_ligands, M1M2_specific_ligands, FIB_specific_ligands, general_ligands))
+
+ligand_type_indication_df
+```
+
+```{r}
+# Define the ligand-target links of interest
+active_ligand_target_links_df = nichenet_output$ligand_target_df %>% mutate(target_type = "7DPI") %>% inner_join(ligand_type_indication_df) # if you want ot make circos plots for multiple gene sets, combine the different data frames and differentiate which target belongs to which gene set via the target type
+
+active_ligand_target_links_df
+
+cutoff_include_all_ligands = active_ligand_target_links_df$weight %>% quantile(0.40)
+
+active_ligand_target_links_df_circos = active_ligand_target_links_df %>% filter(weight > cutoff_include_all_ligands)
+
+ligands_to_remove = setdiff(active_ligand_target_links_df$ligand %>% unique(), active_ligand_target_links_df_circos$ligand %>% unique())
+targets_to_remove = setdiff(active_ligand_target_links_df$target %>% unique(), active_ligand_target_links_df_circos$target %>% unique())
+  
+```
+
+# Prepare the circos visualization: give each segment of ligands and targets a specific color and order
+```{r}
+circos_links = active_ligand_target_links_df %>% filter(!target %in% targets_to_remove &!ligand %in% ligands_to_remove)
+circos_links
+
+grid_col_ligand =c("General" = "steelblue2",
+            "RecMAC-specific" = "red",
+            "NEU-specific" = "violet",
+            "M1M2-specific" = "darkgreen",
+            "FIB-specific" = "lawngreen",
+            "PT-specific" = "royalblue"
+            )
+grid_col_target =c(
+            "7DPI" = "darkgray")
+
+grid_col_tbl_ligand = tibble(ligand_type = grid_col_ligand %>% names(), color_ligand_type = grid_col_ligand)
+grid_col_tbl_target = tibble(target_type = grid_col_target %>% names(), color_target_type = grid_col_target)
+
+circos_links = circos_links %>% mutate(ligand = paste(ligand," ")) # extra space: make a difference between a gene as ligand and a gene as target!
+circos_links = circos_links %>% inner_join(grid_col_tbl_ligand) %>% inner_join(grid_col_tbl_target)
+
+circos_links
+
+links_circle = circos_links %>% dplyr::select(ligand,target, weight)
+
+ligand_color = circos_links %>% distinct(ligand,color_ligand_type)
+grid_ligand_color = ligand_color$color_ligand_type %>% set_names(ligand_color$ligand)
+target_color = circos_links %>% distinct(target,color_target_type)
+grid_target_color = target_color$color_target_type %>% set_names(target_color$target)
+
+grid_col =c(grid_ligand_color,grid_target_color)
+
+
+# give the option that links in the circos plot will be transparant ~ ligand-target potential score
+transparency = circos_links %>% mutate(weight =(weight-min(weight))/(max(weight)-min(weight))) %>% mutate(transparency = 1-weight) %>% .$transparency 
+
+transparency
+
+# prepare circos
+target_order = circos_links$target %>% unique()
+
+ligand_order = c(PT_specific_ligands, NEU_specific_ligands, RecMAC_specific_ligands, M1M2_specific_ligands, FIB_specific_ligands, general_ligands) %>% c(paste(.," ")) %>% intersect(circos_links$ligand)
+order = c(ligand_order,target_order)
+# Prepare the circos visualization: define the gaps between the different segments
+width_same_cell_same_ligand_type = 0.5
+width_different_cell = 6
+width_ligand_target = 15
+width_same_cell_same_target_type = 0.5
+
+gaps = c(
+  # width_ligand_target,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "FIB-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "NEU-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "RecMAC-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "M1M2-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+    rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "PT-specific") %>% distinct(ligand) %>% nrow() -1)),
+  width_different_cell,
+  rep(width_same_cell_same_ligand_type, times = (circos_links %>% filter(ligand_type == "General") %>% distinct(ligand) %>% nrow() -1)),
+  width_ligand_target,
+  rep(width_same_cell_same_target_type, times = (circos_links %>% filter(target_type == "7DPI") %>% distinct(target) %>% nrow() -1)),
+  width_ligand_target
+  )
+```
+
+```{r}
+circos.par(gap.degree = gaps)
+chordDiagram(links_circle, directional = 1,order=order,link.sort = TRUE, link.decreasing = FALSE, grid.col = grid_col,transparency = 0, diffHeight = 0.005, direction.type = c("diffHeight", "arrows"),link.arr.type = "big.arrow", link.visible = links_circle$weight >= cutoff_include_all_ligands,annotationTrack = "grid", 
+    preAllocateTracks = list(track.height = 0.075))
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+    circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+        facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 1)
+}, bg.border = NA) #
+
+circos.clear()
+```
+
+```{r}
+svg("ligand_receptor_circos.svg", width = 12, height = 12)
+circos.par(gap.degree = gaps)
+chordDiagram(links_circle, directional = 1,order=order,link.sort = TRUE, link.decreasing = FALSE, grid.col = grid_col,transparency = transparency, diffHeight = 0.005, direction.type = c("diffHeight", "arrows"),link.arr.type = "big.arrow", link.visible = links_circle$weight >= cutoff_include_all_ligands,annotationTrack = "grid",
+    preAllocateTracks = list(track.height = 0.075))
+# we go back to the first track and customize sector labels
+circos.track(track.index = 1, panel.fun = function(x, y) {
+    circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+        facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.55), cex = 0.8)
+}, bg.border = NA) #
+circos.clear()
+dev.off()
+```
+
+
+
+
+
+
+
+# Complicated version
+# 
+## Get their pre-defined model data
+```{r}
+From:
+"https://zenodo.org/record/3260758/files/ligand_target_matrix.rds"
+"https://zenodo.org/record/3260758/files/lr_network.rds"
+"https://zenodo.org/record/3260758/files/weighted_networks.rds"
+
+```
+
+```{r}
+ligand_target_matrix <-
+    readRDS(paste0(data_path, "ligand_target_matrix.rds"))
+
+lr_network <-
+    readRDS(paste0(data_path, "lr_network.rds"))
+
+weighted_networks <-
+    readRDS(paste0(data_path, "weighted_networks.rds"))
+
+weighted_networks_lr <-
+    weighted_networks$lr_sig %>%
+    inner_join(lr_network %>% distinct(from, to),
+               by = c("from", "to"))
+```
+
+# transfer into mouse
+```{r}
+lr_network <-
+    lr_network %>%
+    mutate(from = convert_human_to_mouse_symbols(from),
+           to = convert_human_to_mouse_symbols(to)) %>%
+    drop_na()
+
+colnames(ligand_target_matrix) <-
+    ligand_target_matrix %>%
+    colnames() %>%
+    convert_human_to_mouse_symbols()
+
+rownames(ligand_target_matrix) <-
+    ligand_target_matrix %>%
+    rownames() %>%
+    convert_human_to_mouse_symbols()
+
+ligand_target_matrix <-
+    ligand_target_matrix %>%
+    .[!is.na(rownames(ligand_target_matrix)),
+        !is.na(colnames(ligand_target_matrix))]
+
+
+
+weighted_networks_lr <-
+    weighted_networks_lr %>%
+    mutate(from = convert_human_to_mouse_symbols(from),
+           to = convert_human_to_mouse_symbols(to)) %>%
+    drop_na()
+```
+
+
+```{r}
+
+## receiver
+receiver <- "Proximal tubule"
+expressed_genes_receiver <-
+    get_expressed_genes(receiver,
+                        allen_reference_day0_7,
+                        pct = 0.10, assay_oi = "RNA")
+
+background_expressed_genes <-
+    expressed_genes_receiver %>%
+    .[. %in% rownames(ligand_target_matrix)]
+
+#background_expressed_genes
+## sender
+sender_celltypes <- c("Myeoloblast","Enodothelium","Fibroblast","T Cells","NK Cells")
+
+
+```
+
+
+
+```{r}
+## Make sure to keep only genes present in our model
+
+list_expressed_genes_sender <-
+    sender_celltypes %>%
+    # lapply to get the expressed genes of every sender cell type separately here
+    lapply(get_expressed_genes, allen_reference_day0_7, 0.10,assay_oi = "RNA")
+
+
+expressed_genes_sender <-
+    list_expressed_genes_sender %>%
+    unlist() %>%
+    unique()
+expressed_genes_sender
+
+```
+
+## Use FindMarkers to define out genes of interest
+Can use other methods to define the group of genes you want to look at
+Get just the reciever cells and do DE based on conditions ("aggregate" in this case)
+Then make sure these genes are in our model
+
+```{r}
+seurat_obj_receiver <-
+    subset(allen_reference_day0_7, idents = receiver) %>%
+    SetIdent(value = "DataSet")
+
+DE_table_receiver <-
+    FindMarkers(object = seurat_obj_receiver,
+                ident.1 = "D7",
+                ident.2 = "D0",
+                min.pct = 0.10 ) %>%
+    rownames_to_column("gene")
+
+DE_table_receiver%>% head()
+#DE_table_receiver
+#?FindMarkers
+geneset_oi <-
+    DE_table_receiver %>%
+    filter(p_val_adj <= 0.05 &
+            abs(avg_log2FC) >= 0.25) %>%
+    pull(gene) %>%
+    .[. %in% rownames(ligand_target_matrix)]
+
+length(geneset_oi)
+```
+
+
+## Define potential ligands
+Take the list of ligands from our model and keep the ones that are expressed in our data and do the same for the receptors
+Then use these lists to keep ligands where both the receptor and the ligand are expressed
+```{r}
+ligands <-
+    lr_network %>%
+    pull(from) %>%
+    unique()
+
+receptors <-
+    lr_network %>%
+    pull(to) %>%
+    unique()
+
+expressed_ligands <- intersect(ligands, expressed_genes_sender)
+expressed_receptors <- intersect(receptors, expressed_genes_receiver)
+
+potential_ligands <-
+    lr_network %>%
+    filter(from %in% expressed_ligands &
+            to %in% expressed_receptors) %>%
+    pull(from) %>%
+    unique()
+potential_ligands
+```
+
+## Predict which ligands best explain the expressed genes in the reciever cells
+We provide:
+
+- geneset_oi                    - List of downstream targets of potentially activated receptors
+- background_expressed_genes    - List of genes expressed in the reciever cells
+- ligand_target_matrix          - Matrix of ligand-receptor interactions
+- potential_ligands             - List of ligands that are expressed in the sender cells
+
+How you generate these lists is flexible
+
+```{r}
+
+
+nichenet_stepwise_output <-
+    predict_ligand_activities(geneset = geneset_oi,
+                              background_expressed_genes = background_expressed_genes,
+                              ligand_target_matrix = ligand_target_matrix,
+                              potential_ligands = potential_ligands) %>%
+    arrange(-pearson) 
+
+?predict_ligand_activities
+ nichenet_stepwise_output
+  #mutate(rank = rank(desc(pearson)))
+
+nichenet_stepwise_output
+
+qs::qsave(nichenet_stepwise_output,
+          file = paste0(data_path, "nichenet_stepwise_output.qs"))
+```
+
+
+
+```{r}
+
+# The different ligand activity measures (auroc, aupr, pearson correlation coefficient) are a measure for how well a ligand can predict the observed differentially expressed genes compared to the background of expressed genes.
+
+## Ligand predicted based on DEG
+
+Potential_ligands<-nichenet_stepwise_output  %>% pull(test_ligand)
+
+Potential_ligands
+Potential_ligandsDotPlot<-DotPlot(allen_reference_day0_7,
+        features = rev(Potential_ligands),
+        cols = "RdYlBu") +
+    RotatedAxis() +coord_flip() 
+
+
+```
+
+
+
+## easy model
+```{r}
+
+#?nichenet_seuratobj_aggregate
+levels(allen_reference_day0_7)
+nichenet_output <- nichenet_seuratobj_aggregate(
+  seurat_obj = allen_reference_day0_7, 
+  receiver = "Proximal tubule", 
+  condition_colname = "DataSet", condition_oi = "D7", condition_reference = "D0", 
+  sender = sender_cluster, 
+  ligand_target_matrix = ligand_target_matrix,
+  lr_network = lr_network,
+  weighted_networks = weighted_networks, assay_oi = "RNA")
+
+
+allen_reference_day0_7%>% Idents() %>% unique()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# we only focused the DEGs that results from the infections
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_V04142023/Seurat/CellCommunication/")
+DEGList <- read.csv(file = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_V04142023/Seurat/CellCommunication/Top_Regionalmarkers_Mast.csv", header = T)
+
+DEGList %>% head()
+# define sender/receiver cluster
+
+sender_cluster <- c("Myeoloblast","Enodothelium","Fibroblast","T Cells","NK Cells")
+
+# define receive cluster
+
+receiver_cluster <- c("Proximal tubule")
+#table(DEGList$cluster)
+
+
+### define the genes of interesting:
+RequestGenes <- DEGList %>% filter(cluster == "Processing Infection") %>% pull(gene) %>% unique() %>% .[.%in% rownames(ligand_target_matrix)]
+length(RequestGenes)
+
+# define background genes in receiver clusters
+background_receiver_genes <-
+    get_expressed_genes(receiver_cluster,
+                        allen_reference_day7,
+                        pct = 0.10, assay_oi = "SCT") %>%
+    .[. %in% rownames(ligand_target_matrix)]
+
+length(background_receiver_genes)
+
+# Define potential ligands
+ligands <-
+    lr_network %>%
+    pull(from) %>%
+    unique()
+
+receptors <-
+    lr_network %>%
+    pull(to) %>%
+    unique()
+
+expressed_genes_senders <-
+    sender_cluster %>%
+    # lapply to get the expressed genes of every sender cell type separately here
+    lapply(get_expressed_genes, allen_reference_day7, 0.10, assay_oi = "SCT") %>%
+    unlist() %>%
+    unique()
+
+
+expressed_genes_receiver <-
+    get_expressed_genes(receiver_cluster,
+                        allen_reference_day7,
+                        pct = 0.10,assay_oi = "SCT") %>%
+    unlist() %>%
+    unique()
+
+expressed_ligands <- intersect(ligands, expressed_genes_senders)
+expressed_receptors <- intersect(receptors, expressed_genes_receiver)
+
+
+potential_ligands <-
+    lr_network %>%
+    filter(from %in% expressed_ligands &
+            to %in% expressed_receptors) %>%
+    pull(from) %>%
+    unique()
+
+potential_ligands
+
+# Run nichenetr
+
+activity_1_output <-
+    predict_ligand_activities(geneset = RequestGenes,
+                              background_expressed_genes = background_receiver_genes,
+                              ligand_target_matrix = ligand_target_matrix,
+                              potential_ligands = potential_ligands)
+
+activity_1_output<-activity_1_output%>%
+    dplyr::arrange(-pearson) %>%
+    dplyr::mutate(rank = rank(dplyr::desc(pearson)))
+
+
+```
+
+# draw the figures for the top ligand activity
+```{r}
+activity_1_output %>% head()
+
+# we select the top 20 ligand for the outpu
+# show histogram of ligand activity scores
+p_hist_lig_activity = ggplot(activity_1_output, aes(x=aupr_corrected)) + 
+  geom_histogram(color="black", fill="darkorange")  + 
+  # geom_density(alpha=.1, fill="orange") +
+  geom_vline(aes(xintercept=min(activity_1_output %>% top_n(30, aupr_corrected) %>% pull(aupr_corrected))), color="red", linetype="dashed", size=1) + 
+  labs(x="ligand activity (PCC)", y = "# ligands") +
+  theme_classic()
+p_hist_lig_activity
+
+```
+#Step 5: Infer target genes of top-ranked ligands and visualize in a heatmap
+```{r}
+# get the best ligand top 30
+best_upstream_ligands = activity_1_output %>% top_n(20, aupr_corrected) %>% arrange(-aupr_corrected) %>% pull(test_ligand)
+best_upstream_ligands
+
+active_ligand_target_links_df = best_upstream_ligands %>% lapply(get_weighted_ligand_target_links,geneset = RequestGenes, ligand_target_matrix = ligand_target_matrix, n = 250) %>% bind_rows()
+
+active_ligand_target_links_df %>% head()
+
+nrow(active_ligand_target_links_df)
+## [1] 460
+head(active_ligand_target_links_df)
+
+# For visualization purposes, we adapted the ligand-target regulatory potential matrix as follows. Regulatory potential scores were set as 0 if their score was below a predefined threshold, which was here the 0.25 quantile of scores of interactions between the 30 top-ranked ligands and each of their respective top targets (see the ligand-target network defined in the data frame).
+active_ligand_target_links = prepare_ligand_target_visualization(ligand_target_df = active_ligand_target_links_df, ligand_target_matrix = ligand_target_matrix, cutoff = 0.25)
+active_ligand_target_links %>% nrow()
+nrow(active_ligand_target_links)
+## [1] 460
+head(active_ligand_target_links)
+# The putatively active ligand-target links will now be visualized in a heatmap. The order of the ligands accord to the ranking according to the ligand activity prediction.
+order_ligands = intersect(best_upstream_ligands, colnames(active_ligand_target_links)) %>% rev()
+
+#order_targets = active_ligand_target_links_df$target %>% unique()
+
+
+order_targets = intersect(active_ligand_target_links_df$target %>% unique(), rownames(active_ligand_target_links)) 
+
+length(order_targets)
+vis_ligand_target = active_ligand_target_links[order_targets,order_ligands] %>% t()
+
+
+p_ligand_target_network = vis_ligand_target %>% make_heatmap_ggplot("Prioritized CAF-ligands","Differential expressed genes in the infected regions (353 targets)", color = "purple",legend_position = "top", x_axis_position = "top",legend_title = "Regulatory potential") + scale_fill_gradient2(low = "whitesmoke",  high = "purple", breaks = c(0,0.005,0.01)) + theme(axis.text.x = element_text(face = "italic"))
+
+p_ligand_target_network
+
+```
+
+#Follow-up analysis 1: Ligand-receptor network inference for top-ranked ligands
+
+```{r}
+
+# get the ligand-receptor network of the top-ranked ligands
+lr_network_top = lr_network %>% filter(from %in% best_upstream_ligands & to %in% expressed_receptors) %>% distinct(from,to)
+#lr_network_top %>% head()
+best_upstream_receptors = lr_network_top %>% pull(to) %>% unique()
+
+best_upstream_ligands
+best_upstream_receptors
+# get the weights of the ligand-receptor interactions as used in the NicheNet model
+#weighted_networks = readRDS(url("https://zenodo.org/record/7074291/files/weighted_networks_nsga2r_final.rds"))
+
+weighted_networks_lr %>% head()
+
+lr_network_top_df = weighted_networks_lr %>% filter(from %in% best_upstream_ligands & to %in% best_upstream_receptors)
+#lr_network_top_df
+# convert to a matrix
+lr_network_top_df = lr_network_top_df %>% spread("from","weight",fill = 0)
+lr_network_top_df %>% head()
+
+lr_network_top_matrix = lr_network_top_df %>% dplyr::select(-to) %>% as.matrix() %>% magrittr::set_rownames(lr_network_top_df$to)
+
+lr_network_top_matrix %>% head()
+# perform hierarchical clustering to order the ligands and receptors
+dist_receptors = dist(lr_network_top_matrix, method = "binary")
+hclust_receptors = hclust(dist_receptors, method = "ward.D2")
+order_receptors = hclust_receptors$labels[hclust_receptors$order]
+
+order_receptors_gene<-order_receptors %>% as.matrix() %>% .[,1] 
+dist_ligands = dist(lr_network_top_matrix %>% t(), method = "binary")
+hclust_ligands = hclust(dist_ligands, method = "ward.D2")
+order_ligands_receptor = hclust_ligands$labels[hclust_ligands$order]
+
+
+vis_ligand_receptor_network = lr_network_top_matrix[order_receptors, order_ligands_receptor]
+
+p_ligand_receptor_network =vis_ligand_receptor_network %>% t() %>% .[order_ligands,] %>% make_heatmap_ggplot("Prioritized CAF-ligands","Receptors expressed by infected regions", color = "mediumvioletred", x_axis_position = "top",legend_position = "right", legend_title = "Prior interaction")
+
+p_ligand_receptor_network
+
+FinalReceptorOrder <- vis_ligand_receptor_network %>% t() %>% .[order_ligands,] %>% colnames()
+
+?make_heatmap_ggplot
+```
+
+#Follow-up analysis 2: Visualize expression of top-predicted ligands and their target genes in a combined heatmap
+```{r}
+library(RColorBrewer)
+library(cowplot)
+library(ggpubr)
+
+ligand_aupr_matrix = activity_1_output %>% dplyr::select(aupr_corrected) %>% as.matrix() %>% magrittr::set_rownames(activity_1_output$test_ligand)
+
+ligand_aupr_matrix %>% head()
+vis_ligand_aupr = ligand_aupr_matrix[order_ligands, ] %>% as.matrix(ncol = 1) %>% magrittr::set_colnames("AUPR")
+
+
+p_ligand_aupr = vis_ligand_aupr %>% make_heatmap_ggplot("Prioritized CAF-ligands","Ligand activity", color = "darkorange",legend_position = "bottom", x_axis_position = "top", legend_title = "AUPR\n(target gene prediction ability)")
+p_ligand_aupr
+
+# prepare the expression of ligands in the spatial
+
+allen_reference_day7
+rev(order_ligands)
+order_ligands
+
+LigandDotplot<- DotPlot(allen_reference_day7, features =order_ligands) +coord_flip() +RotatedAxis()
+FinalReceptorOrderDotPlot<-DotPlot(allen_reference_day7, features =FinalReceptorOrder)+RotatedAxis()
+#LigandDotplotTimpoints<-DotPlot(allen_reference_day7, features =order_ligands) +coord_flip() +RotatedAxis()
+#DoHeatmap(allen_reference_day7, features =order_targets)
+
+```
+
+# generate the figure for the ligand activity and predicted receptor based on the DEGs from infected regions
+```{r}
+#Combine the different heatmaps in one overview figure
+p_ligand_aupr
+order_receptors
+Idents(allen_reference_day7) <- allen_reference_day7@meta.data$orig.ident
+DotPlot(allen_reference_day7, features = best_upstream_receptors)+RotatedAxis()
+DotPlot(allen_reference_day7, features =FinalReceptorOrder)+RotatedAxis()
+LigandDotplotTimpoints<-DotPlot(allen_reference_day7, features =order_ligands) +coord_flip() +RotatedAxis()
+FinalReceptorTimpoints<-DotPlot(allen_reference_day7, features =FinalReceptorOrder) +RotatedAxis()
+
+#DoHeatmap(allen_reference_day7, features =order_targets)
+
+ggsave("p_ligand_aupr_infection.pdf", plot =  p_ligand_aupr, height = 7, width = 14 )
+ggsave("LigandDotplot.pdf", plot =  LigandDotplot, height = 6, width = 7 )
+ggsave("ReceptorDotplot.pdf", plot =  FinalReceptorOrderDotPlot, height = 6, width = 24)
+
+ggsave("p_ligand_receptor_network.pdf", plot =  p_ligand_receptor_network, height = 9, width = 16 )
+ggsave("LigandDotplotTimepoint.pdf", plot =  LigandDotplotTimpoints, height = 6, width = 5)
+ggsave("ReceptorDotplotTimepoint.pdf", plot =  FinalReceptorTimpoints, height = 6, width = 24)
+
+ggsave("p_ligand_receptor_network.pdf", plot =  p_ligand_receptor_network, height = 9, width = 13 )
+
+
+figures_without_legend = plot_grid(
+  p_ligand_aupr + theme(legend.position = "none", axis.ticks = element_blank()) + theme(axis.title.x = element_text()),
+  LigandDotplot + theme(legend.position = "none", axis.ticks = element_blank()) + theme(axis.title.x = element_text()) + ylab(""),
+  p_ligand_receptor_network + theme(legend.position = "none", axis.ticks = element_blank()) + ylab(""), 
+
+
+  align = "hv",
+  nrow = 1,
+  rel_widths = c(ncol(p_ligand_aupr)+ 4.5, ncol(LigandDotplot), ncol(p_ligand_receptor_network)) -2,
+  rel_heights = c(nrow(p_ligand_aupr) + 3)) 
+
+legends = plot_grid(
+  as_ggplot(get_legend(p_ligand_aupr)),
+  as_ggplot(get_legend(LigandDotplot)),
+  as_ggplot(get_legend(p_ligand_receptor_network)),
+  #as_ggplot(get_legend(p_target_tumor_scaled_expression)),
+  nrow = 1,
+  align = "h")
+
+plot_grid(figures_without_legend, 
+          legends, 
+          rel_heights = c(10,2), nrow = 1, align = "hv")
+```
+
+
+# Prepare the circos visualization: give each segment of ligands and targets a specific color and order
+```{r}
+
+# we already got the ligand activities: activity_1_output
+activity_1_output%>% arrange(-aupr_corrected)
+
+# we arelady got the best ligands
+best_upstream_ligands
+
+# the expression in cluster 
+
+# in the sender: 
+sender_cluster
+
+Sender_Gene_10_1 <- 
+    get_expressed_genes("10_1",
+                        allen_reference_day7,
+                        pct = 0.10,assay_oi = "SCT") %>%
+    unlist() %>%
+    unique()
+Sender_Gene_10_0 <-     get_expressed_genes("10_0",
+                        allen_reference_day7,
+                        pct = 0.10,assay_oi = "SCT") %>%
+    unlist() %>%
+    unique()
+
+
+# express_genes_receiver : 
+receiver_cluster
+expressed_genes_receiver <-
+    get_expressed_genes(receiver_cluster,
+                        allen_reference_day7,
+                        pct = 0.10,assay_oi = "SCT") %>%
+    unlist() %>%
+    unique()
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+# reading the expression data
+expressionall <- allen_reference_day7[["SCT"]][,]
+
+expression<-expressionall %>% as.matrix()
+
+sample_info <- allen_reference_day7@meta.data
+
+sample_info %>% head()
+# 10_1
+sample_info %>% filter(Sub2 == "10_1") 
+Sub_10_1_ids = sample_info %>% filter(Sub2 == "10_1")  %>% rownames()
+Sub_10_0_ids = sample_info %>% filter(Sub2 == "10_0")  %>% rownames()
+
+Sub_5_1_ids = sample_info %>% filter(Sub2 == "5_1")  %>% rownames()
+
+# get the expression 
+expressed_genes_10_1 = expression[Sub_10_1_ids,] %>% apply(2,function(x){10*(2**x - 1)}) %>% apply(2,function(x){log2(mean(x) + 1)}) %>% .[. >= 4] %>% names()
+expressed_genes_10_0 = expression[Sub_10_0_ids,] %>% apply(2,function(x){10*(2**x - 1)}) %>% apply(2,function(x){log2(mean(x) + 1)}) %>% .[. >= 4] %>% names()
+expressed_genes_5_1 = expression[Sub_5_1_ids,] %>% apply(2,function(x){10*(2**x - 1)}) %>% apply(2,function(x){log2(mean(x) + 1)}) %>% .[. >= 4] %>% names()
+
+```
+
+
+```{r}
+expressed_ligands_10_1 = intersect(ligands,Sender_Gene_10_1)
+expressed_ligands_10_0 = intersect(ligands,Sender_Gene_10_0)
+expressed_ligands_5_1 = intersect(ligands,expressed_genes_receiver)
+
+
+allen_reference_day7
+# therefore, determine which ligands are more strongly expressed in which of the two
+ligand_expression_tbl = tibble(
+  ligand = best_upstream_ligands, 
+  CAF = expression["10_1",best_upstream_ligands] %>% apply(2,function(x){10*(2**x - 1)}) %>% apply(2,function(x){log2(mean(x) + 1)}),
+  endothelial = expression[endothelial_ids,best_upstream_ligands] %>% apply(2,function(x){10*(2**x - 1)}) %>% apply(2,function(x){log2(mean(x) + 1)}))
+
+CAF_specific_ligands = ligand_expression_tbl %>% filter(CAF > endothelial + 2) %>% pull(ligand)
+endothelial_specific_ligands = ligand_expression_tbl %>% filter(endothelial > CAF + 2) %>% pull(ligand)
+general_ligands = setdiff(best_upstream_ligands,c(CAF_specific_ligands,endothelial_specific_ligands))
+
+ligand_type_indication_df = tibble(
+  ligand_type = c(rep("CAF-specific", times = CAF_specific_ligands %>% length()),
+                  rep("General", times = general_ligands %>% length()),
+                  rep("Endothelial-specific", times = endothelial_specific_ligands %>% length())),
+  ligand = c(CAF_specific_ligands, general_ligands, endothelial_specific_ligands))
+
+
+
+
+receptors = lr_network %>% pull(to) %>% unique()
+expressed_receptors = intersect(receptors,expressed_genes_receiver)
+
+cutoff_include_all_ligands = active_ligand_target_links_df$weight %>% quantile(0.66)
+active_ligand_target_links_df_circos = active_ligand_target_links_df %>% filter(weight > cutoff_include_all_ligands)
+
+ligands_to_remove = setdiff(active_ligand_target_links_df$ligand %>% unique(), active_ligand_target_links_df_circos$ligand %>% unique())
+targets_to_remove = setdiff(active_ligand_target_links_df$target %>% unique(), active_ligand_target_links_df_circos$target %>% unique())
+circos_links = active_ligand_target_links_df %>% filter(!target %in% targets_to_remove &!ligand %in% ligands_to_remove)
+
+```
+
+# prepare the visualization
+```{r}
+grid_col_ligand =c("General" = "lawngreen",
+            "10_1" = "royalblue",
+            "10_0" = "gold")
+grid_col_target =c(
+            "5_1" = "tomato")
+
+grid_col_tbl_ligand = tibble(ligand_type = grid_col_ligand %>% names(), color_ligand_type = grid_col_ligand)
+grid_col_tbl_target = tibble(target_type = grid_col_target %>% names(), color_target_type = grid_col_target)
+
+
+grid_col_tbl_ligand
+grid_col_tbl_target
+circos_links = circos_links %>% mutate(ligand = paste(ligand," ")) # extra space: make a difference between a gene as ligand and a gene as target!
+circos_links = circos_links %>% inner_join(grid_col_tbl_ligand) %>% inner_join(grid_col_tbl_target)
+links_circle = circos_links %>% select(ligand,target, weight)
+
+ligand_color = circos_links %>% distinct(ligand,color_ligand_type)
+grid_ligand_color = ligand_color$color_ligand_type %>% set_names(ligand_color$ligand)
+target_color = circos_links %>% distinct(target,color_target_type)
+grid_target_color = target_color$color_target_type %>% set_names(target_color$target)
+
+grid_col =c(grid_ligand_color,grid_target_color)
+
+# give the option that links in the circos plot will be transparant ~ ligand-target potential score
+transparency = circos_links %>% mutate(weight =(weight-min(weight))/(max(weight)-min(weight))) %>% mutate(transparency = 1-weight) %>% .$transparency 
+```
+
