@@ -788,6 +788,13 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
 SpatialMarkersDotPlot<- DotPlot(Subcluster0, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
 
 ggsave("SpatialMarkersDotPlot.pdf", plot = SpatialMarkersDotPlot, height = 6, width = 14)
+
+SpatialDimNoLable <- SpatialDimPlot(Subcluster0)
+ggsave("SpatialIntegrated_Pyeloneprhitis_harmony_SpatialDimplot_withoutlabels_onlySlide.pdf", plot = SpatialDimNoLable, height = 6, width = 14)
+
+
+
+DimPlot(Subcluster0)
 ```
 
 

@@ -1,0 +1,1120 @@
+---
+title: "SpatialDEGFigure_RegionalKidney"
+author: "Xin Wang"
+date: "2023-07-20"
+output: html_document
+---
+---
+title: "Differentially expressed genes detection for comparisions within timepoints to control in spatial transcriptomic datasets using all the niches"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org 
+Copyright (c) 2023 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2023-05-18"
+Description: 
+#   Detection of differentially expressed genes for different infection regions
+#    - Detection of DEGs comparing the clusters
+#    - Detection of DEGs under several different conditions
+#    - Functional enrichments for the DEGs
+#    - Several of associated figures to show the differences
+#    - KEGG pathway enrichments
+#    - Heatmap, spatialfeature plots, pathview of interesting KEGG pathways.
+
+note: the genes including the list of
+       cell type: Proximal tubule, connecting tubule, IC, PC, Loop of henle, Endothelium, NK, CD45, T cells, B Cells, Macrophage, Neutorphil
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = TRUE)
+```
+
+
+## loading the libraries
+
+```{r libraries, cache=FALSE, warning=FALSE, error=FALSE, message=FALSE,}
+
+# loading libraries required for seurat
+library(Seurat)
+#library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+# library(scater)
+# library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+#library(SeuratDisk)
+
+# loading for the table bubble updates
+library(L1pack)
+library(reshape)
+library(tidyverse)
+library(stringr)
+library(cowplot)
+
+# loading the libraries for plot and colors
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+
+# loading libraries required for the DEG and functionally enrichment
+#install.packages("msigdbr")
+library(msigdbr)
+library(fgsea)
+library(data.table)
+library(RColorBrewer)
+library(ggrepel)
+library(DESeq2)
+library(pheatmap)
+#BiocManager::install("MAST")
+library(MAST)
+library(edgeR)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(enrichplot)
+#keytypes(org.Mm.eg.db) 
+
+#BiocManager::install("ReactomePA")
+library(ReactomePA)
+
+# install thje KEGG packages
+#MusKEGG<- search_kegg_organism('Mus musculus', by='scientific_name')
+#dim(MusKEGG)
+#head(MusKEGG)
+# loading for KEGG analyes
+library("pathview")
+
+
+library(RColorBrewer)
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+```
+
+
+# The main analyses section:
+# setting up the environments and randomization
+```{r}
+## set directory pathway:
+
+rm(list=ls())
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyAllNiches/")
+Indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
+# Here is the Kidney different regions
+Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyAllNiches/")
+
+# Generate the Different folders to store the results
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
+
+# directory for biomarkers
+
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
+# setting up the seed 
+set.seed(1000001)
+```
+
+# read the input object that have been well convoluted and annotated
+```{r}
+Pyelonephritis_Infection <- readRDS(file = paste0(Indir,"Pyelonephritis_Infection_Deconvoluted.RDS"))
+
+rownames(Pyelonephritis_Infection)
+colnames(Pyelonephritis_Infection)
+# define the selcted slices
+selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
+
+Pyelonephritis_Infection
+# define infected niches
+Infectedniches <- c("N12","N13","N14","N15","N16","N17")
+
+
+```
+
+# choose the subset of niches for the following analysis
+```{r}
+# Define the default assay as SCT 
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+
+# select the subset of spatial transcriptomics
+## we only choose the slides from PyeloD0_1, PyeloD1_2, PyeloD3_1, PyeloD5_1, PyeloD7_1, PyeloD28_1
+#SlidesSelected_Condtion<-c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1")
+
+Idents(Pyelonephritis_Infection)
+FinalAbcessClustersObjSubSlidesInfection_subcluster<- subset(Pyelonephritis_Infection, idents = c("N12","N13","N14","N15","N16","N17"))
+# Reorder the identity levels
+
+Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
+
+DimPlot(Pyelonephritis_Infection)
+?SpatialDimPlot
+#DefaultAssay(FinalAbcessClustersObjSubSlidesNonInfection_Subcluster) <- "SCT"
+pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_nocrop.pdf", height =12, width = 6)
+SpatialDimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, images =selectedslices,crop = FALSE, label = FALSE,ncol = 2)
+dev.off()
+pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_dimplot.pdf", height =4, width = 5)
+DimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,label = T)
+dev.off()
+```
+
+# Detection all the DEGs for all the regions and only show the top 10 for N13-N17
+```{r}
+setwd(BioMarkerDir)
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+# check the specific marker by the MAST
+#AllCategories_Clustermarkers <- FindAllMarkers(Pyelonephritis_Infection,
+#            min.pct = 0.25,test.use= "MAST") # only markers that are in 25% of cells
+
+# save all biomarkers as a dataframe
+#write.csv(AllCategories_Clustermarkers, "AllCategories_Clustermarkers_MAST.csv")
+
+# here we draw the specific biomarkers for the infected niches
+AllCategories_Clustermarkers <- read.csv("AllCategories_Clustermarkers_MAST.csv", header = T)
+AllCategories_Clustermarkers %>% head()
+ 
+Top_InfectedrmarkersComparingAll<-AllCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 10) %>% filter(cluster %in% Infectedniches)
+
+Top25_InfectedrmarkersComparingAll<-AllCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 25) %>% filter(cluster %in% Infectedniches)
+
+
+Top_InfectedrmarkersComparingAllGene<- Top_InfectedrmarkersComparingAll %>% pull(gene) %>% unique()
+
+Top25_InfectedrmarkersComparingAllGene<- Top25_InfectedrmarkersComparingAll %>% pull(gene) %>% unique()
+
+  # generate the top 10 genes for each biomarker
+# generate the heatmap
+Top_InfectedrmarkersComparingAllGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = Top_InfectedrmarkersComparingAllGene, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom") 
+?DoHeatmap
+ggsave("Top_InfectedrmarkersComparingAllGenesheatmap.pdf", plot =Top_InfectedrmarkersComparingAllGenesheatmap, height = 10, width = 9 )
+
+Top_InfectedrmarkersComparingAllGeneDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = Top_InfectedrmarkersComparingAllGene) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))+RotatedAxis() 
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("Top_InfectedrmarkersComparingAllGeneDotPlot.pdf", plot =Top_InfectedrmarkersComparingAllGeneDotPlot, height = 9, width = 9 )
+
+
+Top25_InfectedrmarkersComparingAllGeneDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = Top25_InfectedrmarkersComparingAllGene) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))+RotatedAxis() 
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+ggsave("Top25_InfectedrmarkersComparingAllGeneDotPlot.pdf", plot =Top25_InfectedrmarkersComparingAllGeneDotPlot, height = 18, width = 9 )
+
+
+```
+
+
+```{r}
+setwd(BioMarkerDir)
+
+# generate the top 30 genes for each biomarker
+top_Infectedrmarkers <- as.data.frame(AllCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 30))
+# generate the featureplot for each biomarker
+top_Infectedrmarkers
+
+top_InfectedrmarkersGenes<- top_Infectedrmarkers %>% pull(gene) %>% unique()
+
+for (t in top_InfectedrmarkersGenes){
+  
+  # generate the figures for the top 10 biomarkers for each section
+  RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(BioMarkerDir,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,8))
+     # save into a file
+    ggsave(filename = paste0(BioMarkerDir,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,10))
+     # save into a file
+    ggsave(filename = paste0(BioMarkerDir,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+    
+      RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,20))
+     # save into a file
+    ggsave(filename = paste0(BioMarkerDir,t, "_SpatialFeatureplot_Cut20.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut20, height = 8, width = 15 )
+
+ 
+}
+```
+
+# generate the dotplot and heatmap
+```{r}
+Idents(Pyelonephritis_Infection)
+levels(Idents(Pyelonephritis_Infection))
+
+# only for the top 5
+# generate the top 5 genes for each biomarker
+top5_Infectedrmarkers_genes <- as.data.frame(InfectedCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 5)) %>% pull(gene) %>% unique()
+# generate the heatmap
+top_InfectedrmarkersGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = top5_Infectedrmarkers_genes, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("top_InfectedrmarkersGenesheatmap.pdf", plot =top_InfectedrmarkersGenesheatmap, height = 10, width = 9 )
+
+top_InfectedrmarkersGeneDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = top5_Infectedrmarkers_genes) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("top_InfectedrmarkersGeneDotPlot.pdf", plot =top_InfectedrmarkersGeneDotPlot, height = 8, width = 6 )
+
+```
+
+# Generate the dotplot for different CDK biomarkers
+```{r}
+# For Glomerular: 
+GlomerularMarker <- paste0(BioMarkerDir,"/Glomerular/")
+dir.create(GlomerularMarker)
+setwd(GlomerularMarker)
+GlomerularCKD_markers<- c("Alb", "Ddn", "Nphs1", "Trf", "Col4a1","Col4a2","Col4a3", "Col4a4","Col4a5", "Fn1", "Pdpn", "Synpo", "Cp", "Ptgds", "Ighm", "Des", "Smad1", "Actn1", "Adam10", "Chi3l1", "Podxl", "Vegfa", "Ptpro", "Myb", "Nphs2", "Eno3", "B2m")
+
+# generate the heatmap
+GlomerularCKD_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = GlomerularCKD_markers, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("GlomerularCKD_markersGenesheatmap.pdf", plot =GlomerularCKD_markersheatmap, height = 10, width = 10 )
+
+GlomerularCKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = GlomerularCKD_markers) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("GlomerularCKD_markersDotPlot.pdf", plot =GlomerularCKD_markersDotPlot, height = 8, width = 10 )
+
+# make a directory for the spatial features
+GlomerularMarkerSpFeature <- paste0(GlomerularMarker,"/SpatialFeature/")
+dir.create(GlomerularMarkerSpFeature)
+setwd(GlomerularMarkerSpFeature)
+
+for (t in GlomerularCKD_markers){
+  
+  # generate the figures for the top 10 biomarkers for each section
+  RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(GlomerularMarkerSpFeature,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
+     # save into a file
+    ggsave(filename = paste0(GlomerularMarkerSpFeature,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+     # save into a file
+    ggsave(filename = paste0(GlomerularMarkerSpFeature,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+    
+      RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,20))
+     # save into a file
+    ggsave(filename = paste0(GlomerularMarkerSpFeature,t, "_SpatialFeatureplot_Cut20.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut20, height = 8, width = 15 )
+
+ 
+}
+
+TubulointerstitialCKD_markers<- c("Cst3", "Havcr1", "Lcn2", "Oga", "Fabp3", "Ccn2", "Myb", "Umod", "Il18", "Lgals3", "Vnn1", "Nes", "Ambp", "Timp1", "Fabp1")
+####
+#### For Tubulointerstitial: 
+TubulointerstitialMarker <- paste0(BioMarkerDir,"Tubulointerstitial/")
+dir.create(TubulointerstitialMarker)
+setwd(TubulointerstitialMarker)
+
+# generate the heatmap
+TubulointerstitialCKD_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = TubulointerstitialCKD_markers, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("TubulointerstitialCKD_markersGenesheatmap.pdf", plot =TubulointerstitialCKD_markersheatmap, height = 10, width = 10 )
+
+TubulointerstitialCKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = TubulointerstitialCKD_markers) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("TubulointerstitialCKD_markersDotPlot.pdf", plot =TubulointerstitialCKD_markersDotPlot, height = 8, width = 10 )
+
+# make a directory for the spatial features
+TubulointerstitialMarkerSpFeature <- paste0(TubulointerstitialMarker,"SpatialFeature/")
+dir.create(TubulointerstitialMarkerSpFeature)
+setwd(TubulointerstitialMarkerSpFeature)
+
+for (t in TubulointerstitialCKD_markers){
+  
+  # generate the figures for the top 10 biomarkers for each section
+  RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(TubulointerstitialMarkerSpFeature,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
+     # save into a file
+    ggsave(filename = paste0(TubulointerstitialMarkerSpFeature,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+     # save into a file
+    ggsave(filename = paste0(TubulointerstitialMarkerSpFeature,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+    
+      RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,20))
+     # save into a file
+    ggsave(filename = paste0(TubulointerstitialMarkerSpFeature,t, "_SpatialFeatureplot_Cut20.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut20, height = 8, width = 15 )
+ 
+}
+
+
+# Ahsg	Ccl2	Il18	Cd40lg	Chit1	
+####
+#### For Endothelial dysfunction
+
+EndothelialDysCKD_markers <- c("Ahsg", "Ccl2", "Cxcl15", "Cd40lg", "Chit1")
+EndothelialDysMarker <- paste0(BioMarkerDir,"EndothelialDys/")
+dir.create(EndothelialDysMarker)
+setwd(EndothelialDysMarker)
+
+# generate the heatmap
+EndothelialDysCKD_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = EndothelialDysCKD_markers, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("EndothelialDysCKD_markersGenesheatmap.pdf", plot =EndothelialDysCKD_markersheatmap, height = 10, width = 10 )
+
+EndothelialDysCKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = EndothelialDysCKD_markers) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("EndothelialDysCKD_markersDotPlot.pdf", plot =EndothelialDysCKD_markersDotPlot, height = 8, width = 10 )
+
+# make a directory for the spatial features
+EndothelialDysMarkerSpFeature <- paste0(EndothelialDysMarker,"SpatialFeature/")
+dir.create(EndothelialDysMarkerSpFeature)
+setwd(EndothelialDysMarkerSpFeature)
+
+for (t in EndothelialDysCKD_markers){
+  
+  # generate the figures for the top 10 biomarkers for each section
+  RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(EndothelialDysMarkerSpFeature,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
+     # save into a file
+    ggsave(filename = paste0(EndothelialDysMarkerSpFeature,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+     # save into a file
+    ggsave(filename = paste0(EndothelialDysMarkerSpFeature,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+    
+      RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,20))
+     # save into a file
+    ggsave(filename = paste0(EndothelialDysMarkerSpFeature,t, "_SpatialFeatureplot_Cut20.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut20, height = 8, width = 15 )
+ 
+}
+
+
+# Inflammation
+
+#####
+#### For Inflammation dysfunction
+
+InflammationCKD_markers <- c("Crp", "Ptx3","Tnfrsf1a", "Tnfrsf1b", "Il18", "Il6", "Il10","Gdf15","Ccl6")
+
+# Final used
+FinalInflammationCKD_markers <- c("Tnfrsf1a", "Tnfrsf1b", "Il18", "Il6", "Ccl6")
+
+InflammationMarker <- paste0(BioMarkerDir,"Inflammation/")
+dir.create(InflammationMarker)
+setwd(InflammationMarker)
+
+# generate the heatmap
+InflammationCKD_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = InflammationCKD_markers, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("InflammationCKD_markersGenesheatmap.pdf", plot =InflammationCKD_markersheatmap, height = 10, width = 10 )
+
+InflammationCKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = InflammationCKD_markers) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("InflammationCKD_markersDotPlot.pdf", plot =InflammationCKD_markersDotPlot, height = 8, width = 10 )
+
+FinalInflammationCKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = FinalInflammationCKD_markers) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("FinalLimitedInflammationCKD_markersDotPlot.pdf", plot =FinalInflammationCKD_markersDotPlot, height = 4, width = 9 )
+
+
+# make a directory for the spatial features
+InflammationMarkerSpFeature <- paste0(InflammationMarker,"SpatialFeature/")
+dir.create(InflammationMarkerSpFeature)
+setwd(InflammationMarkerSpFeature)
+
+for (t in InflammationCKD_markers){
+  
+  # generate the figures for the top 10 biomarkers for each section
+  RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(InflammationMarkerSpFeature,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
+     # save into a file
+    ggsave(filename = paste0(InflammationMarkerSpFeature,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+     # save into a file
+    ggsave(filename = paste0(InflammationMarkerSpFeature,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+    
+      RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,20))
+     # save into a file
+    ggsave(filename = paste0(InflammationMarkerSpFeature,t, "_SpatialFeatureplot_Cut20.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut20, height = 8, width = 15 )
+ 
+}
+
+
+
+
+#### For Fibrosis dysfunction
+
+FibrosisCKD_markers <- c("Tgfb1", "Cst3", "Tgfa", "Egf", "Il1rl1",  "Postn", "Pth", "Inhba", "Acp5", "Fgf23", "Kl", "Mmp9", "Mmp2", "Mmp7", "Dkk3")
+
+FibrosisMarker <- paste0(BioMarkerDir,"Fibrosis/")
+dir.create(FibrosisMarker)
+setwd(FibrosisMarker)
+
+# generate the heatmap
+FibrosisCKD_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = FibrosisCKD_markers, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("FibrosisCKD_markersGenesheatmap.pdf", plot =FibrosisCKD_markersheatmap, height = 10, width = 10 )
+
+FibrosisCKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = FibrosisCKD_markers) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("FibrosisCKD_markersDotPlot.pdf", plot =FibrosisCKD_markersDotPlot, height = 8, width = 10 )
+
+# make a directory for the spatial features
+FibrosisMarkerSpFeature <- paste0(FibrosisMarker,"SpatialFeature/")
+dir.create(FibrosisMarkerSpFeature)
+setwd(FibrosisMarkerSpFeature)
+
+for (t in FibrosisCKD_markers){
+  
+  # generate the figures for the top 10 biomarkers for each section
+  RegionalSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(FibrosisMarkerSpFeature,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    RegionalSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
+     # save into a file
+    ggsave(filename = paste0(FibrosisMarkerSpFeature,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     RegionalSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+     # save into a file
+    ggsave(filename = paste0(FibrosisMarkerSpFeature,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+    
+      RegionalSpecificSpatilaFeatureVariouCategoriesCut20 <- 
+          SpatialFeaturePlot(Pyelonephritis_Infection,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,20))
+     # save into a file
+    ggsave(filename = paste0(FibrosisMarkerSpFeature,t, "_SpatialFeatureplot_Cut20.pdf"), 
+       plot =RegionalSpecificSpatilaFeatureVariouCategoriesCut20, height = 8, width = 15 )
+ 
+}
+
+# for AKI
+AKI<- c("S100a8", "S100a9", "Lcn2", "Il18",  "Havcr1", "Igfbp7", "Fabp1", "Cst3","Umod") 
+AKIMarker <- paste0(BioMarkerDir,"AKI/")
+dir.create(AKIMarker)
+setwd(AKIMarker)
+# generate the heatmap
+AKIMarker_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = AKI, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("AKIMarker_markersGenesheatmap.pdf", plot =AKIMarker_markersheatmap, height = 10, width = 10 )
+
+AKIMarker_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = rev(AKI)) +coord_flip() +RotatedAxis() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("AKIMarker_markersDotPlot.pdf", plot =AKIMarker_markersDotPlot, height = 5, width = 8 )
+
+# for final figure, including the tubular function, tubular injury, Inflammation, Fibrosis
+
+FinalAKICKDMarkers<- c("Fabp1", "Cst3","Umod","Igfbp7","Havcr1","Lcn2","Il18", "S100a8","S100a9", "Tnfrsf1a","Tnfrsf1b", "Il6", "Ccl6","Egf","Egfr","Kl","Tgfb1","Acp5","Mmp2","Mmp7","Mmp9")
+
+# generate the heatmap
+FinalAKICKD_markersheatmap<- DoHeatmap(Pyelonephritis_Infection, features = FinalAKICKDMarkers, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("FinalAKICKD_markersGenesheatmap.pdf", plot =FinalAKICKD_markersheatmap, height = 10, width = 10 )
+
+FinalAKICKD_markersDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = rev(FinalAKICKDMarkers)) +coord_flip() +RotatedAxis() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("FinalAKICKD_markersDotPlot.pdf", plot =FinalAKICKD_markersDotPlot, height = 6, width = 8 )
+
+```
+
+
+# generate the Dotplot for the functional enrichment of each classification:
+```{r}
+# change the folder back
+setwd(file.path(DEGDir))
+InfectedCategories_Clustermarkers %>% head()
+SectionClusters <- levels(Idents(Pyelonephritis_Infection))
+SectionClusters
+
+# create a gene list for differnt regions
+SectionDEGlistWithInfection <- list()
+SectionClusters
+
+# generate the DEGs for the different regions :"Cortex","Medulla","Pelvis","Vascular","Processing Infection"
+for (m in SectionClusters){
+  # put he DEG into the DEGlist for comparision
+  # we only consider the Cortex, Medulla, Pelvis 
+  if( m == "N12" | m == "N13" | m == "N14" | m== "N15" | m== "N16"| m== "N17"){
+     SectionDEGlistWithInfection[[m]] <- InfectedCategories_Clustermarkers %>% filter(cluster %in% m & avg_log2FC >= 0.25) %>% pull(gene)
+  }
+ }
+
+# Comparing the Cluster 
+SectionDEGlistGOPlotWithInfection <- compareCluster(geneClusters = SectionDEGlistWithInfection, fun = "enrichGO", OrgDb = "org.Mm.eg.db",ont="BP",keyType = 'SYMBOL')
+
+# simplify the GO enrichment
+SectionDEGlistGOPlotWithInfectionSimplifed <- clusterProfiler::simplify(SectionDEGlistGOPlotWithInfection)
+
+SectionDEGlistGOPlotWithInfectionSimplifed
+SectionDEGlistGOPlotWithInfectionDotPlot<- dotplot(SectionDEGlistGOPlotWithInfection,font.size = 12,label_format = 80,showCategory = 6) +RotatedAxis()
+?dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(paste0("InfectedSectionDEGlistGOPlotDotPlot_withinfection.pdf"), plot = SectionDEGlistGOPlotWithInfectionDotPlot, height = 10, width = 10 )
+write.csv(SectionDEGlistGOPlotWithInfectionSimplifed, "InfectedSectionDEGlistWithInfectionGOPlotSimplifed.csv")
+
+# considering the GO enrichment took a long time, we read the saved files
+
+SectionDEGlistGOPlotWithInfectionSimplifed <- read.csv("InfectedSectionDEGlistWithInfectionGOPlotSimplifed.csv", header = T)
+
+```
+
+
+# generate the KEGG pathway oever-representation analysis
+
+```{r}
+
+setwd(KEGGDir)
+library(org.Mm.eg.db)
+KEGGpathways <-list()
+KEGGpathwaysForView<-list()
+## put the list of UNIPROT into the list
+# we generate this for the kegg pathview
+SectionDEGTransferUnirotID <-list()
+SectionClusters
+#SectionDEGlistWithInfection
+for (m in SectionClusters){
+  # put he DEG into the DEGlist for comparision
+  # we only consider the infected niches 
+  if( m == "N12" | m == "N13" | m == "N14" | m== "N15" | m== "N16"| m== "N17"){
+    
+     #m= "Processing Infection"
+     SectionDEGlistWithInfection[[m]] <- InfectedCategories_Clustermarkers %>% filter(cluster %in% m & avg_log2FC >= 0.25) %>% pull(gene)
+     
+     # transfer biolgical ID to KEGG ID
+     TransferIDs<- bitr(SectionDEGlistWithInfection[[m]] , fromType = "SYMBOL", toType = c("UNIPROT","ENSEMBL"), OrgDb=org.Mm.eg.db)
+     TransferIDs %>% head()
+      
+     SectionDEGTransferUnirotID[[m]] <- TransferIDs$UNIPROT
+     
+     egID = bitr(SectionDEGlistWithInfection[[m]] , fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Mm.eg.db")
+
+     KEGGpathwaysForView[[m]] <-enrichKEGG(gene = egID$ENTREZID,
+                                           organism = 'mmu',
+                                           pvalueCutoff = 0.05)
+     KEGGpathways[[m]] <- enrichKEGG(gene =  TransferIDs$UNIPROT, organism = 'mmu', pvalueCutoff = 1,keyType = 'uniprot')
+  
+     write.csv(KEGGpathways[[m]], file = paste0(KEGGDir, m, "_KeggEnrichpath.csv"))
+  }
+ }
+```
+
+
+## compare the KEGG pathways among Cortex, medulla, Pelvis and Processing Infection
+```{r}
+
+#SectionDEGTransferUnirotID
+length(SectionDEGTransferUnirotID)
+ # compare four up-regulated gene list with GO enrichment, we did not set up the p value 
+SectionDEGTransferKEGG <- compareCluster(geneCluster = SectionDEGTransferUnirotID, fun = enrichKEGG, organism="mmu", keyType = 'uniprot',pvalueCutoff=1)
+
+# setting into readable ID
+SectionDEGTransferKEGGReadable <- setReadable(SectionDEGTransferKEGG, OrgDb = "org.Mm.eg.db", keyType="UNIPROT")
+
+# remove the string - Mus musculus (house mouse)
+SectionDEGTransferKEGGReadable@compareClusterResult$Description <-
+
+gsub(pattern = " - Mus musculus (house mouse)", replacement = "", SectionDEGTransferKEGGReadable@compareClusterResult$Description, fixed = T) 
+
+
+#%>% mutate(Description = str_remove(Description, "- Mus musculus (house mouse)")) %>% head()
+# 
+# SectionDEGTransferKEGGReadable$Description <- gsub(pattern = " - Mus musculus (house mouse)", replacement = "", SectionDEGTransferKEGGReadable$Description, fixed = T)
+
+# Show all the top15 pathways
+Top15Comparion<-  
+  dotplot(SectionDEGTransferKEGGReadable,font.size = 12,label_format = 80,showCategory = 15) 
+
+ggsave(paste0(KEGGDir,"Top15Comparion_Sections_KEGG_comp.pdf"), plot = Top15Comparion, width = 15, height = 15)
+# save into a enriched pathway file
+write.csv(SectionDEGTransferKEGGReadable, file = paste0(KEGGDir,"AllSections_KeggEnrichpath.csv") )
+
+
+# save the top ID
+
+# show the candidate pathway in the infected regions
+selectedPathway<- c("Carbon metabolism","Glyoxylate and dicarboxylate metabolism","Galactose metabolism","Cell adhesion molecules","ECM-receptor interaction","Focal adhesion","Tight junction","Necroptosis","Complement and coagulation cascades","Apoptosis","Endocytosis","Lysosome","Hippo signaling pathway","Phagosome","Neutrophil extracellular trap formation","Chemokine signaling pathway","Hematopoietic cell lineage","Cytokine-cytokine receptor interaction","NOD-like receptor signaling pathway","Osteoclast differentiation","NF-kappa B signaling pathway","Th17 cell differentiation","Antigen processing and presentation","Inflammatory bowel disease","Toll-like receptor signaling pathway","Human cytomegalovirus infection","TNF signaling pathway","C-type lectin receptor signaling pathway","Th1 and Th2 cell differentiation","IL-17 signaling pathway","Fc gamma R-mediated phagocytosis","Cytosolic DNA-sensing pathway","Natural killer cell mediated cytotoxicity","B cell receptor signaling pathway","JAK-STAT signaling pathway","Intestinal immune network for IgA production","Leukocyte transendothelial migration","T cell receptor signaling pathway","Rap1 signaling pathway","Bacterial invasion of epithelial cells","Fc epsilon RI signaling pathway","p53 signaling pathway")
+
+# select these interesting pathway
+SelectedPathwayForfigure<-SectionDEGTransferKEGGReadable %>% as.data.frame() %>% filter(Description %in% selectedPathway) %>% arrange(p.adjust)
+
+# setting up the minium p adjust value for size visulization 
+maximum<- max(c(-log10(SelectedPathwayForfigure$p.adjust)))
+
+## set the levels of Description and reorder them
+SelectedPathwayForfigure$Description<- ordered(SelectedPathwayForfigure$Description, levels=selectedPathway)
+#reorder(variable, value)
+p<-ggplot(SelectedPathwayForfigure, aes(x=SelectedPathwayForfigure$Cluster, y=SelectedPathwayForfigure$Description))
+
+InterestingComparionsDotplot<- p+ geom_point(aes(size=-log10(p.adjust)),
+                                             colour= ifelse(SelectedPathwayForfigure$p.adjust <=0.05,"red",
+                                                            ifelse(SelectedPathwayForfigure$p.adjust==1,"white","gray")), 
+                                             fill= ifelse(SelectedPathwayForfigure$p.adjust<=0.05,"red",
+                                                          ifelse(SelectedPathwayForfigure$p.adjust==1,"white","gray"))) +
+  labs(title = "KEGG Pathway Enrichment", x = "Spatial region", y = "KEGG pathway enrichment") +
+  theme_bw()+
+  theme(plot.background = element_blank(),
+        text = element_text(size=10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle = 30, hjust = 1)
+  ) + scale_size_area(limits=c(0,maximum),breaks=c(0,4,6,8,12))
+
+
+InterestingComparions <- dotplot(SectionDEGTransferKEGGReadable,font.size = 12,label_format = 80,showCategory = selectedPathway)  +RotatedAxis()
+
+ggsave(paste0(KEGGDir, "InterestingPathwayComparion_Sections_KEGG_comp.pdf"), plot = InterestingComparions, width = 8, height = 10)
+ggsave(paste0(KEGGDir, "InterestingPathwayComparion_Sections_KEGG_comp_format.pdf"), plot = InterestingComparionsDotplot, width = 8, height = 10)
+```
+
+
+# Using PROGENy model from DecoupleR
+```{r}
+library(decoupleR)
+# set the identity as orginal
+Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection @meta.data$Annotation
+#devtools::install_github("saezlab/progeny")
+library(decoupleR)
+setwd(ProgenyDir)
+net <- decoupleR::get_progeny(organism = 'mouse', top = 500)
+
+Pyelonephritis_Infection@assays$SCT@data %>% head()
+# Activity inference with Multivariate Linear Model (MLM)
+# Extract the normalized log-transformed counts
+mat <- as.matrix(Pyelonephritis_Infection@assays$SCT@data)
+
+# Run mlm
+acts <- run_mlm(mat=mat, net=net, .source='source', .target='target',
+                .mor='weight', minsize = 5)
+
+acts 
+# Visualization:
+# Extract mlm and store it in pathwaysmlm in data
+Pyelonephritis_Infection[['pathwaysmlm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+
+# Change assay
+DefaultAssay(object = Pyelonephritis_Infection) <- "pathwaysmlm"
+
+# Scale the data
+Pyelonephritis_Infection <- ScaleData(Pyelonephritis_Infection)
+Pyelonephritis_Infection@assays$pathwaysmlm@data <- Pyelonephritis_Infection@assays$pathwaysmlm@scale.data
+
+# run the source of pathways
+ProgenyFeatures <- levels(factor(acts$source))
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-SpatialFeaturePlot(Pyelonephritis_Infection, features = i) +
+  ggtitle(paste0(i," activity")) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+  
+  ggsave(paste0(i, "_Pyelonephritis_Infection_cluster_featurePlot_DecoupleR.pdf"), plot = p2, width = 20, height = 4)
+}
+
+#(c("royalblue", "white","lightcoral"))
+Pyelonephritis_Infection@meta.data$orig.ident
+SpatialFeaturePlot(Pyelonephritis_Infection, features = "Hypoxia", min.cutoff = -4, max.cutoff = 6) & 
+   ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))& 
+  ggtitle(paste0("Hypoxia"," activity"))
+
+# SpatialFeaturePlot(Pyelonephritis_Infection, features = "NFkB", min.cutoff = -4, max.cutoff = 6, split.by = "orig.ident") & 
+#     ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5)) & 
+#   ggtitle(paste0("NFkB"," activity"))
+# 
+# 
+# SpatialFeaturePlot(Pyelonephritis_Infection, features = "TNFa", min.cutoff = -4, max.cutoff = 6) & 
+#    ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))& 
+#   ggtitle(paste0("TNFa"," activity"))
+# 
+# p1 <- DimPlot(Pyelonephritis_Infection, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+#   NoLegend() + ggtitle('Cell types')
+# p2 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Trail") & 
+#      ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))&
+#   ggtitle('Trail activity')
+
+
+
+# Expore the mean activiey per group across pathways:
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(Pyelonephritis_Infection@assays$pathwaysmlm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(Pyelonephritis_Infection)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Transform to wide matrix
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+#my_color = colorRampPalette(c("dodgerblue2", "white","firebrick1"))(palette_length)
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+
+my_breaks <- c(seq(-2, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 2, length.out=floor(palette_length/2)))
+
+# Plot
+Pyelonephritis_InfectionHeatmap<- pheatmap(t(top_acts_mat), border_color = NA, cluster_cols = F, color=my_color, breaks = my_breaks, angle_col = 45) 
+ggsave("Pyelonephritis_InfectioncellsHeatmap_Progeny_Decouple.pdf", plot = Pyelonephritis_InfectionHeatmap, width = 6, height = 4)
+
+```
+
+# Transcription factor activity inference from Immune scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+library(decoupleR)
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(Pyelonephritis_Infection@assays$SCT@data)
+# Run ulm
+#acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+ #               .mor='mor', minsize = 5)
+
+#saveRDS(acts, file="Pyelonephritis_InfectionNiches_Transcriptfactor.RDS")
+# this took a long time,
+#acts <- readRDS(file = "Pyelonephritis_Infection_Transcriptfactor.RDS")
+
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+Pyelonephritis_Infection[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = Pyelonephritis_Infection) <- "tfsulm"
+
+# Scale the data
+Pyelonephritis_Infection <- ScaleData(Pyelonephritis_Infection)
+Pyelonephritis_Infection@assays$tfsulm@data <- Pyelonephritis_Infection@assays$tfsulm@scale.data
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 20
+
+t(as.matrix(Pyelonephritis_Infection@assays$tfsulm@data))
+Idents(Pyelonephritis_Infection)
+Idents(Pyelonephritis_Infection)
+
+#t(as.matrix(Pyelonephritis_Infection@assays$tfsulm@data)) 
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(Pyelonephritis_Infection@assays$tfsulm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(Pyelonephritis_Infection)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+
+# # get the top 10 biomarkers 
+# TopTF<- df %>% arrange(mean,cluster)%>% group_by(cluster) %>% slice_max(mean,n=10)
+# nrow(Top)
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+
+
+
+# Transform to wide matrix for topTF
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+top_acts_mat
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-2, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 2, length.out=floor(palette_length/2)))
+
+# Plot
+pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+# drop "Znf335" due to not exist in the expression
+#tfs <- tfs[!tfs == "Znf335"]
+
+#tfs[!tfs == "Znf335"]
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+IMMTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F, 
+                        color=my_color,fontsize=12, fontsize_row = 10, 
+                        breaks = my_breaks, 
+                        #main = "Predicted TF activities", 
+                        angle_col = 45,
+                        treeheight_col = 0, treeheight_row=0)
+
+
+ggsave("Pyelonephritis_InfectedNichesHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = IMMTFheatmap, width = 5, height = 5)
+
+# draw the transcriptor factor activity and their expression
+# generate the figure of transcript factor activity:
+for (m in tfs){
+  p2 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = m))  +
+  ggtitle(paste0(m," activity")) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5)) 
+  
+  ggsave(paste0("TFActivity_",m,"_Pyelonephritis_Infection_FeaturePlot.pdf"), plot = p2, width = 16, height = 4)
+}
+
+p3 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = "Hbp1"))  +
+  ggtitle(paste0("Hbp1"," activity")) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-2,5)) 
+p3  
+  ggsave(paste0("TFActivity_","Hbp1","_Pyelonephritis_Infection_FeaturePlot.pdf"), plot = p3, width = 16, height = 4)
+
+  p4 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = "Nfkb1"))  +
+  ggtitle(paste0("Nfkb1"," activity")) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-2,6)) 
+p4  
+  ggsave(paste0("TFActivity_","Nfkb1","_Pyelonephritis_Infection_FeaturePlot.pdf"), plot = p4, width = 16, height = 4)
+
+Pyelonephritis_Infection
+DefaultAssay(object = Pyelonephritis_Infection) <- "SCT"
+
+for (n in tfs){
+  p3 <- (SpatialFeaturePlot(Pyelonephritis_Infection, features = n) +
+  ggtitle(paste0(m," activity")) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5)))
+  
+  ggsave(paste0("TFExpression_",n,"_Pyelonephritis_Infection_FeaturePlot.pdf"), plot = p3, width = 16, height = 4)
+
+}
+
+# add their activity in Dotplot
+Idents(Pyelonephritis_Infection)
+# get the order of row name
+GeneOrderByPheatmap <- rownames(t(top_acts_mat))[IMMTFheatmap$tree_row$order]
+#IMMTFheatmap$tree_row$order
+
+?DotPlot
+TFDotPlot <- DotPlot(Pyelonephritis_Infection, features = rev(GeneOrderByPheatmap)) +
+  RotatedAxis() + coord_flip()+ 
+  #ggtitle("Predicted TF expression")+
+   theme(legend.position = "right")
+ggsave("Spatial_TFDotPlot.pdf", plot = TFDotPlot, width = 10, height = 6)
+
+```
+
+
+

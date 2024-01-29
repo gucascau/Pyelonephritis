@@ -175,13 +175,65 @@ FinalAbcessClustersObjSubSlidesInfection_subcluster<- subset(Pyelonephritis_Infe
 
 Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
 
+?SpatialDimPlot
 #DefaultAssay(FinalAbcessClustersObjSubSlidesNonInfection_Subcluster) <- "SCT"
-pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area.pdf", height =12, width = 6)
-SpatialDimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, images =selectedslices,crop = TRUE, label = TRUE,label.size = 2, ncol = 2)
+pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_nocrop.pdf", height =12, width = 6)
+SpatialDimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, images =selectedslices,crop = FALSE, label = FALSE,ncol = 2)
 dev.off()
 pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_dimplot.pdf", height =4, width = 5)
 DimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,label = T)
 dev.off()
+```
+
+# Detection all the DEGs for all the regions and only show the top 10 for N13-N17
+```{r}
+setwd(BioMarkerDir)
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+# check the specific marker by the MAST
+AllCategories_Clustermarkers <- FindAllMarkers(Pyelonephritis_Infection,
+            min.pct = 0.25,test.use= "MAST") # only markers that are in 25% of cells
+
+# save all biomarkers as a dataframe
+write.csv(AllCategories_Clustermarkers, "AllCategories_Clustermarkers_MAST.csv")
+
+# here we draw the specific biomarkers for the infected niches
+AllCategories_Clustermarkers %>% head()
+Infectedniches <- c("N12","N13","N14","N15","N16","N17")
+ 
+Top_InfectedrmarkersComparingAll<-AllCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 10) %>% filter(cluster %in% Infectedniches)
+
+Top25_InfectedrmarkersComparingAll<-AllCategories_Clustermarkers %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 25) %>% filter(cluster %in% Infectedniches)
+
+
+Top_InfectedrmarkersComparingAllGene<- Top_InfectedrmarkersComparingAll %>% pull(gene) %>% unique()
+
+Top25_InfectedrmarkersComparingAllGene<- Top25_InfectedrmarkersComparingAll %>% pull(gene) %>% unique()
+
+  # generate the top 10 genes for each biomarker
+# generate the heatmap
+Top_InfectedrmarkersComparingAllGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = Top_InfectedrmarkersComparingAllGene, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")
+?DoHeatmap
+ggsave("Top_InfectedrmarkersComparingAllGenesheatmap.pdf", plot =Top_InfectedrmarkersComparingAllGenesheatmap, height = 10, width = 9 )
+
+Top_InfectedrmarkersComparingAllGeneDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = Top_InfectedrmarkersComparingAllGene) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("Top_InfectedrmarkersComparingAllGeneDotPlot.pdf", plot =Top_InfectedrmarkersComparingAllGeneDotPlot, height = 9, width = 9 )
+
+
+Top25_InfectedrmarkersComparingAllGeneDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = Top25_InfectedrmarkersComparingAllGene) +coord_flip() +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+ggsave("Top25_InfectedrmarkersComparingAllGeneDotPlot.pdf", plot =Top25_InfectedrmarkersComparingAllGeneDotPlot, height = 18, width = 9 )
+
+
 ```
 
 

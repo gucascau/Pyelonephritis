@@ -124,7 +124,7 @@ CTFdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Resu
 
 CNichComdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/NicheCommunicate/"
 
-# Concentrate on the infection area abscess from pelvis
+# Concentrate on the infection area abscess from Cortex
 
 InfCortexdir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedCortexAbscessRegions/"
 
@@ -225,22 +225,18 @@ summary(coords)
 Pyelonephritis_InfectionSubslidesD7@images$slice8
 
 # we then select the regions for the cluster : , invert = TRUE
-D7subcluster <- subset (Pyelonephritis_InfectionSubslidesD7,  (slice8_imagerow >110 & slice8_imagerow <200 )  & (slice8_imagecol < 330 & slice8_imagecol> 220))
+D7subcluster <- subset (Pyelonephritis_InfectionSubslidesD7,  (slice8_imagerow >130 & slice8_imagerow <280 )  & (slice8_imagecol < 280 & slice8_imagecol> 130))
 D7subcluster <- subset (D7subcluster, idents = c("N13","N14","N15","N16","N17"))
-InfectedRegionD7Spatial <-SpatialDimPlot(D7subcluster,crop = TRUE, label = FALSE)
+InfectedRegionD7Spatial <-SpatialDimPlot(D7subcluster,crop = TRUE, label = TRUE, pt.size.factor = 4)
 InfectedRegionD7Spatial
 
-
-
-InfectedRegionD7Spatial <-SpatialDimPlot(D7subcluster,label = TRUE, pt.size.factor = 4)
-InfectedRegionD7Spatial
-ggsave("Spatial_infectedPelivis_day7_SpatialDimplot.pdf",
+ggsave("Spatial_infectedCortex_day7_SpatialDimplot.pdf",
       plot = InfectedRegionD7Spatial,
       height = 3,
       width = 4 )
 
 InfectedRegionD7SpatialDim<- DimPlot(D7subcluster,label = TRUE)
-ggsave("Spatial_infectedPelivis_day7_Dimplot.pdf",
+ggsave("Spatial_infectedCortex_day7_Dimplot.pdf",
       plot = InfectedRegionD7SpatialDim,
       height = 3,
       width = 4 )
@@ -257,30 +253,30 @@ CelltypeOrder <- c("heaPT-S1","heaPT-S2","heaPT-S3","heaPT-S4", "heaPT-S5", "Deg
 setwd(CDecodir)
 # the prediction of the object
 D7subcluster[["predictions"]]
-InfectedMat_Pelvis<- t(D7subcluster[["predictions"]]@data)
-colnames(InfectedMat_Pelvis) <- ordered (colnames(InfectedMat_Pelvis), levels =CelltypeOrder)
+InfectedMat_Cortex<- t(D7subcluster[["predictions"]]@data)
+colnames(InfectedMat_Cortex) <- ordered (colnames(InfectedMat_Cortex), levels =CelltypeOrder)
 
 # change the order
-InfectedMat_Pelvis<- InfectedMat_Pelvis[ ,CelltypeOrder]
+InfectedMat_Cortex<- InfectedMat_Cortex[ ,CelltypeOrder]
 # for final celltype matrix: 
-InfectedMat_PelvisCellType<- InfectedMat_Pelvis[,!colnames(InfectedMat_Pelvis) %in% c("max")]
-InfectedMat_PelvisCellTypeNozero <- InfectedMat_PelvisCellType[,colSums(InfectedMat_PelvisCellType)>0]
+InfectedMat_CortexCellType<- InfectedMat_Cortex[,!colnames(InfectedMat_Cortex) %in% c("max")]
+InfectedMat_CortexCellTypeNozero <- InfectedMat_CortexCellType[,colSums(InfectedMat_CortexCellType)>0]
 
 
 # correlation
-InfectedMat_PelvisCellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_PelvisCellTypeNozero)
-InfectedMat_PelvisCellTypeInteractions<- plotInteractions(InfectedMat_PelvisCellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
+InfectedMat_CortexCellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_CortexCellTypeNozero)
+InfectedMat_CortexCellTypeInteractions<- plotInteractions(InfectedMat_CortexCellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 
-ggsave("SpatialScatterPieInfectedPelvis_CorrelationMatrix.pdf", plot =InfectedMat_PelvisCellTypeCorrelationMatrix, height = 6, width = 6 )
+ggsave("SpatialScatterPieInfectedCortex_CorrelationMatrix.pdf", plot =InfectedMat_CortexCellTypeCorrelationMatrix, height = 6, width = 6 )
 
-ggsave("SpatialScatterPieInfectedPelvis_HeatmapColocalization.pdf", plot =InfectedMat_PelvisCellTypeInteractions, height = 6, width = 6 )
+ggsave("SpatialScatterPieInfectedCortex_HeatmapColocalization.pdf", plot =InfectedMat_CortexCellTypeInteractions, height = 6, width = 6 )
 # scatterpie plot
 # scatterpie plot
 # 
-ct <- colnames(InfectedMat_PelvisCellType)
+ct <- colnames(InfectedMat_CortexCellType)
 ct
 # we did not add the low proportion in the scatterpie
-InfectedMat_PelvisCellType[InfectedMat_PelvisCellType < 0.1] <- 0
+InfectedMat_CortexCellType[InfectedMat_CortexCellType < 0.1] <- 0
 paletteMartin <- c(
     "#b6dbff", # HeaPT-S1
     "#99CCFF", # HeaPT-S2
@@ -327,27 +323,27 @@ colnames(D7subcluster)
 str(D7subcluster)
 #SPOTlight:::. extract_image(Pyelonephritis_Infection )
 #rownames(Pyelonephritis_Infection)
-SpatialScatterPiePelvis <-plotSpatialScatterpie(
+SpatialScatterPieCortex <-plotSpatialScatterpie(
   x= D7subcluster,
-  y= InfectedMat_PelvisCellType,
-  cell_types = colnames(InfectedMat_PelvisCellType),
+  y= InfectedMat_CortexCellType,
+  cell_types = colnames(InfectedMat_CortexCellType),
     img = TRUE,
     scatterpie_alpha = 1,
-    pie_scale = 1) +
+    pie_scale = 0.9) +
     scale_fill_manual(
         values = pal,
-        breaks = names(pal)) +coord_sf(xlim = c(220, 340), ylim = c(150, 280))
+        breaks = names(pal)) +coord_sf(xlim = c(130, 278), ylim = c(320, 470))
 
-SpatialScatterPiePelvis
-# subset (Pyelonephritis_InfectionSubslidesD7, (slice8_imagerow >310 & slice8_imagerow <450 )  & (slice8_imagecol < 330 & slice8_imagecol> 220) )
+SpatialScatterPieCortex
+#D7subcluster <- subset (Pyelonephritis_InfectionSubslidesD7,  (slice8_imagerow >130 & slice8_imagerow <280 )  & (slice8_imagecol < 280 & slice8_imagecol> 130))
 
-ggsave("SpatialScatterPiePelvis.pdf",plot = SpatialScatterPiePelvis, height = 3,width = 4.5)
+ggsave("SpatialScatterPieCortex.pdf",plot = SpatialScatterPieCortex, height = 3,width = 4.5)
 # colnames(DeconvolutedMatrix)
 # ncol(Pyelonephritis_Infection)
 # nrow(DeconvolutedMatrix)
-InfectedMat_PelvisCellType
-pdf(file = "SpatialScatterPiePelvis_CellTypeNetwork.pdf", height = 8,width = 8)
-plotInteractions(InfectedMat_PelvisCellType, "network")
+InfectedMat_CortexCellType
+pdf(file = "SpatialScatterPieCortex_CellTypeNetwork.pdf", height = 8,width = 8)
+plotInteractions(InfectedMat_CortexCellType, "network")
 dev.off()
 
 ```
@@ -409,7 +405,7 @@ DefaultAssay(D7subcluster) <- "SCT"
 ? FindAllMarkers
 D7subcluster <- ScaleData(object = D7subcluster, features = rownames(D7subcluster))
 # MAST was used to calculate the cluster
-Pelvis_nichesBiomarkers <-
+Cortex_nichesBiomarkers <-
   FindAllMarkers(
     object = D7subcluster,
     logfc.threshold = 0.25,
@@ -417,42 +413,42 @@ Pelvis_nichesBiomarkers <-
     min.pct = 0.25
   ) # only markers that are in 25% of cells
 # save all biomarkers as a dataframe
-write.csv(Pelvis_nichesBiomarkers, "Pelvis_nichesBiomarkers_Mast.csv")
+write.csv(Cortex_nichesBiomarkers, "Cortex_nichesBiomarkers_Mast.csv")
 
-Pelvis_nichesBiomarkers
+Cortex_nichesBiomarkers
 ```
 
 # Draw the dotplot, heatmap and featureplot for the biomarkers in each cluster
 ```{r}
 # select the top 3 genes in each cluster and perform the heatmap
-Pelvis_nichesBiomarkersTop5 <-
-  as.data.frame(Pelvis_nichesBiomarkers) %>% filter (avg_log2FC > 0.25) %>% group_by(cluster) %>% slice_max(order_by = avg_log2FC, n = 5) %>% pull (gene)
+Cortex_nichesBiomarkersTop5 <-
+  as.data.frame(Cortex_nichesBiomarkers) %>% filter (avg_log2FC > 0.25) %>% group_by(cluster) %>% slice_max(order_by = avg_log2FC, n = 5) %>% pull (gene)
 
-Pelvis_nichesBiomarkersTop5 %>% unique()
+Cortex_nichesBiomarkersTop5 %>% unique()
 
-Pelvis_nichesBiomarkersTop5Heatmap<- DoHeatmap(D7subcluster, features = Pelvis_nichesBiomarkersTop5 , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
+Cortex_nichesBiomarkersTop5Heatmap<- DoHeatmap(D7subcluster, features = Cortex_nichesBiomarkersTop5 , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
 ggsave(
-  "Pelvis_nichesBiomarkersTop5_heatmap.pdf",
-  plot = Pelvis_nichesBiomarkersTop5Heatmap,
+  "Cortex_nichesBiomarkersTop5_heatmap.pdf",
+  plot = Cortex_nichesBiomarkersTop5Heatmap,
   height = 5,
   width = 5
 )
 
 
-PelvisPelvisPTSubBiomarkersTop5DotPlot <-
-  DotPlot(D7subcluster, features = Pelvis_nichesBiomarkersTop5 %>% unique()) +
+CortexCortexPTSubBiomarkersTop5DotPlot <-
+  DotPlot(D7subcluster, features = Cortex_nichesBiomarkersTop5 %>% unique()) +
   RotatedAxis()
 
 ggsave(
-  "PelvisPelvisPTSubBiomarkersTop5DotPlot.pdf",
-  plot = PelvisPelvisPTSubBiomarkersTop5DotPlot,
+  "CortexCortexPTSubBiomarkersTop5DotPlot.pdf",
+  plot = CortexCortexPTSubBiomarkersTop5DotPlot,
   height = 4,
   width = 8
 )
 
 # Select the top 5 biomarkers
 Top5PTMarker <-
-  as.data.frame(Pelvis_nichesBiomarkers) %>% 
+  as.data.frame(Cortex_nichesBiomarkers) %>% 
   filter (avg_log2FC > 0.25) %>% group_by(cluster) %>% 
   slice_max(order_by = avg_log2FC, n = 5) %>% pull (gene) %>% unique()
 ? FeaturePlot
@@ -473,74 +469,77 @@ for (i in Top5PTMarker) {
 
 ```
 
-
+# Go enrichment
 ```{r}
 setwd(CGOEndir)
 # Generate a table for figure
-Pelvis_nichesBiomarkers %>% head()
-Pelvis_infectionSpecifcUpgeneFreqFigure <-
-  table(Pelvis_nichesBiomarkers$cluster) %>% as.data.frame() %>%
+Cortex_nichesBiomarkers %>% head()
+Cortex_infectionSpecifcUpgeneFreqFigure <-
+  table(Cortex_nichesBiomarkers$cluster) %>% as.data.frame() %>%
   ggplot(aes(x = Var1, y = Freq)) + geom_bar(stat = "identity") + theme_classic() +
-  xlab("Pelvis Niches") + ylab("Differentially expressed gene number")
+  xlab("Cortex Niches") + ylab("Differentially expressed gene number")
 
-Pelvis_infectionSpecifcUpgeneFreqFigure
+Cortex_infectionSpecifcUpgeneFreqFigure
 ggsave(
-  "Pelvis_nichesBiomarkersnumbersFigure.pdf",
-  plot = Pelvis_infectionSpecifcUpgeneFreqFigure,
+  "Cortex_nichesBiomarkersnumbersFigure.pdf",
+  plot = Cortex_infectionSpecifcUpgeneFreqFigure,
   height = 3,
   width = 3.5
 )
 
 # Create a GO comparison for the figure
-Pelvis_infectionSpecifcUpgene <- list()
+Cortex_infectionSpecifcUpgene <- list()
 
 Idents(D7subcluster)
 for (n in Idents(D7subcluster)) {
   # put he DEG into the up-regulated gene for comparision
-  Pelvis_infectionSpecifcUpgene[[n]] <-
-    Pelvis_nichesBiomarkers %>% filter(cluster %in% n &
+  Cortex_infectionSpecifcUpgene[[n]] <-
+    Cortex_nichesBiomarkers %>% filter(cluster %in% n &
                                         avg_log2FC >= 0.25) %>% pull(gene)
   #}
 }
-Pelvis_infectionSpecifcUpgene$N8%>% head()
-Pelvis_infectionSpecifcUpgene$N10%>% head()
-Pelvis_infectionSpecifcUpgene$N11%>% head()
-Pelvis_infectionSpecifcUpgene$N12%>% head()
-Pelvis_infectionSpecifcUpgene$N15%>% head()
+names(Cortex_infectionSpecifcUpgene)
+Cortex_infectionSpecifcUpgene$N13%>% head()
+Cortex_infectionSpecifcUpgene$N14%>% head()
+Cortex_infectionSpecifcUpgene$N15%>% head()
+Cortex_infectionSpecifcUpgene$N16%>% head()
+Cortex_infectionSpecifcUpgene$N17%>% head()
 
-Pelvis_infectionSpecifcUpgeneReorder<- Pelvis_infectionSpecifcUpgene[c("N8","N10","N11","N12","N15")]
+
+Cortex_infectionSpecifcUpgeneReorder<- Cortex_infectionSpecifcUpgene[c("N13","N14","N15","N16","N17")]
 # change the name order: 
-#names(Pelvis_infectionSpecifcUpgene) <- c("N8","N10","N11","N12","N15")
+#names(Cortex_infectionSpecifcUpgene) <- c("N8","N10","N11","N12","N15")
 
-Pelvis_infectionSpecifcUpgeneReorder$N8%>% head()
-Pelvis_infectionSpecifcUpgeneReorder$N10%>% head()
-Pelvis_infectionSpecifcUpgeneReorder$N11%>% head()
-Pelvis_infectionSpecifcUpgeneReorder$N12%>% head()
-Pelvis_infectionSpecifcUpgeneReorder$N15%>% head()
+Cortex_infectionSpecifcUpgeneReorder$N13%>% head()
+Cortex_infectionSpecifcUpgeneReorder$N14%>% head()
+Cortex_infectionSpecifcUpgeneReorder$N15%>% head()
+Cortex_infectionSpecifcUpgeneReorder$N16%>% head()
+Cortex_infectionSpecifcUpgeneReorder$N17%>% head()
+
 
 # Comparing the Cluster
-Pelvis_infectionSpecifcUpgeneGOenrich <-
+Cortex_infectionSpecifcUpgeneGOenrich <-
   clusterProfiler::compareCluster(
-    geneClusters = Pelvis_infectionSpecifcUpgeneReorder,
+    geneClusters = Cortex_infectionSpecifcUpgeneReorder,
     fun = "enrichGO",
     OrgDb = "org.Mm.eg.db",
     ont = "BP",
     keyType = 'SYMBOL'
   )
 
-write.csv(Pelvis_infectionSpecifcUpgeneGOenrich,
-          "Pelvis_infectionSpecifcUpgeneGOenrich.csv")
+write.csv(Cortex_infectionSpecifcUpgeneGOenrich,
+          "Cortex_infectionSpecifcUpgeneGOenrich.csv")
 
-#Pelvis_infectionSpecifcUpgeneGOenrich
-#Pelvis_infectionSpecifcUpgeneGOenrich@compareClusterResult %>% head()
+#Cortex_infectionSpecifcUpgeneGOenrich
+#Cortex_infectionSpecifcUpgeneGOenrich@compareClusterResult %>% head()
 
 # Here we only concentrate on selected features
-selectedPathway<- c("regulation of innate immune response","regulation of adaptive immune response","response to lipopolysaccharide","defense response to bacterium","neutrophil activation", "pattern recognition receptor signaling pathway","phagocytosis", "I-kappaB kinase/NF-kappaB signaling","receptor signaling pathway via STAT","tumor necrosis factor production","T cell differentiation","extracellular matrix organization", "epithelium migration","keratinocyte differentiation","Wnt signaling pathway","regulation of apoptotic signaling pathway")
+selectedPathway<- c("regulation of innate immune response","regulation of adaptive immune response","response to lipopolysaccharide","defense response to bacterium","neutrophil activation", "pattern recognition receptor signaling pathway","phagocytosis", "I-kappaB kinase/NF-kappaB signaling","receptor signaling pathway via STAT","tumor necrosis factor production","T cell differentiation","extracellular matrix organization", "epithelium migration","organic acid catabolic process","sodium ion transport","nephron epithelium development","Wnt signaling pathway","leukocyte cell-cell adhesion","DNA replication","chromatin remodeling","DNA recombination")
 
 
-Pelvis_infectionSpecifcUpgeneGOenrichDotPlot <-
+Cortex_infectionSpecifcUpgeneGOenrichDotPlot <-
   dotplot(
-    Pelvis_infectionSpecifcUpgeneGOenrich,
+    Cortex_infectionSpecifcUpgeneGOenrich,
     font.size = 12,
     label_format = 80,
     showCategory = selectedPathway
@@ -548,8 +547,8 @@ Pelvis_infectionSpecifcUpgeneGOenrichDotPlot <-
 ? dotplot
 #low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
 ggsave(
-  "Pelvis_infectionSpecifcUpgeneGOenrichDotPlot.pdf",
-  plot = Pelvis_infectionSpecifcUpgeneGOenrichDotPlot,
+  "Cortex_infectionSpecifcUpgeneGOenrichDotPlot.pdf",
+  plot = Cortex_infectionSpecifcUpgeneGOenrichDotPlot,
   height = 7,
   width = 7.5
 )
@@ -569,7 +568,7 @@ options(future.globals.maxSize = 891289600000)
 ## as a new assay called Progeny. 
 Idents(D7subcluster)
 # create cluster data frame with the cells, Celltypes
-PelvisCluster<- data.frame(Cell = names(Idents(D7subcluster)),   
+CortexCluster<- data.frame(Cell = names(Idents(D7subcluster)),   
                               CellType = as.character(Idents(D7subcluster)),
                               stringsAsFactors = FALSE)
 
@@ -591,7 +590,7 @@ progeny_scores_df <-
 progeny_scores_df
 #progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
 ## We match Progeny scores with the cell clusters.
-progeny_scores_df <- inner_join(progeny_scores_df, PelvisCluster)
+progeny_scores_df <- inner_join(progeny_scores_df, CortexCluster)
 
 progeny_scores_df %>% head()
 ## We summarize the Progeny scores by cellpopulation
@@ -615,11 +614,11 @@ progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0,
                   seq(max(summarized_progeny_scores_df)/paletteLength, 
                       max(summarized_progeny_scores_df), 
                       length.out=floor(paletteLength/2)))
-PelvisForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+CortexForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
 
 # generate the heatmap for PT
-pdf(file="PelvisForHeatmap_Progeny_ForHeatmap.pdf",height = 3, width = 3.5)
-progeny_hmap = pheatmap(PelvisForHeatmap,fontsize=8, 
+pdf(file="CortexForHeatmap_Progeny_ForHeatmap.pdf",height = 3, width = 3.5)
+progeny_hmap = pheatmap(CortexForHeatmap,fontsize=8, 
                         fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
                         cex=1, clustering_distance_rows="euclidean", cex=1,
                         # clustering_distance_cols="euclidean", clustering_method="complete", 
@@ -628,7 +627,7 @@ progeny_hmap = pheatmap(PelvisForHeatmap,fontsize=8,
                         border_color = NA,
                         treeheight_col = 0,   treeheight_row=0)
 
-progeny_hmap
+print(progeny_hmap)
 dev.off()
 test<- FeaturePlot(D7subcluster, features = "NFkB")
 ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
@@ -640,10 +639,10 @@ for (i in ProgenyFeatures ){
   scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
   ggtitle(paste0(i," activity"))
   
-  ggsave(paste0(i, "_PelvisInfected_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 6)
+  ggsave(paste0(i, "_CortexInfected_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 6)
   
   p3 <- (SpatialFeaturePlot(D7subcluster, features = i, pt.size.factor = 4) +ggtitle(paste0(i," activity")))
-  ggsave(paste0(i, "_PelvisInfected_cluster_SpatialfeaturePlot.pdf"), plot = p3, width = 6, height = 6)
+  ggsave(paste0(i, "_CortexInfected_cluster_SpatialfeaturePlot.pdf"), plot = p3, width = 6, height = 6)
   
 }
 
@@ -666,8 +665,8 @@ mat <- as.matrix(D7subcluster@assays$SCT@data)
 acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
                 .mor='mor', minsize = 5)
 
-
-saveRDS(acts, file="Pelvis_Transcriptfactor.RDS")
+# save the transcript factors
+saveRDS(acts, file="Cortex_Transcriptfactor.RDS")
 
 
 #acts <- readRDS("PT_Transcriptfactor.RDS")
@@ -736,7 +735,7 @@ PTTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F,
                         treeheight_col = 0, treeheight_row=0)
 
 
-ggsave("PelvisInfectionHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PTTFheatmap, width = 3, height = 4)
+ggsave("CortexInfectionHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PTTFheatmap, width = 3, height = 4)
 
 # draw the transcriptor factor activity and their expression
 # generate the figure of transcript factor activity:
@@ -745,7 +744,7 @@ for (m in tfs){
   #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
   ggtitle(paste0(m, ' activity')))
   
-  ggsave(paste0("TFActivity_",m,"_PelvisInfection_SpatialFeaturePlot.pdf"), plot = p2, width = 6, height = 6)
+  ggsave(paste0("TFActivity_",m,"_CortexInfection_SpatialFeaturePlot.pdf"), plot = p2, width = 6, height = 6)
 }
 
 D7subcluster
@@ -777,7 +776,7 @@ TFDotPlot <- DotPlot(D7subcluster, features = rev(GeneOrderByPheatmap)) +
   RotatedAxis() + coord_flip()+ 
   #ggtitle("Predicted TF expression")+
    theme(legend.position = "right")
-ggsave("Pelvis_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
+ggsave("Cortex_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
 
 ```
 
@@ -1554,8 +1553,8 @@ Idents(Pyelonephritis_InfectionSubslidesD7)
 # ####################################
 
 # #######
-# For interesting infection regions : for the abscess of the pelvis
-# we generate pie plot for day7 under infection regions for the pelvis abscess regions
+# For interesting infection regions : for the abscess of the Cortex
+# we generate pie plot for day7 under infection regions for the Cortex abscess regions
 ```{r}
 setwd(InfCortexdir)
 Pyelonephritis_Infection$orig.ident
@@ -1700,7 +1699,7 @@ ggsave("Spatial_infected_day7_InfectedRegionD7Interactions.pdf",
 
 
 
-# we generate pie plot for day7 under infection regions for the pelvis abscess regions
+# we generate pie plot for day7 under infection regions for the Cortex abscess regions
 ```{r}
 setwd(InfCPiedir)
 Pyelonephritis_Infection$orig.ident
