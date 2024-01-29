@@ -2,6 +2,7 @@
 
 ## Introduction
 Pyelonephritis is caused by bacteria that enter the kidneys through the bloodstream or from the ureter, which is the tube that connects the bladder to the kidneys. It is a serious condition that can lead to kidney damage and other complications if not treated promptly. Symptoms of pyelonephritis can include fever, chills, nausea, vomiting, abdominal pain, and pain or discomfort in the back, side or groin area. If you are experiencing any of these symptoms, it is important to seek medical attention immediately, as pyelonephritis can cause serious damage to the kidneys if left untreated. This infection normally begins in the bladder and move torward to one or two kidney.
+
 ![Pyelonephritis2](https://github.com/gucascau/Pyelonephritis/assets/23031126/64267437-31d4-424c-8227-1fb32f7b841a)
 
 
