@@ -1,0 +1,1379 @@
+---
+title: "Intercalated Cells Sucluter Analyses"
+author: "Xin Wang"
+date: "2024-02-23"
+description: Intercalated subclusters analyses:
+  - Recluster of the Intercalated cells
+  - Annotation of subclusters using the candidate markers
+  - Psudotime of Intercalated
+  - Basic statistics of Intercalated
+output: html_document
+---
+# Loading the packages
+```{r}
+# check the session information
+sessionInfo()
+library(dplyr)
+library(Seurat)
+library(patchwork)
+
+#install.packages('devtools') #assuming it is not already installed
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+library(devtools)
+#install_github('andreacirilloac/updateR')
+# install.packages("sctransform")
+# install.packages("ggthemes")
+# loading the libarary
+library(updateR)
+
+library("sctransform")
+library("ggthemes")
+library(Seurat)
+
+# BiocManager::install("limma")
+# BiocManager::install("ComplexHeatmap")
+# BiocManager::install("biomaRt")
+# BiocManager::install("methrix")BiocManager::install("org.Hs.eg.db")
+# devtools::install_github("saeyslab/nichenetr")
+library(limma)
+library(nichenetr)
+library(tidyverse)
+library(dplyr)
+
+library(biomaRt)
+library("data.table")
+
+
+library(umap)
+library(patchwork)
+library(cowplot)
+library(installr)
+
+#install.packages("Matrix", repos = "http://cran.r-project.org")
+### we used discre color palettes from ggsci
+
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+
+#options(buildtools.check = function(action) TRUE )
+#devtools::install_url('https://cran.r-project.org/src/contrib/Archive/Matrix.utils/Matrix.utils_0.9.7.tar.gz')
+#devtools::install_github('cole-trapnell-lab/monocle3')
+#library(monocle3)
+
+library(harmony)
+library(Seurat)
+#library(SeuratData)
+library(tidyverse)
+
+#library(BPCells)
+library(ggplot2)
+library("devtools")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+#library(tibble)
+#library(future)
+library(here)
+library(patchwork)
+library(future)
+library(monocle3)
+#devtools::install_dev("remotes")
+#remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+#remotes::install_github(repo ='chris-mcginnis-ucsf/DoubletFinder' )
+#install.packages("DoubletFinder")
+library(DoubletFinder)
+library(future.callr)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+#install.packages("magick")
+library(magick)
+#K means with 6 groups
+
+```
+
+
+## Step 2: Set up the workspace environment:
+```{r}
+rm(list=ls())
+Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/OutputRDS/")
+Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/IC_Subclusters/")
+
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
+
+# directory for biomarkers
+
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
+# setting up the seed 
+set.seed(10000)
+```
+
+
+# generate the health cluster of PT cells
+
+```{r}
+setwd(Outdir)
+# Read the preclustered object
+
+#scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS"))
+
+scrna <- readRDS(file = paste0(Indir,"PIPSeq_Annotated_v0823.rds"))
+
+# We only collect the PT cells
+#CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+
+scrna @meta.data
+
+ICcells <- subset(scrna, subset = Raw_cell_type == "IC")
+
+#ICcells <- subset(scrna, subset = (Atp6v1g3 > 0 | Atp6v1b1 >0) & (Slc26a4 >0 |Hmx2 >0 | Kit>0 | Slc4a1 >0 |Aqp6 >0 )  )
+# To concentrate on the 
+
+nrow(ICcells@meta.data)
+# We then recluster the Immune cells
+# recluster the cells
+ICcells <- SCTransform(ICcells, verbose = TRUE)
+ICcells <- RunPCA(ICcells,npcs = 8, verbose = TRUE)
+
+# Run harmony for the Immune cells
+ICcells <- RunHarmony(ICcells, 
+				group.by.vars = c("DataSet"), 
+				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+ICcells <- RunUMAP(ICcells, dims = 1:8, verbose = TRUE, reduction = "harmony")
+ICcells <- FindNeighbors(ICcells, dims = 1:8,  verbose = TRUE, reduction = "harmony")
+
+ICcells<- FindClusters(ICcells,  verbose = TRUE, resolution = 0.1)
+
+ICcellsDim<- DimPlot(ICcells,label = T)
+
+ggsave(filename = "ICcellsDim.pdf", plot = ICcellsDim, width = 8, height = 6)
+
+ICcellsDimSplit<-DimPlot(ICcells, split.by = "DataSet",label = T)
+ICcellsDimSplit 
+ggsave(filename = "ICcellsDimSplit.pdf", plot = ICcellsDimSplit, width = 24, height = 6)
+
+```
+
+# check the ICA markers and ICB markers
+```{r}
+ICmarkers <- c("Atp6v1g3","Atp6v1g1","Rcan2","Slc26a4","Hmx2","Spink8","Slc26a7","Aqp6","Slc4a1","Kit")
+ICmarkerFinal<- c("Atp6v1g3","Slc26a4","Aqp6")
+DotPlot(ICcells, features = ICmarkerFinal)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+# change the levels of the immune cells
+Idents(ICcells)<-ordered(factor(Idents(ICcells)),levels=c("4","5","0","6","1","2","3"))
+
+# FinalMarkers <- c("Il1b","S100a8","S100a9", "Cd79a","Cd79b","C1qa","C1qb","Itgam","Cd81","Ctsh","Mgl2","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Mrc1","Il13","Cd163","Cd3g", "Cxcr6","Cd247","Cd3e","Capg","Lef1","Tcf7","Gzmk","Gimap7","Ms4a4b","Ccl5","Nkg7","Cd7","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
+CFilePath<- paste0(Outdir,"Candidatemarkers")
+
+dir.create(file.path(CFilePath))
+setwd(file.path(CFilePath))
+
+# 
+FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
+
+MYEGenesDotPlots<- DotPlot(ICcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
+MYEGenesDotPlots
+ggsave(filename = "MYEGenesDotPlots.pdf", plot = MYEGenesDotPlots, width = 10, height = 5)
+
+
+# 
+# FinalMarkers <- c("S100a8","S100a9","Il1b","Itgam","Ly6g","Ly6c1", "Cd79a","Cd79b","C1qa","C1qb","Ctsh","Selenop","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Lrp2","Umod","Aqp2","Havcr1","Lcn2","Igfbp7")
+# 
+# 
+# # Cfh: Parietal epithelial cells
+# Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
+#                       "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+# 
+#                      "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+#                       "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
+#                      "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+#                      #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+#                      #"Enox1","Thsd4", #Macula densa
+#                       "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+#                     "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
+#                     "Krt5","Upk1b","Krt14", # Urothelium
+#                     "Cdh5","Igfbp3","Pecam1", # Endothelium
+#                     "Col3a1","Fbn1","Lum","Col1a1", # Fibroblast
+#                     "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
+#                     "S100a8","S100a9","Il1b","Lcn2", # Neutrophil
+#                     "C1qa","C1qb","Aif1", # Macrophage
+#                     "Cxcr6","Cd247","Cd3e", # T cells
+#                     "Igkc","Cd79a","Cd79b", # B cells
+#                     "Ccl5","Nkg7","Cd7", # NK/Cd8 cells
+#                     "Hdc","Ifitm1","Ncr",
+#                     "Mmp9","Ly6c1",
+#                     "Havcr1")
+# 
+# MarkerGenesDotPlots<- DotPlot(ICcells, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
+# MarkerGenesDotPlots
+# ggsave(filename = "MarkerGenesExpression_ClusterAnnotate.pdf", plot = MarkerGenesDotPlots, width = 15, height = 8)
+# 
+# For different type of cells
+
+
+
+# For all the immune cell markers
+for (i in FinalMarkers){
+# 
+  FeaturePlots<-FeaturePlot(ICcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =4, width = 14)
+}
+
+# heatmap for all the cells
+
+DoHeatmap(ICcells, features = FinalMarkers)
+
+```
+
+```{r}
+# T cells and others
+# https://www.biocompare.com/Editorial-Articles/597618-A-Guide-to-Naive-T-Cell-Markers/
+# https://www.cellsignal.com/pathways/immune-cell-markers-mouse
+# Put the marker gene into a list
+
+ImmuneDiffType <- list()
+
+ImmuneDiffType[["Cd4"]]<- c("Cd4","Cd27","Ptprc","Il7r","Il2ra") # CD4 Naive cells: Cd4+, CD27+, CD45RA+, CD127+, CD25-, CD45RO-
+
+
+ImmuneDiffType[["Cd8"]] <- c( "Cd8a","Cd28","Sell","Ccr7" ) # CD8 Naive T cells: Cd8+, CD27+, CD28+, CD45RA+, CD62L+, CCR7+, CD45RO-
+ImmuneDiffType[["Th1"]] <-c('Stat1', 'Stat4', 'Tbx21', 'Il12a', 'Ifng','Tnf', 'Il2', 'Lta')
+ImmuneDiffType[["Th2"]] <-c('Il4', 'Il2', 'Il10','Il13', 'Il25', 'Stat5a','Irf4','Stat6', 'Gata3', 'Il5')
+ImmuneDiffType[["Th17"]] <-c('Tgfb1', 'Il6', 'Rorc', 'Stat3', 'Il17a', 'Il17f', 'Il23a', 'Irf4', 'Maf', 'Il21', 'Il22')
+ImmuneDiffType[["Treg"]] <-c('Tgfb1', 'Il10', 'Foxp3', 'Stat5a', 'Il2')
+ImmuneDiffType[["Th9"]] <-c('Stat6', 'Irf4', 'Tgfb1', 'Il4', 'Il9', 'Il10')
+ImmuneDiffType[["Th22"]]<-c("Il22", 'Il23a', 'Il6', 'Ahr')
+ImmuneDiffType[["Innate"]]<-c('Tlr4', 'Tlr5', 'Tlr11', 'Il6', 'Cxcr1', 'Cxcr2', 'Il1a', 'Il1b', 'Ccl5', 'Tnf', 'Ifng', 'Ccl2')
+ImmuneDiffType[["AMP"]]<-c('Rnase4', 'Rnase6', 'Mbd1', 'Mbd2', 'Umod', 'Ltf', 'Camp')
+ImmuneDiffType[["Bcells"]] <-c('Jchain', 'Pax5', 'Ms4a1', 'Cd19', 'Ighd', 'Cd27', 'Cd24a', 'Ptprc',  'Cd38', 'Cd79a', 'Ssr1', 'Fkbp11', 'Sec11c', 'Derl3', 'Prdx4', 'Cd79b', 'Vpreb3', 'Sdc1')
+ImmuneDiffType[["Bcellsp"]]<-c("Cd19", "Jchain", "Pax5", "Ms4a1", "Ighd", "Cd79a", "Cd79b", "Ptprc", "H2-Ab1")
+ImmuneDiffType[["neutrophil"]] <-c('Fut4', 'Fcgr3','Cxcr2', 'Mpo', 'Elane', 'Prtn3', 'Lyz1', 'S100a8', 'S100a9',  'Chil1', 'Anxa3', 'Cxcl1', 'Tgm3', 'Mmp9',  'Bpi',  'Ltf', "Gca", 'Camp', 'Ngp', "Chil3", 'Ly6g')
+ImmuneDiffType[["neutros"]] <-c("Itgam", "Csf1r", "Ly6g")
+ImmuneDiffType[["monocytes_macrophages"]] <-c('Itgam', 'Csf1r', 'Adgre1', 'Cd68', 'H2-Ab1', 'Cx3cr1')
+ImmuneDiffType[["DC"]]<-c("Itgax", 'H2-Ab1', 'Bst2')
+ImmuneDiffType[["NKcells"]]<-c('Nkg7', 'Klrk1', "Ncr1")
+ImmuneDiffType[["Mono_Macro"]]<-c('Cd14', 'Fcgr3', 'Cst3', 'C1qc', 'Il1b','Mrc1', 'Msr1', 'Gca', "Ccr2", "Adgre1", 'Ly6c1')
+ImmuneDiffType[["Mast_cells"]]<-c("Slc18a2", 'Fcer1a', 'Hpgds', 'Enpp3', 'Fcgr2b')
+ImmuneDiffType[["Eosinophils"]]<-c('Ifng', 'Tnf')
+
+length(ImmuneDiffType)
+for (i in 1:length(ImmuneDiffType)) {
+  # cell type name
+  ImmuneCellType <- names(ImmuneDiffType[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(Outdir,
+        "/CandidateMarkers/",
+        ImmuneCellType,"/")
+  dir.create(ImmuneCellTypeDir,showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  # generate each feature
+  #ImmuneDiffType[[ImmuneCellType]]
+  for (j in ImmuneDiffType[[ImmuneCellType]]) {
+    
+    
+    FeaturePlots <-
+      FeaturePlot(ICcells, features =  j, split.by = "DataSet") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 14
+    )
+  }
+  
+}
+
+```
+
+# add the Immune cell names
+```{r}
+# add the annotation using case_when
+setwd(Outdir)
+scrna@meta.data %>% head()
+ICcells@meta.data %>% head() 
+  
+levels(ICcells@meta.data$SCT_snn_res.0.3)
+ICcells@meta.data <- ICcells@meta.data %>%   mutate(ImmuneIntegrateAnnot = 
+           case_when(SCT_snn_res.0.3 %in% c("0") ~ "T", # T cells
+                     SCT_snn_res.0.3 %in% c("1") ~ "RecMAC", # Recruited MAC
+                     SCT_snn_res.0.3 %in% c("2") ~ "M1-M2", # M1/M2 Macrophage
+                     SCT_snn_res.0.3 %in% c("3") ~ "ResIMM", # Resident immune
+                     SCT_snn_res.0.3 %in% c("4") ~ "NK", # NK cell
+                     SCT_snn_res.0.3 %in% c("5") ~ "B", # B 
+                     SCT_snn_res.0.3 %in% c("6") ~ "NEU", # Neutrophil
+                 )) 
+
+ICcells@meta.data %>% head()
+
+Idents(ICcells) <- ICcells@meta.data$ImmuneIntegrateAnnot
+Idents(ICcells)
+
+# Reorder the levels:
+Idents(ICcells)<-ordered(factor(Idents(ICcells)),levels=c("NK","B","T","NEU","RecMAC","M1-M2","ResIMM"))
+
+FinalMarkersWithAnn <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
+
+MYEGenesDotPlotsWithAnn<- DotPlot(ICcells, features =  FinalMarkersWithAnn, col.min = -1) +RotatedAxis()
+MYEGenesDotPlotsWithAnn
+ggsave(filename = "MYEGenesDotPlots_WithAnn.pdf", plot = MYEGenesDotPlotsWithAnn, width = 12, height = 5)
+
+ICcellsDimWithAnno<- DimPlot(ICcells,label = T)
+ICcellsDimWithAnno
+ggsave(filename = "ICcellsDimWithAnno.pdf", plot = ICcellsDimWithAnno, width = 6, height =4)
+
+```
+
+# add the Immune cells types into the orginal datasets
+```{r}
+ICcells@meta.data %>% head()
+
+ImmuneSubAnnotation <- ICcells@meta.data %>% dplyr::select(ImmuneIntegrateAnnot)
+ImmuneSubAnnotation %>% head()
+## add this annotation into the meta dataset
+scrna@meta.data<- scrna@meta.data %>% rownames_to_column('CellID') %>% 
+  left_join( ImmuneSubAnnotation %>% rownames_to_column('CellID')) %>% 
+# then add a new column that change the NA into Raw_cell_type
+  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
+  mutate(ImmuneSub = ifelse(is.na(ImmuneIntegrateAnnot), A_new,ImmuneIntegrateAnnot))
+### join the meta data to meta annoation
+
+Idents(scrna) <- scrna@meta.data$ImmuneSub
+
+scrna@meta.data %>% head()
+
+row.names(scrna@meta.data) <- scrna@meta.data$CellID
+ DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
+
+ saveRDS(scrna, file = paste0(Outdir,"OutputRDS/","PIPSeq_ImmuneSub_Annotated_v0823.RDS"))
+
+ levels(Idents(scrna))
+ 
+```
+
+# add the frequency
+```{r}
+table(ICcells@meta.data$DataSet)/table(scrna@meta.data$DataSet)
+
+ICcellsPropotionWithinTime <- table(ICcells@meta.data$DataSet,Idents(ICcells)) %>% as.data.frame() %>%
+  group_by(Var1) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
+ggsave("ICcellsPropotionWithinTime.pdf", plot = ICcellsPropotionWithinTime, width = 4, height = 3)
+
+```
+
+# check the markers
+```{r}
+# macrophage 1 and macrophage 2:
+CFilePath<- paste0(Outdir,"Candidatemarkers")
+
+dir.create(file.path(CFilePath))
+setwd(file.path(CFilePath))
+
+# M1 can choose CD80, CD86, CD64, CD16 and CD32 as markers. 
+Macrophage2TypeMarkers <- c("Nos2","Cd79a","Cxcr6","Lef1","Ccl5","Capg","Ccl3","Ccl4","Ly6d","Lyz2","C1qa","Ifitm1","Ifngr1","Il17a","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b","Cd163","Mrc1","Arg1", "Cd68","Havcr1","Lcn2")
+
+ICcells2BiomarkerDotPlot <- DotPlot(ICcells, features = Macrophage2TypeMarkers) +RotatedAxis()
+ggsave("ICcells2BiomarkerDotPlot.pdf", plot = ICcells2BiomarkerDotPlot, height = 5, width = 8)
+
+Macrophage1Markers <- c("Nos2","Ifngr1","Il17a","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b")
+
+ICcellsT1BiomarkerDotPlot<- DotPlot(ICcells, features = Macrophage1Markers) +RotatedAxis()
+ggsave("ICcellsT1BiomarkerDotPlot.pdf", plot = ICcellsT1BiomarkerDotPlot, height = 4, width = 6)
+
+# M2 can choose CD163 and CD206 are major markers, Arg1 DECTIN
+Macrophage2Markers <- c("Il13","Cd163","Mrc1","Arg1", "Cd68")
+ICcellsT2BiomarkerDotPlot<- DotPlot(ICcells, features = Macrophage2Markers) +RotatedAxis()
+ggsave("ICcellsT2BiomarkerDotPlot.pdf", plot = ICcellsT2BiomarkerDotPlot, height = 4, width = 6)
+
+
+for (i in Macrophage1Markers){
+
+  FeaturePlots<-FeaturePlot(ICcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_M1_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+
+}
+
+for (i in Macrophage2Markers){
+
+  FeaturePlots<-FeaturePlot(ICcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_M2_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+
+}
+#
+# setwd(file.path(Outdir))
+
+```
+
+```{r}
+# contribution of monocyte-derived macrophage to inflammation
+
+InflammationMarkers<- c("Cxcl1","Ccl4", "Ccl2", "Cxcl2")
+GrowthFactors<- c("Csf3","Csf2")
+InjuredMarkers <- c("Havcr1","Lcn2")
+CytokinesMarkers<- c("Il23a","Ifngr1","Ifngr2","Il12","Il1a","Tnf","Il6","Il1f6")
+Signaling <- c("Myd88","Tlr2","Tlr4","Nlrp3","Nfkb1","Nos2","Cybb")
+Profibrotic <- c("Mmp2","Mmp9","Tgfb1","Col4a1","Col1a1","Fn1","Col3a1")
+
+InflammationMarkersDotPlot<- DotPlot(ICcells, features = InflammationMarkers) +RotatedAxis()
+GrowthFactorsDotPlot<- DotPlot(ICcells, features = GrowthFactors) +RotatedAxis()
+InjuredMarkersDotPlot<- DotPlot(ICcells, features = InjuredMarkers) +RotatedAxis()
+CytokinesMarkersDotPlot<- DotPlot(ICcells, features = CytokinesMarkers) +RotatedAxis()
+SignalingDotPlot<- DotPlot(ICcells, features = Signaling) +RotatedAxis()
+ProfibroticDotPlot<- DotPlot(ICcells, features = Profibrotic) +RotatedAxis()
+ggsave("InflammationMarkersDotPlot.pdf", plot = InflammationMarkersDotPlot, height = 4, width = 6)
+ggsave("GrowthFactorsDotPlot.pdf", plot = GrowthFactorsDotPlot, height = 4, width = 6)
+ggsave("InjuredMarkersDotPlot.pdf", plot = InjuredMarkersDotPlot, height = 4, width = 6)
+ggsave("CytokinesMarkersDotPlot.pdf", plot = CytokinesMarkersDotPlot, height = 4, width = 6)
+ggsave("SignalingDotPlot.pdf", plot = SignalingDotPlot, height = 4, width = 6)
+ggsave("ProfibroticDotPlot.pdf", plot = ProfibroticDotPlot, height = 4, width = 6)
+
+```
+
+
+```{r}
+# the healthy cells
+HealthMarkers<- c("Slc22a30", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
+
+DotPlot(ICcells, features =  HealthMarkers, col.min = -0.5) +RotatedAxis()
+
+CyclingMarker <- "Mki67"
+DotPlot(ICcells, features =  CyclingMarker, col.min = -0.5) +RotatedAxis()
+
+EarlyInjuryMarkers <- c("Cdh13", "Cdh6", "Havcr1")
+DotPlot(ICcells, features =  EarlyInjuryMarkers, col.min = -0.5) +RotatedAxis()
+LateInjuryMarkers <-c( "Ccl2", "Gm17268", "Cald1")
+DotPlot(ICcells, features =  LateInjuryMarkers, col.min = -0.5) +RotatedAxis()
+
+ReparingMarkers <- "Top2a"
+
+DotPlot(ICcells, features =  ReparingMarkers, col.min = -0.5) +RotatedAxis()
+
+FailedFepairMarkers <- c("Ypel2","Kcnip4")
+
+DotPlot(ICcells, features =  FailedFepairMarkers, col.min = -0.5) +RotatedAxis()
+# 
+MaladptiveMarkers <- c("Vcam1", "Havcr1",  "Icam1", "Prom1","Cxcl2","Ccl3","Myc")
+
+DotPlot(ICcells, features =  MaladptiveMarkers, col.min = -0.5) +RotatedAxis()
+
+
+# Combined 
+#"Lrp2","Slc34a1","Slc13a1"
+KidneyStatuesMarkers<- c( "Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
+
+ DotPlot(ICcells, features =  KidneyStatuesMarkers,col.min = -1) +RotatedAxis()
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1")
+ DotPlot(ICcells, features =  KidneyStatuesTypeMarkers) +RotatedAxis()
+ 
+ KidneyStatuesTypeMarkers2<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1","Nfkbia")
+  DotPlot(ICcells, features =  KidneyStatuesTypeMarkers2) +RotatedAxis()
+
+ #, cluster 5: Fn1, Havcr1, Cst3, Igfbp7, S100a8, Il1b, Slc7a13 : Profibrotic PT
+ # cluster 1: Spp1, Prom1, Kcnip4, Col27a1,Top2a,Nfkbia: Cycling PT
+ # cluster 8: Cdh13, Hsp90aa1,Inmt, Mki67 : Proliferating PT
+ 
+ # cluster 1: ASpp1, Prom1, Kcnipp4: Progenitor PT
+ 
+ # cluster 0: Aldob
+```
+
+# the biomarkers for the 
+```{r}
+CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
+
+CandidateMarkersDotPlot<-  DotPlot(ICcells, features =  CandidateMarkers, col.min = 0) +RotatedAxis()
+CandidateMarkersDotPlot
+ggsave("IMM_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+```
+
+# #############################################
+## generate the Trajectories of Macrophage cells
+# #############################################
+# 2.2 Prepared cds the object for Macrophage cells
+```{r}
+# build cds object for MYOLEOD
+setwd(PyseudotimeDir)
+Idents(ICcells)
+ICcells@meta.data %>% head()
+
+MACCells <- 
+subset(ICcells, subset =  ImmuneIntegrateAnnot == "M1_M2" | ImmuneIntegrateAnnot == "RecMAC")
+
+
+
+MACCells_expr_matrix = GetAssayData(MACCells, slot = "counts")
+
+# Cell meta annotation
+p_data <- MACCells@meta.data 
+head(p_data)
+
+# Gene meta annotation
+f_data<- data.frame(gene_short_name = row.names(MACCells), row.names = row.names(MACCells))
+
+
+pre_cds <- new_cell_data_set(MACCells_expr_matrix,
+                         cell_metadata = p_data,
+                         gene_metadata = f_data)
+
+pData(pre_cds) %>% colnames()
+
+cds <- preprocess_cds(pre_cds) #标准化+PCA降维
+
+```
+
+# 2.2 Umap by Monocle3
+```{r}
+cds <- reduce_dimension(cds, preprocess_method = "PCA")
+head(cds@int_colData$reducedDims$UMAP)
+
+plot_cells(cds, reduction_method="UMAP", 
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE, 
+           color_cells_by="DataSet")
+dev.off()
+# UMAP by Seurat
+seurat_umap <- Embeddings(MACCells, reduction = "umap")[colnames(cds),]
+cds@int_colData$reducedDims$UMAP <- seurat_umap
+head(cds@int_colData$reducedDims$UMAP)
+plot_cells(cds, reduction_method="UMAP",
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE,
+           color_cells_by="DataSet")
+
+```
+
+# Draw the monocle state
+```{r}
+#分群(类似monocle的State)
+
+cds <- cluster_cells(cds)
+
+#预测轨迹
+cds <- learn_graph(cds)
+#交互式确定root节点，可以选择多个。我这里选择了一个
+#cds <- order_cells(cds) 
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds, time_bin="0DPI"){
+  cell_ids <- which(colData(cds)[, "DataSet"] == time_bin)
+  closest_vertex <-
+  cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+cds <- order_cells(cds, root_pr_nodes=get_earliest_principal_node(cds))
+
+
+MACCells_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime", 
+           label_cell_groups = FALSE, 
+           label_leaves = TRUE,  
+           label_branch_points = FALSE,graph_label_size=1.5)
+MACCells_pseudotime
+ggsave(filename = "MACCells_pseudotime_MonocaCluster.pdf", plot = MACCells_pseudotime, width = 4, height = 3)
+
+MACCells_pseudotime_Celltype <- plot_cells(cds, reduction_method="UMAP", 
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE, 
+           color_cells_by="ImmuneIntegrateAnnot")
+ggsave(filename = "MACCells_pseudotime_Celltype.pdf", plot = MACCells_pseudotime_Celltype, width = 5, height = 3)
+MACCells_pseudotime_Celltype
+```
+
+```{r}
+# Determine the psedudotime related genes
+Track_genes <- graph_test(cds, neighbor_graph="principal_graph")
+
+Track_genes %>% head()
+
+```
+
+# plot the expression of interesting genes during the PT pseudotime
+```{r}
+
+# re-order the tracked genes by the q value and morans I
+Track_genes <- Track_genes[,c(5,2,3,4,1,6)] %>% 
+  dplyr::arrange(desc(morans_I),q_value)
+
+# Plot some interesting genes for the PT pseudotime : Top 2 genes, Napsa, Kap, Ttr, Igfbp7, Havcr1 and Prom1
+KapTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[1],] , 
+                         min_expr=0.5)
+ggsave(filename = "MAC_pseudotime_KapTrack.pdf", plot = KapTrack, width = 5, height = 3)
+NapsaTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[2],] , 
+                         min_expr=0.5)
+ggsave(filename = "MAC_pseudotime_NapsaTrack.pdf", plot = NapsaTrack, width = 5, height = 3)
+
+TtrTrack <- plot_genes_in_pseudotime(cds["Ttr",] , 
+                         min_expr=0.5)
+ggsave(filename = "MAC_pseudotime_TtrTrack.pdf", plot = TtrTrack, width = 5, height = 3)
+
+ApoeTrack <- plot_genes_in_pseudotime(cds["Apoe",] , 
+                         min_expr=0.5)
+ggsave(filename = "MAC_pseudotime_ApoeTrack.pdf", plot = ApoeTrack, width = 5, height = 3)
+
+Fn1Track <- plot_genes_in_pseudotime(cds["Fn1",] , 
+                         min_expr=0.5)
+
+ggsave(filename = "MAC_pseudotime_Fn1Track.pdf", plot = Fn1Track, width = 5, height = 3)
+
+# For the 
+Cst3Track <- plot_genes_in_pseudotime(cds["Cst3",],min_expr=0.5 )
+ggsave(filename = "MAC_pseudotime_Cst3Track.pdf", plot = Cst3Track, width = 5, height = 3)
+
+H2Ab1Track <- plot_genes_in_pseudotime(cds["H2-Ab1",] , 
+                         min_expr=0.5)
+ggsave(filename = "MAC_pseudotime_H2Ab1Track.pdf", plot = H2Ab1Track, width = 5, height = 3)
+
+```
+
+# choose the top signifcant for visualization
+```{r}
+diff_pseudo_gene <- Track_genes %>% 
+  dplyr::arrange(q_value) %>%
+  # remove the genes with mitochondrion
+  filter(!grepl('^mt-|Hbb-', gene_short_name)) %>%
+  rownames() %>% head(40)
+
+# we ignore the mitochondria genes
+
+diff_pseudo_gene
+
+# generate the heatmap for those genes
+
+diff_pseudo_gene.matrix <- exprs(cds)[match(diff_pseudo_gene,rownames(rowData(cds))),order(pseudotime(cds))]
+
+diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){smooth.spline(x,df=3)$y}))
+diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){(x-mean(x))/sd(x)}))
+rownames(diff_pseudo_gene.matrix) <- diff_pseudo_gene;
+
+#pheatmap(diff_pseudo_gene.matrix)
+
+# because the plot_pseudotime_heatmap no longer have, we used the complexheatmap to draw the figure
+# Reference: https://github.com/cole-trapnell-lab/monocle-release/issues/295
+pdf("MAC_pseudotime_psudotimeGenes.pdf", height = 6, width = 4)
+htkm <- Heatmap(
+  diff_pseudo_gene.matrix,
+  name    = "z-score",
+  col     = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names  = TRUE,
+  show_column_names = FALSE,
+  row_names_gp  = gpar(fontsize = 6),
+  km = 8,
+  row_title_rot = 0,
+  use_raster=TRUE,
+  cluster_rows  = TRUE,
+  cluster_row_slices = FALSE,
+  cluster_columns   = FALSE,show_row_dend =FALSE)
+
+print (htkm)
+dev.off()
+#ggsave(filename = "PT_pseudotime_psudotimeGenes.pdf", plot = htkm, width = 8, height = 6)
+
+?Heatmap
+#Ward.D2 Hierarchical Clustering
+pdf("MAC_pseudotime_psudotimeGenes_Hierarchicalcluster.pdf", height = 6, width = 4)
+hthc <- Heatmap(
+  diff_pseudo_gene.matrix,
+  name                         = "z-score",
+  col                          = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names               = TRUE,
+  show_column_names            = FALSE,
+  row_names_gp                 = gpar(fontsize = 6),
+  clustering_method_rows = "ward.D2",
+  clustering_method_columns = "ward.D2",
+  row_title_rot                = 0,
+  use_raster= TRUE,
+  cluster_rows                 = TRUE,
+  cluster_row_slices           = FALSE,
+  cluster_columns              = FALSE,show_row_dend=FALSE)
+
+print(hthc)
+dev.off()
+
+cds["Havcr1",] %>% head()
+# Generate the Dotplot for these genes
+plot_genes_in_pseudotime(cds[c("Havcr1"),] , 
+                         min_expr=0.5)
+
+DotPlot(ICcells, features =diff_pseudo_gene ) +RotatedAxis()
+
+DotPlot(ICcells, features =c("Spp1","Havcr1","Itgb1","Top2a",
+                             "Prom1","Pdgfb","Defb1","Fn1","Col6a1"), col.min = -0.5 ) +RotatedAxis()
+
+FeaturePlot(ICcells, features = c("Lcn2","Defb1","Egf","Havcr1"))
+# the following no longer have 
+
+Track_genes
+# p = plot_pseudotime_heatmap(cds[diff_pseudo_gene,], 
+#                         num_clusters = 3,  # default 6
+#                         return_heatmap=T)
+# 
+
+```
+
+
+# #############################################
+## generate the Trajectories of T cells
+# #############################################
+# 2.3 Prepared cds the object for T cells
+```{r}
+# build cds object for T
+setwd(PyseudotimeDir)
+Idents(ICcells)
+ICcells@meta.data %>% head()
+
+TCells <- 
+subset(ICcells, subset =   ImmuneIntegrateAnnot == "T")
+
+
+
+TCells_expr_matrix = GetAssayData(TCells, slot = "counts")
+
+# Cell meta annotation
+p_data <- TCells@meta.data 
+head(p_data)
+
+# Gene meta annotation
+f_data<- data.frame(gene_short_name = row.names(TCells), row.names = row.names(TCells))
+
+
+pre_cds <- new_cell_data_set(TCells_expr_matrix,
+                         cell_metadata = p_data,
+                         gene_metadata = f_data)
+
+pData(pre_cds) %>% colnames()
+
+cds <- preprocess_cds(pre_cds) #标准化+PCA降维
+
+```
+
+# 2.2 Umap by Monocle3
+```{r}
+cds <- reduce_dimension(cds, preprocess_method = "PCA")
+head(cds@int_colData$reducedDims$UMAP)
+
+plot_cells(cds, reduction_method="UMAP", 
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE, 
+           color_cells_by="DataSet")
+dev.off()
+# UMAP by Seurat
+seurat_umap <- Embeddings(TCells, reduction = "umap")[colnames(cds),]
+cds@int_colData$reducedDims$UMAP <- seurat_umap
+head(cds@int_colData$reducedDims$UMAP)
+plot_cells(cds, reduction_method="UMAP",
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE,
+           color_cells_by="DataSet")
+
+```
+
+# Draw the monocle state
+```{r}
+#分群(类似monocle的State)
+
+cds <- cluster_cells(cds)
+
+#预测轨迹
+cds <- learn_graph(cds)
+#交互式确定root节点，可以选择多个。我这里选择了一个
+#cds <- order_cells(cds) 
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds, time_bin="0DPI"){
+  cell_ids <- which(colData(cds)[, "DataSet"] == time_bin)
+  
+  closest_vertex <-
+  cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+cds <- order_cells(cds, root_pr_nodes=get_earliest_principal_node(cds))
+
+
+TCells_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime", 
+           label_cell_groups = FALSE, 
+           label_leaves = TRUE,  
+           label_branch_points = FALSE,graph_label_size=1.5)
+TCells_pseudotime
+ggsave(filename = "TCells_pseudotime_MonocaCluster.pdf", plot = TCells_pseudotime, width = 4, height = 3)
+
+TCells_pseudotime_Celltype <- plot_cells(cds, reduction_method="UMAP", 
+           show_trajectory_graph = FALSE,
+           label_cell_groups = FALSE, 
+           color_cells_by="ImmuneIntegrateAnnot")
+ggsave(filename = "TCells_pseudotime_Celltype.pdf", plot = TCells_pseudotime_Celltype, width = 5, height = 3)
+TCells_pseudotime_Celltype
+```
+
+```{r}
+# Determine the psedudotime related genes
+Track_genes <- graph_test(cds, neighbor_graph="principal_graph")
+
+Track_genes %>% head()
+# re-order the tracked genes by the q value and morans I
+Track_genes <- Track_genes[,c(5,2,3,4,1,6)] %>% 
+  dplyr::arrange(desc(morans_I),q_value)
+
+```
+
+# choose the top signifcant for visualization
+```{r}
+diff_pseudo_gene <- Track_genes %>% 
+  dplyr::arrange(q_value) %>%
+  # remove the genes with mitochondrion
+  filter(!grepl('^mt-|Hbb-', gene_short_name)) %>%
+  rownames() %>% head(40)
+
+# we ignore the mitochondria genes
+
+diff_pseudo_gene
+
+# generate the heatmap for those genes
+
+diff_pseudo_gene.matrix <- exprs(cds)[match(diff_pseudo_gene,rownames(rowData(cds))),order(pseudotime(cds))]
+
+diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){smooth.spline(x,df=3)$y}))
+diff_pseudo_gene.matrix <- t(apply(diff_pseudo_gene.matrix,1,function(x){(x-mean(x))/sd(x)}))
+rownames(diff_pseudo_gene.matrix) <- diff_pseudo_gene;
+
+#pheatmap(diff_pseudo_gene.matrix)
+
+# because the plot_pseudotime_heatmap no longer have, we used the complexheatmap to draw the figure
+# Reference: https://github.com/cole-trapnell-lab/monocle-release/issues/295
+pdf("Tcells_pseudotime_psudotimeGenes.pdf", height = 6, width = 4)
+htkm <- Heatmap(
+  diff_pseudo_gene.matrix,
+  name    = "z-score",
+  col     = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names  = TRUE,
+  show_column_names = FALSE,
+  row_names_gp  = gpar(fontsize = 6),
+  km = 8,
+  row_title_rot = 0,
+  use_raster=TRUE,
+  cluster_rows  = TRUE,
+  cluster_row_slices = FALSE,
+  cluster_columns   = FALSE,
+  show_row_dend=FALSE)
+
+print (htkm)
+dev.off()
+#ggsave(filename = "PT_pseudotime_psudotimeGenes.pdf", plot = htkm, width = 8, height = 6)
+
+
+#Ward.D2 Hierarchical Clustering
+pdf("Tcells_pseudotime_psudotimeGenes_Hierarchicalcluster.pdf", height = 6, width = 4)
+hthc <- Heatmap(
+  diff_pseudo_gene.matrix,
+  name                         = "z-score",
+  col                          = colorRamp2(seq(from=-2,to=2,length=11),rev(brewer.pal(11, "Spectral"))),
+  show_row_names               = TRUE,
+  show_column_names            = FALSE,
+  row_names_gp                 = gpar(fontsize = 6),
+  clustering_method_rows = "ward.D2",
+  clustering_method_columns = "ward.D2",
+  row_title_rot                = 0,
+  use_raster= TRUE,
+  cluster_rows                 = TRUE,
+  cluster_row_slices           = FALSE,
+  cluster_columns              = FALSE,
+  show_row_dend=FALSE)
+
+print(hthc)
+dev.off()
+?Heatmap
+cds["Havcr1",] %>% head()
+# Generate the Dotplot for these genes
+plot_genes_in_pseudotime(cds[c("Havcr1"),] , 
+                         min_expr=0.5)
+
+DotPlot(ICcells, features =diff_pseudo_gene ) +RotatedAxis()
+
+DotPlot(ICcells, features =c("Spp1","Havcr1","Itgb1","Top2a",
+                             "Prom1","Pdgfb","Defb1","Fn1","Col6a1"), col.min = -0.5 ) +RotatedAxis()
+
+FeaturePlot(ICcells, features = c("Lcn2","Defb1","Egf","Havcr1"))
+# the following no longer have 
+
+Track_genes
+# p = plot_pseudotime_heatmap(cds[diff_pseudo_gene,], 
+#                         num_clusters = 3,  # default 6
+#                         return_heatmap=T)
+# 
+
+```
+
+
+# plot the expression of interesting genes during the T cell pseudotime
+```{r}
+
+# Plot some interesting genes for the PT pseudotime : Top 2 genes, Napsa, Kap, Ttr, Igfbp7, Havcr1 and Prom1
+KapTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[1],] , 
+                         min_expr=0.5)
+ggsave(filename = "Tcells_pseudotime_KapTrack.pdf", plot = KapTrack, width = 5, height = 3)
+NapsaTrack <- plot_genes_in_pseudotime(cds[Track_genes$gene_short_name[2],] , 
+                         min_expr=0.5)
+ggsave(filename = "Tcells_pseudotime_NapsaTrack.pdf", plot = NapsaTrack, width = 5, height = 3)
+
+TtrTrack <- plot_genes_in_pseudotime(cds["Ttr",] , 
+                         min_expr=0.5)
+ggsave(filename = "Tcells_pseudotime_TtrTrack.pdf", plot = TtrTrack, width = 5, height = 3)
+
+Igfbp7Track <- plot_genes_in_pseudotime(cds["Igfbp7",] , 
+                         min_expr=0.5)
+ggsave(filename = "Tcells_pseudotime_Igfbp7Track.pdf", plot = Igfbp7Track, width = 5, height = 3)
+
+Track_genes$gene_short_name[1:5]
+
+
+Track_genes$gene_short_name[2]
+Track_genes$gene_short_name[1]
+Defb1Track <- plot_genes_in_pseudotime(cds["Defb1",] , 
+                         min_expr=0.5)
+Defb1Track
+ggsave(filename = "Tcells_pseudotime_Defb1Track.pdf", plot = Defb1Track, width = 5, height = 3)
+
+# For the 
+Ly6c2Track <- plot_genes_in_pseudotime(cds["Ly6c2",],min_expr=1 )
+ggsave(filename = "Tcells_pseudotime_Ly6c2Track.pdf", plot = Ly6c2Track, width = 5, height = 3)
+
+Il17aTrack <- plot_genes_in_pseudotime(cds["Il17a",],min_expr=0.5 )
+ggsave(filename = "Tcells_pseudotime_Il17aTrack.pdf", plot = Il17aTrack, width = 5, height = 3)
+
+
+Ccl5Track <- plot_genes_in_pseudotime(cds["Ccl5",],min_expr=0.5 )
+ggsave(filename = "Tcells_pseudotime_Ccl5Track.pdf", plot = Ccl5Track, width = 5, height = 3)
+Cdh16Track
+#FeaturePlot(ICcells, features = "Havcr1")
+
+```
+
+
+# #####################################
+## generate the Progeny signaling pathways
+# #####################################
+
+```{r}
+# set up the directory
+setwd(ProgenyDir)
+Idents(ICcells)
+ICcells@meta.data %>% head()
+
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+
+# create cluster data frame with the cells, Celltypes
+IMMCluster<- data.frame(Cell = names(Idents(ICcells)),   
+                              CellType = as.character(Idents(ICcells)),
+                              stringsAsFactors = FALSE)
+IMMCluster %>% head()
+
+
+ICcells <- progeny(ICcells, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+ICcells
+# setup the default assay as progeny
+DefaultAssay(object = ICcells) <- "progeny"
+
+ICcells <- Seurat::ScaleData(ICcells, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(ICcells, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df %>% head()
+
+#progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, IMMCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 100
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+
+summarized_progeny_scores_df
+ImmuneCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+ImmuneCellForHeatmap
+# generate the heatmap for ImmuneCells
+pdf(file="ImmuneCells_Progeny_ForHeatmap.pdf",height = 5, width = 6)
+library(pheatmap)
+progeny_hmap = pheatmap(ImmuneCellForHeatmap,fontsize=12, 
+                        fontsize_row = 10, 
+                        color=myColor, breaks = progenyBreaks, 
+                        #main = "PROGENy signaling", 
+                        angle_col = 45,
+                        treeheight_col = 0,  border_color = NA, treeheight_row=0)
+print(progeny_hmap)
+dev.off()
+test<- FeaturePlot(PTcells, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(ICcells, features = i,split.by = "DataSet") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_Immune_cluster_featurePlot.pdf"), plot = p2, width = 20, height = 5)
+}
+
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(ICcells, features = i) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_Immune_cluster_featurePlot_Nosplit.pdf"), plot = p2, width = 4, height = 3)
+}
+
+```
+
+# Using PROGENy model from DecoupleR
+```{r}
+library(decoupleR)
+setwd(ProgenyDir)
+net <- get_progeny(organism = 'mouse', top = 500)
+
+# Activity inference with Multivariate Linear Model (MLM)
+# Extract the normalized log-transformed counts
+mat <- as.matrix(ICcells@assays$RNA@data)
+
+# Run mlm
+acts <- run_mlm(mat=mat, net=net, .source='source', .target='target',
+                .mor='weight', minsize = 5)
+
+acts 
+# Visualization:
+# Extract mlm and store it in pathwaysmlm in data
+ICcells[['pathwaysmlm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+
+# Change assay
+DefaultAssay(object = ICcells) <- "pathwaysmlm"
+
+# Scale the data
+ICcells <- ScaleData(ICcells)
+ICcells@assays$pathwaysmlm@data <- ICcells@assays$pathwaysmlm@scale.data
+
+# run the source of pathways
+ProgenyFeatures <- levels(factor(acts$source))
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-FeaturePlot(ICcells, features = i) & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_ICcells_cluster_featurePlot_DecoupleR.pdf"), plot = p2, width = 6, height = 5)
+}
+
+#(c("royalblue", "white","lightcoral"))
+FeaturePlot(ICcells, features = "Hypoxia", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("Hypoxia"," activity"))
+
+FeaturePlot(ICcells, features = "NFkB", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("NFkB"," activity"))
+
+
+FeaturePlot(ICcells, features = "TNFa", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("TNFa"," activity"))
+
+p1 <- DimPlot(ICcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(ICcells, features = c("Trail")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('Trail activity')
+
+
+
+# Expore the mean activiey per group across pathways:
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(ICcells@assays$pathwaysmlm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(ICcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Transform to wide matrix
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-0.5, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 0.5, length.out=floor(palette_length/2)))
+
+# Plot
+ICcellsHeatmap<- pheatmap(t(top_acts_mat), border_color = NA, color=my_color, breaks = my_breaks, angle_col = 45) 
+ggsave("ICcellscellsHeatmap_Progeny_Decouple.pdf", plot = ICcellsHeatmap, width = 6, height = 6)
+
+```
+
+# Transcription factor activity inference from Immune scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(ICcells@assays$RNA@data)
+# Run ulm
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
+
+saveRDS(acts, file="Immune_Transcriptfactor.RDS")
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+ICcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = ICcells) <- "tfsulm"
+
+# Scale the data
+ICcells <- ScaleData(ICcells)
+ICcells@assays$tfsulm@data <- ICcells@assays$tfsulm@scale.data
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 25
+
+t(as.matrix(ICcells@assays$tfsulm@data))
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(ICcells@assays$tfsulm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(ICcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+# drop "Znf335" due to not exist in the expression
+tfs <- tfs[!tfs == "Znf335"]
+
+#tfs[!tfs == "Znf335"]
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+IMMTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F, 
+                        color=my_color,fontsize=12, fontsize_row = 10, 
+                        breaks = my_breaks, 
+                        #main = "Predicted TF activities", 
+                        angle_col = 45,
+                        treeheight_col = 0, treeheight_row=0)
+
+
+ggsave("ICcellsHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = IMMTFheatmap, width = 4, height = 5)
+
+# draw the transcriptor factor activity and their expression
+# generate the figure of transcript factor activity:
+for (m in tfs){
+  p2 <- (FeaturePlot(ICcells, features = m) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(m, ' activity'))
+  
+  ggsave(paste0("TFActivity_",m,"_ICcells_FeaturePlot.pdf"), plot = p2, width = 4, height = 3)
+}
+
+DefaultAssay(object = ICcells) <- "RNA"
+
+for (n in tfs){
+  p3 <- (FeaturePlot(ICcells, features = n) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression'))
+  
+  ggsave(paste0("TFExpression_",n,"_ICcells_FeaturePlot.pdf"), plot = p3, width = 4, height = 3)
+
+}
+
+# add their activity in Dotplot
+Idents(ICcells)
+# get the order of row name
+GeneOrderByPheatmap <- rownames(t(top_acts_mat))[IMMTFheatmap$tree_row$order]
+#IMMTFheatmap$tree_row$order
+
+?DotPlot
+TFDotPlot <- DotPlot(ICcells, features = rev(GeneOrderByPheatmap)) +
+  RotatedAxis() + coord_flip()+ 
+  #ggtitle("Predicted TF expression")+
+   theme(legend.position = "right")
+ggsave("Immune_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
+
+```
+
+
+
+
+```{r}
+# dividing into cycling, transitioning, adap- tive (successful or maladaptive repair) and degenerative (damaged or stressed). 
+# cycling: Mki67
+# Early Injury: Cdh13, Cdh6, Havcr1
+# Late Injury: Ccl2, Gm17268, Cald1
+# conserved: Slc13a1, Slc5a2,  Slc7a13, Cyp7b1
+
+
+
+# Panoptosis
+# Il1b, MLKL, Gsdmd,Ripk3
+
+# Fibrosis 
+# Fn1, Col1a1, Col3a1, Tgfb1
+# adaptive
+# VCAM1, DCDC2 and HAVCR1, C3, ICAM1
+# VCAM1 PROM1 ITGB8
+# Vcam1, Havcr1, Dcdc2, Icam1, Prom1, ITgb8
+
+#degenerative
+# SPP1, CST3, CLU and IGFBP7, APOE ALDOB
+# B2M S100A6
+# Spp1, Cst3, GDF15,Clu, Igfbp7, Apoe, Aldob, B2m, S100a6
+# agionegious PEC,
+# EGFR, VEGF, Cdh5
+
+# Egfr, Vegf, Cdh5
+KidneyStatuesMarkers<- c("Slc13a1", "Slc5a2", "Slc7a13", "Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1")
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6")
+
+DotPlot(scrna, features =  KidneyStatuesMarkers, col.min = -0.5) +RotatedAxis()
+DotPlot(scrna, features =  KidneyStatuesTypeMarkers, col.min = -0.5) +RotatedAxis()
+
+
+for (i in KidneyStatuesMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+for (i in KidneyStatuesTypeMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesTypeMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+
+# with the inflammation markers
+
+# with the fibrosis markers
+
+# with the apoptosis markers
+
+# with the necrosis markers
+
+# with the endothelial markers
+
+
+```
+
+
