@@ -1,0 +1,1130 @@
+---
+title: "PipseqPTSubclusterDEG_GOKEGG_V0822"
+author: "Xin Wang"
+date: "2023-09-03"
+description: Proximal tubule subclusters analyses:
+  - DEGs from various clusters and timepoints
+  - Their GO enrihments and KEGG Pathways
+output: html_document
+---
+# Loading the packages
+```{r}
+# check the session information
+sessionInfo()
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(devtools)
+library(updateR)
+
+library("sctransform")
+library("ggthemes")
+library(Seurat)
+library(limma)
+library(nichenetr)
+library(tidyverse)
+library(dplyr)
+library(biomaRt)
+library("data.table")
+
+
+library(umap)
+library(patchwork)
+library(cowplot)
+library(installr)
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+library(harmony)
+library(Seurat)
+#library(SeuratData)
+library(tidyverse)
+library(tibble)
+#library(BPCells)
+library(ggplot2)
+library("devtools")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+#library(tibble)
+#library(future)
+library(here)
+library(patchwork)
+library(future)
+library(monocle3)
+library(readr)
+library(DoubletFinder)
+library(future.callr)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+library(magick)
+library(progeny)
+library(pheatmap)
+library(decoupleR)
+library(clusterProfiler)
+```
+
+
+## Set up the workspace environment:
+```{r}
+rm(list =ls())
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
+Indir <-c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
+Outdir <-c( "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/")
+```
+
+# Create 
+```{r}
+# create folders for DEGs, Progeny, GO, KEGG and TF analyses
+# directory for DEGs
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
+
+# directory for biomarkers
+
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+
+TimeBioMarkerDir <- paste0(Outdir,"TimePointBiomarkers/")
+
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
+dir.create(TimeBioMarkerDir, showWarnings = FALSE)
+
+set.seed(10000)
+```
+
+# Read the cluster of PT cells
+```{r}
+# Read the preclustered object
+scrna <- readRDS(file = paste0(Indir,"PIPSeq_Annotated_v0823.rds"))
+
+# We only collect the PT cells
+PTcells <- readRDS(file = paste0(Indir,"PIPSeq_Annotated_OnlyPT_v0823.rds"))
+
+PTcells @meta.data %>% head()
+# set up the PT cells as the number of cluster
+Idents(PTcells) <- PTcells @meta.data$DataSet
+Idents(PTcells)
+```
+
+# Biomarker detection from PT that caused by infections
+```{r}
+DefaultAssay(PTcells) <- "RNA"
+#SubPTBiomarkerDir <- paste0(BioMarkerDir, "SubPTBiomarker")
+#dir.create(TimeBioMarkerDir)
+setwd(TimeBioMarkerDir)
+PTcells <- ScaleData(object = PTcells, features = rownames(PTcells))
+# MAST was used to calculate the cluster
+# Identify the markers that are differentially expressed from controls
+Dates<-levels(Idents(PTcells))
+DateMarkers<- list()
+Top5UpMarkers <-list()
+Top5DownMarkers <-list()
+AllInfectUpMarkers <-list()
+AllInfectDownMarkers<-list()
+for (m in c(2:4)) {
+  #m=2
+  SpecifiDate <- Dates[[m]]
+  # detect the differentially expressed genes compared to controls
+  DateMarkers[[SpecifiDate]] <-
+    FindMarkers(
+      PTcells,
+      ident.1 = SpecifiDate,
+      ident.2 = "0DPI",
+      logfc.threshold = 0.25,
+      test.use = "MAST",
+      min.pct = 0.25
+    )
+  # for upregulated genes
+  # we ignore the mitochondriondplyr::arrange(q_value) %>%
+  # remove the genes with mitochondrion
+  
+  Top5UpMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% filter (avg_log2FC > 0.25) %>%  slice_max(order_by = avg_log2FC, n = 5) %>% row.names()
+  Top5DownMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% filter (avg_log2FC < -0.25) %>%  slice_max(order_by = -avg_log2FC, n = 5) %>% row.names()
+  
+  AllInfectUpMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter (avg_log2FC >= 0.25 & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
+  
+  # AllInfectUpMarkers[[SpecifiDate]]
+  
+  AllInfectDownMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter (avg_log2FC <= -0.25 & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
+  # Top5DownMarkers[[SpecifiDate]]
+  # save all the specific date into files
+  write.csv(DateMarkers[[SpecifiDate]],
+            file = paste0(SpecifiDate, "InfectTimePTBiomarker.csv"),)
+  
+}
+
+#DateMarkers[["3DPI"]] %>% head()
+```
+
+
+# using the top 5 biomarkers and see their distribution, Dotplot, heatmap and featurePlot 
+```{r}
+setwd(TimeBioMarkerDir)
+# select the top biomarkers that are in response to infection in PT cells
+FinalTopMarkers<- c(Top5UpMarkers %>% unlist() %>% unique(),Top5DownMarkers %>% unlist() %>% unique())
+PTInfectionMarkersDotPlot<-DotPlot(PTcells, features =FinalTopMarkers ) +RotatedAxis() +coord_flip()
+
+ggsave(
+  "PTInfectionMarkersDotPlot.pdf",
+  plot = PTInfectionMarkersDotPlot,
+  height = 9,
+  width = 6
+)
+
+PTInfectionMarkersDotheatmap<-DoHeatmap(PTcells, features = FinalTopMarkers , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
+ggsave(
+  "PTInfectionMarkersHeatmap.pdf",
+  plot = PTInfectionMarkersDotheatmap,
+  height = 9,
+  width = 7
+)
+
+# create a fold to store all these biomarker featureplots
+FeaturePTBiomarkerDir <- paste0(TimeBioMarkerDir, "PTInfectBiomarkers")
+dir.create(FeaturePTBiomarkerDir)
+setwd(FeaturePTBiomarkerDir)
+
+for (i in FinalTopMarkers) {
+  PTmarkerFeatureSplit <-
+    FeaturePlot(PTcells,
+                features = i,
+                split.by = "DataSet",
+                slot = "scale.data")
+  PTmarkerFeature <-
+    FeaturePlot(PTcells, features = i, slot = "scale.data")
+  
+  ggsave(
+    paste0(i, "_PTInfectedBiomarkerFeatureSplit.pdf"),
+    plot = PTmarkerFeatureSplit,
+    height = 3,
+    width = 12
+  )
+  
+  ggsave(
+    paste0(i, "_PTSubBiomarkerFeature.pdf"),
+    plot = PTmarkerFeature,
+    height = 3,
+    width = 4
+  )
+}
+
+```
+
+# Perform the GO enrichment and see the specific pathways in each categories
+```{r}
+TimeGOenrichDir<- paste0(TimeBioMarkerDir,"GOenrich")
+dir.create(TimeGOenrichDir)
+setwd(TimeGOenrichDir)
+
+# Create a GO comparison for the figure
+# for the up-regulated genes
+# we have stored the up-regulated genes into the AllInfectUpMarkers
+
+# Comparing the Cluster
+PTInfectedSpecifcUpgeneGOenrich <-
+  compareCluster(
+    geneClusters = AllInfectUpMarkers,
+    fun = "enrichGO",
+    OrgDb = "org.Mm.eg.db",
+    ont = "BP",
+    keyType = 'SYMBOL',
+    pvalueCutoff=1
+  )
+
+write.csv(PTInfectedSpecifcUpgeneGOenrich,
+          "PTInfectedSpecifcUpgeneGOenrich.csv")
+
+PTInfectedSpecifcUpgeneGOenrichDotPlot <-
+  dotplot(
+    PTInfectedSpecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 15,
+    #includeAll=FALSE
+  )
+? dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(
+  "PTInfectedSpecifcUpgeneGOenrichDotPlot.pdf",
+  plot = PTInfectedSpecifcUpgeneGOenrichDotPlot,
+  height = 11,
+  width = 8
+)
+
+## for the downregualted genes
+
+# we have stored the down-regulated genes into the AllInfectDownMarkers
+
+# Comparing the Cluster
+PTInfectedSpecifcDowngeneGOenrich <-
+  compareCluster(
+    geneClusters = AllInfectDownMarkers,
+    fun = "enrichGO",
+    OrgDb = "org.Mm.eg.db",
+    ont = "BP",
+    keyType = 'SYMBOL',
+    pvalueCutoff=1
+  )
+
+write.csv(PTInfectedSpecifcDowngeneGOenrich,
+          "PTInfectedSpecifcDowngeneGOenrich.csv")
+
+PTInfectedSpecifcDowngeneGOenrichDotPlot <-
+  dotplot(
+    PTInfectedSpecifcDowngeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 15,
+    #includeAll=FALSE
+  )
+? dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(
+  "PTInfectedSpecifcDowngeneGOenrichDotPlot.pdf",
+  plot = PTInfectedSpecifcDowngeneGOenrichDotPlot,
+  height = 11,
+  width = 8
+)
+
+```
+
+# KEGG pathway 
+```{r}
+
+TimeKEGGDir <- paste0(TimeBioMarkerDir,"KEGG/")
+dir.create(TimeKEGGDir)
+setwd(TimeKEGGDir)
+
+KEGGpathways <-list()
+KEGGpathwaysForView<-list()
+PTInfectedDEGTransferUnirotID <-list()
+PTInfectedDEGTransferENTREZID <-list()
+## put the list of UNIPROT into the list
+# we generate genes for the kegg pathview
+#as.data.frame(PTsubclusterBiomarkers)
+library("org.Mm.eg.db")
+PTInfecteds <- levels(Idents(PTcells))
+TransferIDs<-list()
+AllInfectDEGMarkers<-list()
+#SectionDEGlistWithInfection
+for (m in c(2:4)) {
+
+  DateName <- PTInfecteds[[m]]
+  DateName
+  AllInfectDEGMarkers[[DateName]] <-
+   DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter ((avg_log2FC >= 0.25|avg_log2FC <= -0.25) & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
+  length(AllInfectDEGMarkers[[DateName]])
+  AllInfectDEGMarkers[[DateName]]
+  
+  
+  # transfer biolgical ID to KEGG ID
+  TransferIDs[[DateName]] <-
+    bitr(
+      AllInfectDownMarkers[[DateName]],
+      fromType = "SYMBOL",
+      toType = c("UNIPROT", "ENSEMBL", "ENTREZID"),
+      OrgDb = "org.Mm.eg.db"
+    )
+  #nrow(TransferIDs[[DateName]])
+  TransferIDs[[DateName]] %>% group_by(SYMBOL)
+  # we only select the first uniprot id. because the one ID have multiple uniprot ID
+  PTInfectedDEGTransferUnirotID[[DateName]] <-
+    TransferIDs[[DateName]] %>% group_by(SYMBOL) %>% slice(1) %>% pull(UNIPROT)
+  #   mapIds(org.Mm.eg.db, keys=AllInfectDownMarkers[[DateName]], column='UNIPROT', keytype='SYMBOL', multiVals="first") %>% as.matrix() %>% as.data.frame()
+  # #length(PTInfectedDEGTransferUnirotID[[DateName]]$V1)
+  # as.data.frame(as.matrix(PTInfectedDEGTransferUnirotID[[DateName]]))
+  #  #nrow(PTInfectedDEGTransferUnirotID[[DateName]]) 
+  
+  #length(PTInfectedDEGTransferUnirotID[[DateName]])
+  
+  PTInfectedDEGTransferENTREZID[[DateName]] <-
+    TransferIDs[[DateName]] %>% group_by(SYMBOL) %>% slice(1) %>% pull(ENTREZID)
+  
+  #
+  # egID = bitr(
+  #   PTInfectedSpecifcUpgene[[m]] ,
+  #   fromType = "SYMBOL",
+  #   toType = "ENTREZID",
+  #   OrgDb = "org.Mm.eg.db"
+  # )
+  PTInfectedDEGTransferUnirotID[[DateName]]
+  KEGGpathwaysForView[[DateName]] <- enrichKEGG(gene =  PTInfectedDEGTransferENTREZID[[DateName]],
+                                                organism = 'mmu',
+                                                pvalueCutoff = 0.05)
+  KEGGpathways[[DateName]] <-
+    enrichKEGG(
+      gene =  PTInfectedDEGTransferUnirotID[[DateName]],
+      organism = 'mmu',
+      pvalueCutoff = 1,
+      keyType = 'uniprot'
+    )
+  
+  write.csv(KEGGpathways[[DateName]],
+            file = paste0(TimeKEGGDir, DateName, "_KeggDEGEnrichpath.csv"))
+  
+  
+  
+}
+
+```
+
+## compare the KEGG pathways among Cortex, medulla, Pelvis and Processing Infection
+```{r}
+
+length(PTInfectedDEGTransferUnirotID$`3DPI`)
+length(PTInfectedDEGTransferUnirotID$`7DPI`)
+length(PTInfectedDEGTransferUnirotID$`28DPI`)
+length(AllInfectUpMarkers$`3DPI`)
+length(AllInfectUpMarkers$`7DPI`)
+length(AllInfectUpMarkers$`28DPI`)
+
+AllInfectUpMarkers
+# compare all DEG list with GO enrichment, we did not set up the p value
+PTInfectedDEGTransferKEGG <-
+  compareCluster(
+    geneCluster = PTInfectedDEGTransferUnirotID,
+    fun = enrichKEGG,
+    organism = "mmu",
+    keyType = 'uniprot',
+    pvalueCutoff = 1
+  )
+PTInfectedDEGTransferKEGG %>% head()
+# setting into readable ID
+PTInfectedDEGTransferKEGGReadable <-
+  setReadable(PTInfectedDEGTransferKEGG,
+              OrgDb = "org.Mm.eg.db",
+              keyType = "UNIPROT")
+
+# remove the string - Mus musculus (house mouse)
+PTInfectedDEGTransferKEGGReadable@compareClusterResult$Description <-
+  gsub(
+    pattern = " - Mus musculus (house mouse)",
+    replacement = "",
+    PTInfectedDEGTransferKEGG@compareClusterResult$Description,
+    fixed = T
+  )
+
+# Show all the top20 pathways
+Top20Comparion <-
+  dotplot(
+    PTInfectedDEGTransferKEGGReadable,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 20
+  )
+
+ggsave(
+  "PTInfectedDEGTransferKEGG_DotPlot.pdf",
+  plot = Top20Comparion,
+  height = 9,
+  width = 7
+)
+
+write.csv(PTInfectedDEGTransferKEGGReadable, file = "PTInfectedDEGTransferKEGGReadable.csv")
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# save the top ID
+
+# show the candidate pathway in the infected regions
+selectedPathway<- c("Carbon metabolism","Glyoxylate and dicarboxylate metabolism","Galactose metabolism","Cell adhesion molecules","ECM-receptor interaction","Focal adhesion","Tight junction","Necroptosis","Complement and coagulation cascades","Apoptosis","Endocytosis","Lysosome","Hippo signaling pathway","Phagosome","Neutrophil extracellular trap formation","Chemokine signaling pathway","Hematopoietic cell lineage","Cytokine-cytokine receptor interaction","NOD-like receptor signaling pathway","Osteoclast differentiation","NF-kappa B signaling pathway","Th17 cell differentiation","Antigen processing and presentation","Inflammatory bowel disease","Toll-like receptor signaling pathway","Human cytomegalovirus infection","TNF signaling pathway","C-type lectin receptor signaling pathway","Th1 and Th2 cell differentiation","IL-17 signaling pathway","Fc gamma R-mediated phagocytosis","Cytosolic DNA-sensing pathway","Natural killer cell mediated cytotoxicity","B cell receptor signaling pathway","JAK-STAT signaling pathway","Intestinal immune network for IgA production","Leukocyte transendothelial migration","T cell receptor signaling pathway","Rap1 signaling pathway","Bacterial invasion of epithelial cells","Fc epsilon RI signaling pathway","p53 signaling pathway")
+
+# select these interesting pathway
+SelectedPathwayForfigure<-SectionDEGTransferKEGGReadable %>% as.data.frame() %>% filter(Description %in% selectedPathway) %>% arrange(p.adjust)
+
+# setting up the minium p adjust value for size visulization 
+maximum<- max(c(-log10(SelectedPathwayForfigure$p.adjust)))
+
+## set the levels of Description and reorder them
+SelectedPathwayForfigure$Description<- ordered(SelectedPathwayForfigure$Description, levels=selectedPathway)
+#reorder(variable, value)
+p<-ggplot(SelectedPathwayForfigure, aes(x=SelectedPathwayForfigure$Cluster, y=SelectedPathwayForfigure$Description))
+
+InterestingComparionsDotplot<- p+ geom_point(aes(size=-log10(p.adjust)),
+                                             colour= ifelse(SelectedPathwayForfigure$p.adjust <=0.05,"red",
+                                                            ifelse(SelectedPathwayForfigure$p.adjust==1,"white","gray")), 
+                                             fill= ifelse(SelectedPathwayForfigure$p.adjust<=0.05,"red",
+                                                          ifelse(SelectedPathwayForfigure$p.adjust==1,"white","gray"))) +
+  labs(title = "KEGG Pathway Enrichment", x = "Spatial region", y = "KEGG pathway enrichment") +
+  theme_bw()+
+  theme(plot.background = element_blank(),
+        text = element_text(size=10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle = 30, hjust = 1)
+  ) + scale_size_area(limits=c(0,maximum),breaks=c(0,4,6,8,12))
+
+
+InterestingComparions <- dotplot(SectionDEGTransferKEGGReadable,font.size = 12,label_format = 80,showCategory = selectedPathway)  +RotatedAxis()
+
+ggsave(paste0(KEGGoutdir, "InterestingPathwayComparion_Sections_KEGG_comp.pdf"), plot = InterestingComparions, width = 8, height = 10)
+ggsave(paste0(KEGGoutdir, "InterestingPathwayComparion_Sections_KEGG_comp_format.pdf"), plot = InterestingComparionsDotplot, width = 8, height = 10)
+```
+
+
+
+
+```{r}
+# Overall DEGs compared between various date to Day 0
+Idents(FinalAbcessClustersObjSubSlides) <- FinalAbcessClustersObjSubSlides@meta.data$orig.ident
+Idents(FinalAbcessClustersObjSubSlides) 
+
+# check the specific marker by the MAST 
+# take a long time
+AllClustermarkersTimepoints <- FindAllMarkers(FinalAbcessClustersObjSubSlides,
+                min.pct = 0.25,test.use= "MAST") # only markers that are in 25% of cells
+# save all biomarkers as a dataframe
+write.csv(AllClustermarkersTimepoints, "AllTimepointsMarkers_Mast.csv")
+
+# Generate a table for figure
+DEGDifferentTimepointsnumbersFigure<- table(AllClustermarkersTimepoints$cluster) %>% as.data.frame() %>% 
+  ggplot(aes(x=Var1, y=Freq)) +geom_bar(stat="identity") +theme_classic() +xlab("Timepoints") +ylab("Differentially expressed gene number")
+
+ggsave("DEGCTimepointSpecificnumbersFigure.pdf", plot = DEGDifferentTimepointsnumbersFigure, height = 4, width = 6)
+
+```
+
+
+
+## read the biomarker and plot the heatmap for top5 biomarker in each cluster
+```{r}
+# we have already generated the DEGs for each cluster, so we uploaded them now ...
+AllClustermarkersTimepoints<- read.csv(file = "AllTimepointsMarkers_Mast.csv", header = T)
+
+# reorder the levels in identity if needed
+# reduce data, we only choose the top 10 in each cluster for the visualization
+top_AllClustermarkersTimpoints <- as.data.frame(AllClustermarkersTimepoints %>%
+                group_by(cluster) %>% # group by cluster (cell type)
+                slice_max(avg_log2FC, n = 10)) # sort by log2FC and get top 5
+top_AllClustermarkersTimpoints 
+# change the order of timepoints match by the Idents orders, 
+
+# reorder 
+TimepiointOrder<-c("PyeloD0_1", "PyeloD1_2", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1")
+
+top_AllClustermarkersTimpointsReorder<- top_AllClustermarkersTimpoints[order(match(top_AllClustermarkersTimpoints$cluster, TimepiointOrder)),]
+
+#top_AllClustermarkersTimpointsReorder$cluster
+
+# explore top markers
+mapal <- colorRampPalette(RColorBrewer::brewer.pal(11,"RdBu"))(256)
+Top10TimepointsHeatmap<-DoHeatmap(object = FinalAbcessClustersObjSubSlides, features = top_AllClustermarkersTimpointsReorder$gene) + scale_fill_gradientn(colours = rev(mapal))
+
+Top10TimepointsHeatmap<-DoHeatmap(object = FinalAbcessClustersObjSubSlides, features = top_AllClustermarkersTimpointsReorder$gene) +  scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick"))
+
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(paste0("Top10_Cluster_marker_Heatmap_Timpoints.pdf"), plot = Top10TimepointsHeatmap, height = 15, width = 20 )
+```
+
+# generate the spatial feature plot for each biomarkers detected in each timepoint
+```{r}
+
+for (Cls in TimepiointOrder){
+  
+  # generate a folder for the clusters
+  ClusterFilePath<- paste0(outdir,Cls,"_FeaturePlot/")
+  dir.create(file.path(ClusterFilePath))
+  setwd(file.path(ClusterFilePath))
+  top_AllClustermarkersReorder %>% head()
+  # generate the list of top 5 biomarker
+  top5Timpointsbiomarker <- top_AllClustermarkersTimpointsReorder %>% filter(cluster == Cls) %>% pull(gene) %>% unique()
+  top5Timpointsbiomarker
+  # generate the feature plots for each biomarkers
+  
+  for (t in top5Timpointsbiomarker){
+    
+     TimepointSpecificSpatilaFeatureVariouCategoriesCut5 <- 
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlides,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+     # save into a file
+    ggsave(filename = paste0(Cls,t, "_SpatialFeatureplot_Cut5.pdf"), 
+       plot =TimepointSpecificSpatilaFeatureVariouCategoriesCut5, height = 8, width = 15 )
+    
+    TimepointSpecificSpatilaFeatureVariouCategoriesCut8 <- 
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlides,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,8))
+     # save into a file
+    ggsave(filename = paste0(Cls,t, "_SpatialFeatureplot_Cut8.pdf"), 
+       plot =TimepointSpecificSpatilaFeatureVariouCategoriesCut8, height = 8, width = 15 )
+    
+     TimepointSpecificSpatilaFeatureVariouCategoriesCut10 <- 
+          SpatialFeaturePlot(FinalAbcessClustersObjSubSlides,
+                             features = t, 
+                             images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+     # save into a file
+    ggsave(filename = paste0(Cls,t, "_SpatialFeatureplot_Cut10.pdf"), 
+       plot =TimepointSpecificSpatilaFeatureVariouCategoriesCut10, height = 8, width = 15 )
+ 
+  }
+  
+}
+
+```
+
+
+
+
+# perform the GO enrichment for each clusters
+```{r}
+SectionDEGlistTimepoints <- list()
+TimepointsUniqUpGO<-list()
+TimepointsUniqUpGOSimplified <-list()
+# save the gene list into Timepoints order
+for (n in TimepiointOrder){
+  # put he DEG into the DEGlist for comparision
+  # we only consider the Cortex, Medulla, Pelvis 
+  #if( m == "Cortex" | m == "Medulla" | m == "Pelvis" | m== "Processing Infection"){
+     SectionDEGlistTimepoints[[n]] <- AllClustermarkersTimepoints %>% filter(cluster %in% n & avg_log2FC >= 0.25) %>% pull(gene)
+      # TimepointsUniqUpGO[[n]] <- enrichGO( SectionDEGlistTimepoints[[n]], OrgDb = "org.Mm.eg.db", ont = 'BP', pAdjustMethod = 'BH', pvalueCutoff = 1, qvalueCutoff = 1, keyType = 'SYMBOL')
+      # write.csv(TimepointsUniqUpGO[[n]], file = paste0("Timepoints_uniq_gene.", n, ".UpregulatedGO.csv"))
+      # 
+      # TimepointsUniqUpGOSimplified[[n]] <- clusterProfiler::simplify(TimepointsUniqUpGO[[n]])
+      # write.csv(TimepointsUniqUpGOSimplified[[n]], file = paste0("Timepoints_uniq_gene.", n, ".UpregulatedGO.simplifed.csv"))
+  #}
+ }
+#TimepointsUniqUpGO
+```
+
+
+```{r}
+length(SectionDEGlistTimepointss)
+
+# Comparing the Timepoints 
+SectionDEGlistGOPlotPerTimepoints <- compareCluster(geneClusters = SectionDEGlistTimepoints, fun = "enrichGO", OrgDb = "org.Mm.eg.db",ont="BP",keyType = 'SYMBOL')
+
+?compareCluster 
+# simplify the GO enrichment
+SectionDEGlistGOPlotPerTimepointsSimplifed <- clusterProfiler::simplify(SectionDEGlistGOPlotPerTimepoints)
+
+write.csv(SectionDEGlistGOPlotPerTimepoints,"All_Timepointsmarkers_Mast_GO.csv")
+
+SectionDEGlistGOPlotPerTimepointsDotPlot<- dotplot(SectionDEGlistGOPlotPerTimepoints,font.size = 12,label_format = 80,showCategory = 10) 
+?dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(paste0("SectionDEGlistGOPlotPerTimepointsSimplifedDotPlot.pdf"), plot = SectionDEGlistGOPlotPerTimepointsDotPlot, height = 15, width = 15 )
+
+```
+
+# generate the 
+```{r}
+
+DefaultAssay(allen_reference) <- "RNA"
+
+D0<-subset(allen_reference, subset = DataSet =="D0")
+Biomarkers<- FindAllMarkers(object = D0, logfc.threshold = 0.25, min.diff.pct =.2 )
+## save into the table 
+write.csv(Biomarkers, file = sprintf("%s/Biomarkers.Wilcox.D0.csv", outdir) )
+## choose the top 10 DEGs in each cluster and print them into heatmaps
+
+### comparing between cluster 0 and 4
+TwoPTBiomarkers<- FindMarkers(object = D0, ident.1 = c(0,1,5,13), ident.2 = 4, logfc.threshold = 0.25, min.diff.pct =.2,test.use ="MAST" )
+
+?FindMarkers
+## check the GO enrichment
+BimaarkerGO<- enrichGO(rownames(TwoPTBiomarkers), OrgDb = "org.Mm.eg.db", ont='BP',pAdjustMethod = 'BH',pvalueCutoff = 1, qvalueCutoff = 1,keyType = 'SYMBOL')
+
+pdf(file="PromimalTubule_Biomarkers_GO.pdf", width=9, height=4)
+GOfigure<-barplot(BimaarkerGO,label_format = 80)
+print(GOfigure)
+dev.off()
+
+
+FirstPTBiomarkers<- FindMarkers(object = D0, ident.1 = 0, ident.2 = NULL, logfc.threshold = 0.25, min.diff.pct =.2 )
+FirstPTBiomarkers
+
+pdf(file="TwoProximalTubuleCellComp_Biomarker_ForHeatmap_D0.pdf",height = 6, width = 10)
+DoHeatmap(subset(allen_reference, subset = DataSet =="D0"), features = rownames(TwoPTBiomarkers)) + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
+dev.off()
+
+```
+
+
+# #####################################
+## generate the Progeny signaling pathways
+# #####################################
+
+```{r}
+# set up the directory
+setwd(ProgenyDir)
+## we set up with a high memory
+
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+
+# create cluster data frame with the cells, Celltypes
+PTInfected<- data.frame(Cell = names(Idents(PTcells)),   
+                              CellType = as.character(Idents(PTcells)),
+                              stringsAsFactors = FALSE)
+
+PTcells <- progeny(PTcells, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+PTcells
+# setup the default assay as progeny
+DefaultAssay(object = PTcells) <- "progeny"
+
+PTcells <- Seurat::ScaleData(PTcells, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(PTcells, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, PTInfected)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+
+# generate the heatmap for PT
+pdf(file="ProximalTubuleCell_Progeny_ForHeatmap.pdf",height = 5, width = 5)
+progeny_hmap = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
+                        fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+                        cex=1, clustering_distance_rows="euclidean", cex=1,
+                        # clustering_distance_cols="euclidean", clustering_method="complete", 
+                        color=myColor, breaks = progenyBreaks, 
+                        main = "PROGENy (500)", angle_col = 45,
+                        border_color = NA,
+                        treeheight_col = 0,   treeheight_row=0)
+
+print(progeny_hmap)
+dev.off()
+test<- FeaturePlot(PTcells, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(PTcells, features = i,split.by = "DataSet") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_PT_cluster_featurePlot.pdf"), plot = p2, width = 20, height = 5)
+}
+
+
+```
+
+# Transcription factor activity inference from Immune scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(PTcells@assays$RNA@data)
+# Run ulm
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
+
+saveRDS(acts, file="PT_Transcriptfactor.RDS")
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+PTcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = PTcells) <- "tfsulm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$tfsulm@data <- PTcells@assays$tfsulm@scale.data
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 25
+
+t(as.matrix(PTcells@assays$tfsulm@data))
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$tfsulm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+# drop "Znf335" due to not exist in the expression
+#tfs <- tfs[!tfs == "Znf335"]
+
+#tfs[!tfs == "Znf335"]
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+PTTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F, 
+                        color=my_color,fontsize=12, fontsize_row = 10, 
+                        breaks = my_breaks, 
+                        #main = "Predicted TF activities", 
+                        angle_col = 45,
+                        treeheight_col = 0, treeheight_row=0)
+
+
+ggsave("PTcellsHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PTTFheatmap, width = 4, height = 5)
+
+# draw the transcriptor factor activity and their expression
+# generate the figure of transcript factor activity:
+for (m in tfs){
+  p2 <- (FeaturePlot(PTcells, features = m) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(m, ' activity'))
+  
+  ggsave(paste0("TFActivity_",m,"_PTcells_FeaturePlot.pdf"), plot = p2, width = 4, height = 3)
+}
+
+DefaultAssay(object = PTcells) <- "RNA"
+
+for (n in tfs){
+  p3 <- (FeaturePlot(PTcells, features = n) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression'))
+  
+  ggsave(paste0("TFExpression_",n,"_PTcells_FeaturePlot.pdf"), plot = p3, width = 4, height = 3)
+
+}
+# add their activity in Dotplot
+Idents(PTcells)
+# get the order of row name
+GeneOrderByPheatmap <- rownames(t(top_acts_mat))[PTTFheatmap$tree_row$order]
+#IMMTFheatmap$tree_row$order
+
+?DotPlot
+TFDotPlot <- DotPlot(PTcells, features = rev(GeneOrderByPheatmap)) +
+  RotatedAxis() + coord_flip()+ 
+  #ggtitle("Predicted TF expression")+
+   theme(legend.position = "right")
+ggsave("Immune_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
+
+```
+
+
+# Using PROGENy model from DecoupleR
+```{r}
+setwd(ProgenyDir)
+net <- get_progeny(organism = 'mouse', top = 500)
+
+# Activity inference with Multivariate Linear Model (MLM)
+# Extract the normalized log-transformed counts
+mat <- as.matrix(PTcells@assays$RNA@data)
+
+# Run mlm
+acts <- run_mlm(mat=mat, net=net, .source='source', .target='target',
+                .mor='weight', minsize = 5)
+
+acts
+# Visualization:
+# Extract mlm and store it in pathwaysmlm in data
+PTcells[['pathwaysmlm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+
+# Change assay
+DefaultAssay(object = PTcells) <- "pathwaysmlm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$pathwaysmlm@data <- PTcells@assays$pathwaysmlm@scale.data
+
+# run the source of pathways
+ProgenyFeatures <- levels(factor(acts$source))
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-FeaturePlot(PTcells, features = i) & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_PT_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 5)
+}
+
+#(c("royalblue", "white","lightcoral"))
+FeaturePlot(PTcells, features = "Hypoxia", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("Hypoxia"," activity"))
+
+FeaturePlot(PTcells, features = "NFkB", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("NFkB"," activity"))
+
+
+FeaturePlot(PTcells, features = "TNFa", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("TNFa"," activity"))
+
+p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(PTcells, features = c("Trail")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('Trail activity')
+
+
+
+# Expore the mean activiey per group across pathways:
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$pathwaysmlm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Transform to wide matrix
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-0.5, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 0.5, length.out=floor(palette_length/2)))
+
+# Plot
+PTcellsHeatmap<- pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+ggsave("PTcellsHeatmap_Progeny.pdf", plot = PTcellsHeatmap, width = 6, height = 6)
+
+```
+
+# Transcription factor activity inference from PT scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(PTcells@assays$RNA@data)
+# Run wmean
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
+
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+PTcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = PTcells) <- "tfsulm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$tfsulm@data <- PTcells@assays$tfsulm@scale.data
+
+p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(PTcells, features = c("PAX5")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('PAX5 activity')
+DefaultAssay(object = PTcells) <- "RNA"
+p3 <- FeaturePlot(data, features = c("PAX5")) + ggtitle('PAX5 expression')
+DefaultAssay(object = PTcells) <- "tfswmean"
+p1 | p2 | p3
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 25
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$tfswmean@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+
+```
+
+# generate the subclusters of PT, DCT, IC, PC
+```{r}
+# dividing into cycling, transitioning, adap- tive (successful or maladaptive repair) and degenerative (damaged or stressed). 
+# cycling: Mki67
+# Early Injury: Cdh13, Cdh6, Havcr1
+# Late Injury: Ccl2, Gm17268, Cald1
+# conserved: Slc13a1, Slc5a2,  Slc7a13, Cyp7b1
+
+
+
+# Panoptosis
+# Il1b, MLKL, Gsdmd,Ripk3
+
+# Fibrosis 
+# Fn1, Col1a1, Col3a1, Tgfb1
+# adaptive
+# VCAM1, DCDC2 and HAVCR1, C3, ICAM1
+# VCAM1 PROM1 ITGB8
+# Vcam1, Havcr1, Dcdc2, Icam1, Prom1, ITgb8
+
+#degenerative
+# SPP1, CST3, CLU and IGFBP7, APOE ALDOB
+# B2M S100A6
+# Spp1, Cst3, GDF15,Clu, Igfbp7, Apoe, Aldob, B2m, S100a6
+# agionegious PEC,
+# EGFR, VEGF, Cdh5
+
+# Egfr, Vegf, Cdh5
+KidneyStatuesMarkers<- c("Slc13a1", "Slc5a2", "Slc7a13", "Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1")
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6")
+
+DotPlot(scrna, features =  KidneyStatuesMarkers, col.min = -0.5) +RotatedAxis()
+DotPlot(scrna, features =  KidneyStatuesTypeMarkers, col.min = -0.5) +RotatedAxis()
+
+
+for (i in KidneyStatuesMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+for (i in KidneyStatuesTypeMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesTypeMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+
+# with the inflammation markers
+
+# with the fibrosis markers
+
+# with the apoptosis markers
+
+# with the necrosis markers
+
+# with the endothelial markers
+
+
+```
+
+
