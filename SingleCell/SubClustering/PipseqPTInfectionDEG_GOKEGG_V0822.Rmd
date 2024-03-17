@@ -341,7 +341,7 @@ for (m in c(2:4)) {
   AllInfectDEGMarkers[[DateName]] <-
    DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter ((avg_log2FC >= 0.25|avg_log2FC <= -0.25) & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
   length(AllInfectDEGMarkers[[DateName]])
-  AllInfectDEGMarkers[[DateName]]
+  AllInfectDEGMarkers[[DateName]] %>% unique()
   
   
   # transfer biolgical ID to KEGG ID
@@ -395,7 +395,7 @@ for (m in c(2:4)) {
 
 ```
 
-## compare the KEGG pathways among Cortex, medulla, Pelvis and Processing Infection
+## compare the KEGG pathways among different time Infection
 ```{r}
 
 length(PTInfectedDEGTransferUnirotID$`3DPI`)
@@ -454,6 +454,20 @@ write.csv(PTInfectedDEGTransferKEGGReadable, file = "PTInfectedDEGTransferKEGGRe
 ```{r}
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

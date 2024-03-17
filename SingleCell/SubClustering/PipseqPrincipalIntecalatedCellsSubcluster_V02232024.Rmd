@@ -151,7 +151,7 @@ scrna @meta.data
 
 ICPCcells <- subset(scrna, subset = (Raw_cell_type == "PC" |Raw_cell_type == "IC"))
 
-#ICPCcells <- subset(scrna, subset = (Atp6v1g3 > 0 | Atp6v1b1 >0) & (Slc26a4 >0 |Hmx2 >0 | Kit>0 | Slc4a1 >0 |Aqp6 >0 )  )
+#ICPCcells <- subset(ICPCcells, subset = (Atp6v1g3 > 0 | Aqp2 >0 ))
 # To concentrate on the 
 
 nrow(ICPCcells@meta.data)
@@ -171,21 +171,35 @@ ICPCcells<- FindClusters(ICPCcells,  verbose = TRUE, resolution = 0.1)
 
 ICPCcellsDim<- DimPlot(ICPCcells,label = T)
 
-ggsave(filename = "ICPCcellsDim.pdf", plot = ICPCcellsDim, width = 8, height = 6)
+# We only select the 0, 2, 3 as our IC PC cells
+Idents(ICPCcells)
+ICPCcellsFinal<- subset(ICPCcells,  idents= c("0", "2", "3"))
+ICPCcellsDimFinal<- DimPlot(ICPCcellsFinal,label = T)
 
-ICPCcellsDimSplit<-DimPlot(ICPCcells, split.by = "DataSet",label = T)
-ICPCcellsDimSplit 
-ggsave(filename = "ICPCcellsDimSplit.pdf", plot = ICPCcellsDimSplit, width = 24, height = 6)
+#DimPlot(ICPCcellsFinal)
+ggsave(filename = "WithMarkerSelected_ICPCcellsDim.pdf", plot = ICPCcellsDimFinal, width = 8, height = 6)
+
+ICPCcellsDimSplitFinal<-DimPlot(ICPCcellsFinal, split.by = "DataSet",label = T)
+ICPCcellsDimSplitFinal 
+ggsave(filename = "WithMarkerSelected_ICPCcellsDimSplit.pdf", plot = ICPCcellsDimSplitFinal, width = 24, height = 6)
 
 ```
 
 # check the PC and IC markers
 ```{r}
 ICPCmarkers <- c("Atp6v1g3","Slc26a4","Hmx2","Spink8","Slc26a7","Aqp6","Slc4a1","Kit","Aqp2","Hsd11b2","Scnn1g")
-CollectingDuctMarkersDotPlot <- DotPlot(ICPCcells, features = ICPCmarkers)
+CollectingDuctMarkersDotPlot <- DotPlot(ICPCcellsFinal, features = ICPCmarkers)
 
-ggsave(filename = "CollectingDuctMarkersDotPlot.pdf", plot = CollectingDuctMarkersDotPlot, height = 5, width = 12)
+ggsave(filename = "WithMarkerSelected_CollectingDuctMarkersDotPlot.pdf", plot = CollectingDuctMarkersDotPlot, height = 5, width = 12)
 
+# with 
+AllKidneymarkers <- c("Atp6v1g3","Slc26a4","Hmx2","Spink8","Slc26a7","Aqp6","Slc4a1","Kit","Aqp2","Hsd11b2","Scnn1g",
+"Lrp2","Slc12a3","Umod","Fhl2","Pecam1","Ptprc","Syt7")
+
+#ICPCmarkers <- c("Atp6v1g3","Slc26a4","Hmx2","Spink8","Slc26a7","Aqp6","Slc4a1","Kit","Aqp2","Hsd11b2","Scnn1g")
+CollectingDuctMarkersDotPlot2 <- DotPlot(ICPCcells, features = AllKidneymarkers)
+CollectingDuctMarkersDotPlot2
+ggsave(filename = "WithMarkerSelected_AllMarkersDotPlot.pdf", plot = CollectingDuctMarkersDotPlot, height = 5, width = 12)
 ```
 
 # add the ICA, ICB and PC cells
@@ -193,61 +207,62 @@ ggsave(filename = "CollectingDuctMarkersDotPlot.pdf", plot = CollectingDuctMarke
 # add the annotation using case_when
   setwd(Outdir)
 #scrna@meta.data %>% head()
-ICPCcells@meta.data %>% head() 
+ICPCcellsFinal@meta.data %>% head() 
 
-levels(ICPCcells)  
+levels(ICPCcellsFinal)  
 
-ICPCcells@meta.data <- ICPCcells@meta.data %>%   mutate(ICPCAnnot = 
+ICPCcellsFinal@meta.data <- ICPCcellsFinal@meta.data %>%   mutate(ICPCAnnot = 
            case_when(SCT_snn_res.0.1 %in% c("0") ~ "PC", # PC markers: Aqp2, Hsd11b2, scnn1g
-                     SCT_snn_res.0.1 %in% c("1") ~ "CD", # Seems to be an combined CDs that affected by infection
+                     #SCT_snn_res.0.1 %in% c("1") ~ "CD", # Seems to be an combined CDs that affected by infection
                      SCT_snn_res.0.1 %in% c("2") ~ "ICA", # Intercalted Cell A markers: Slc4a1, Aqp6
                      SCT_snn_res.0.1 %in% c("3") ~ "ICB", # Intercalated Cell B markers: Slc26A4, SpinkB
                  )) 
 
-ICPCcells@meta.data %>% head()
+ICPCcellsFinal@meta.data %>% head()
 
-Idents(ICPCcells) <- ICPCcells@meta.data$ICPCAnnot
-Idents(ICPCcells)
+Idents(ICPCcellsFinal) <- ICPCcellsFinal@meta.data$ICPCAnnot
+Idents(ICPCcellsFinal)
 
 # Reorder the levels:
-Idents(ICPCcells)<-ordered(factor(Idents(ICPCcells)),levels=c("ICA","ICB","PC","CD"))
+Idents(ICPCcellsFinal)<-ordered(factor(Idents(ICPCcellsFinal)),levels=c("ICA","ICB","PC"))
 
-FinalMarkersWithAnn <- c("Atp6v1g3","Aqp6","Slc4a1","Slc26a7","Kit","Slc26a4","Spink8","Hmx2","Aqp2","Hsd11b2","Scnn1g")
+FinalMarkersWithAnn <- c("Atp6v1g3","Aqp6","Slc4a1","Slc26a7","Kit","Slc26a4","Spink8","Hmx2","Aqp2","Hsd11b2","Scnn1g","Syt7")
 
-ICPGenesDotPlotsWithAnn<- DotPlot(ICPCcells, features =  FinalMarkersWithAnn, col.min = -1) +RotatedAxis()
+ICPGenesDotPlotsWithAnn<- DotPlot(ICPCcellsFinal, features =  FinalMarkersWithAnn, col.min = -1) +RotatedAxis()
 ICPGenesDotPlotsWithAnn
 ggsave(filename = "ICPGenesDotPlotsWithAnn.pdf", plot = ICPGenesDotPlotsWithAnn, width = 8, height = 4)
 
-ICPCcellsDimWithAnno<- DimPlot(ICPCcells,label = T)
-ICPCcellsDimWithAnno
-ggsave(filename = "ICPCcellsDimWithAnno.pdf", plot = ICPCcellsDimWithAnno, width = 5, height =4)
+ICPCcellsFinalDimWithAnno<- DimPlot(ICPCcellsFinal,label = T)
+ICPCcellsFinalDimWithAnno
+ggsave(filename = "ICPCcellsFinalDimWithAnno.pdf", plot = ICPCcellsFinalDimWithAnno, width = 5, height =4)
 
-ICPCcells@meta.data %>% head()
-ICPCcellsDimWithAnnoGroup<- DimPlot(ICPCcells,label = T, split.by = "DataSet")
-ICPCcellsDimWithAnnoGroup
-ggsave(filename = "ICPCcellsDimWithAnnoGroup.pdf", plot = ICPCcellsDimWithAnnoGroup, width = 12, height =4)
+ICPCcellsFinal@meta.data %>% head()
+ICPCcellsFinalDimWithAnnoGroup<- DimPlot(ICPCcellsFinal,label = T, split.by = "DataSet")
+ICPCcellsFinalDimWithAnnoGroup
+ggsave(filename = "ICPCcellsFinalDimWithAnnoGroup.pdf", plot = ICPCcellsFinalDimWithAnnoGroup, width = 12, height =4)
 
 
 # For all the ICA ICB PC markers
 for (i in FinalMarkersWithAnn){
 # 
-  FeaturePlots<-FeaturePlot(ICPCcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  FeaturePlots<-FeaturePlot(ICPCcellsFinal, features =  i, split.by = "DataSet" ) +RotatedAxis()
   ggsave(paste0(Outdir,"/Biomarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =4, width = 14)
 }
 
 # heatmap for all the cells
 
-ICPCcellsMarkerHeatmapWithAnno<- DoHeatmap(ICPCcells, features = FinalMarkersWithAnn)
-ggsave(filename = "ICPCcellsMarkerHeatmapWithAnno.pdf", plot = ICPCcellsMarkerHeatmapWithAnno, width = 5, height =6)
+ICPCcellsFinalMarkerHeatmapWithAnno<- DoHeatmap(ICPCcellsFinal, features = FinalMarkersWithAnn)
+ggsave(filename = "ICPCcellsFinalMarkerHeatmapWithAnno.pdf", plot = ICPCcellsFinalMarkerHeatmapWithAnno, width = 5, height =6)
 
 ```
 
 # identification of biomarkers in the CD
 ```{r}
 setwd(BioMarkerDir)
-AllClustermarkers <- FindAllMarkers(ICPCcells,
+AllClustermarkers <- FindAllMarkers(ICPCcellsFinal,
                 min.pct = 0.25,test.use= "MAST") 
 
+#AllClustermarkers
 write.csv(AllClustermarkers, file = "ClusterSpecificGenes.csv")
 
 # check the GO enrichments of CD
@@ -258,15 +273,15 @@ ClusterSpecificGenes <- list()
 ClusterSpecificGenes[["ICA"]] <- AllClustermarkers %>% filter(cluster == "ICA") %>%filter(p_val_adj <=0.05) %>%  pull(gene)
 ClusterSpecificGenes[["ICB"]] <- AllClustermarkers %>% filter(cluster == "ICB") %>% filter(p_val_adj <=0.05)%>% pull(gene)
 ClusterSpecificGenes[["PC"]] <- AllClustermarkers %>% filter(cluster == "PC")%>%filter(p_val_adj <=0.05) %>% pull(gene)
-ClusterSpecificGenes[["CD"]] <- AllClustermarkers %>% filter(cluster == "CD")%>%filter(p_val_adj <=0.05) %>% pull(gene)
+#ClusterSpecificGenes[["CD"]] <- AllClustermarkers %>% filter(cluster == "CD")%>%filter(p_val_adj <=0.05) %>% pull(gene)
 
 # check the CD specific
-AllClustermarkers %>% filter(cluster == "CD") %>% pull(gene)
+#AllClustermarkers %>% filter(cluster == "CD") %>% pull(gene)
 
-# check the top 5 detected biomarkers in each cluster
-ICPCTop5List<- AllClustermarkers %>% group_by(cluster) %>% slice_max(avg_log2FC, n = 5) %>% pull(gene)
-ICPCTop5MarkersDotPlot <- DotPlot(ICPCcells, features =  ICPCTop5List) +RotatedAxis()
-ggsave(filename = "ICPCTop5MarkersDotPlot.pdf", plot = ICPCTop5MarkersDotPlot, width = 10, height =6)
+# check the top 10 detected biomarkers in each cluster
+ICPCTop5List<- AllClustermarkers %>% group_by(cluster) %>% slice_max(avg_log2FC, n = 10) %>% pull(gene)
+ICPCTop5MarkersDotPlot <- DotPlot(ICPCcellsFinal, features =  ICPCTop5List) +RotatedAxis()
+ggsave(filename = "ICPCTop10MarkersDotPlot.pdf", plot = ICPCTop5MarkersDotPlot, width = 12, height =4)
 
 
 
@@ -276,7 +291,7 @@ ggsave(filename = "ICPCTop5MarkersDotPlot.pdf", plot = ICPCTop5MarkersDotPlot, w
 ```{r}
 setwd(GOenrichDir)
 # here we used the compared GO to check the specific function
-
+#ClusterSpecificGenes
 ClusterSpecificGenesCompareCluster <-  compareCluster(geneClusters = ClusterSpecificGenes, fun = "enrichGO", OrgDb = "org.Mm.eg.db",ont="BP",keyType = 'SYMBOL', pvalueCutoff=1)
 
 # ClusterSpecificGenesCompareClustertersim <- clusterProfiler::pairwise_termsim(ClusterSpecificGenesCompareCluster)
@@ -298,64 +313,420 @@ ClusterSpecificGenesCompareCluster %>% as_tibble()  %>% group_by(Cluster) %>% dp
 ClusterSpecificGenesCompareClusterWithUniq<- ClusterSpecificGenesCompareCluster %>% as_tibble() %>% group_by( Description) %>% mutate(is_duplicated = n()>1) 
 
 
+ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE) %>% head()
+UniqueGroupPathway<- ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE)%>% arrange(qvalue) %>% group_by(Cluster) %>% slice_head(n=8) %>% pull(Description)
 
-UniqueGroupPathway<- ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE) %>% arrange() %>% group_by(Cluster) %>% slice_min( n=8) %>% pull(Description)
-
-ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE) %>% group_by(Cluster) 
+#ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE)%>% arrange(qvalue) %>% group_by(Cluster)%>% slice_head(n = 5)
 
 UniqueGroupPathwayCompareCluster_Dotplot<- dotplot(ClusterSpecificGenesCompareCluster, showCategory = UniqueGroupPathway,font.size = 12,label_format = 80,by = "geneRatio")
-ggsave(filename = "UniqueGroupPathwayCompareCluster_Dotplot.pdf", plot = UniqueGroupPathwayCompareCluster_Dotplot, width = 10, height = 15)
-
+ggsave(filename = "UniqueGroupPathwayCompareCluster_Dotplot.pdf", plot = UniqueGroupPathwayCompareCluster_Dotplot, width = 8, height = 10)
 
 # we specific concentrated on the Phagocytosis genes
 RegulationofPhagocytosisMarkers <- c("Calr","Cyba","Plscr2","Sod1","Rack1")
 
 for (i in RegulationofPhagocytosisMarkers){
 # 
-  FeaturePlots<-FeaturePlot(ICPCcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  FeaturePlots<-FeaturePlot(ICPCcellsFinal, features =  i, split.by = "DataSet" ) +RotatedAxis()
   ggsave(paste0(Outdir,"/Biomarkers/", i, "_RegulationofPhagocytosisMarkers.pdf"), plot =FeaturePlots, height =4, width = 14)
 }
 
 
 TopListCDMarkers <- AllClustermarkers %>% filter(cluster == "CD") %>% head(n=10) %>% pull(gene)
 
-CDMarkerGenesDotPlot<- DotPlot(ICPCcells, features =TopListCDMarkers) +RotatedAxis()
+CDMarkerGenesDotPlot<- DotPlot(ICPCcellsFinal, features =TopListCDMarkers) +RotatedAxis()
 
 ggsave(filename = "CDMarkerGenesDotPlot.pdf", plot = CDMarkerGenesDotPlot, width = 8, height = 4)
 
 # 
 ```
 
+# Then we concentrated on the 3, 7,28 days infection compare to controls
+```{r}
 
-# Then we concentrated on the 7 days infection compare to control
+# Biomarker detection from PT that caused by infections
+DefaultAssay(ICPCcellsFinal) <- "RNA"
+TimeBiomarkerDir <- paste0(BioMarkerDir, "TimeBiomarker/")
+dir.create(TimeBiomarkerDir)
+setwd(TimeBiomarkerDir)
+
+# for ICA
+ICATimeBiomarkerDir <- paste0(TimeBiomarkerDir, "ICA")
+dir.create(ICATimeBiomarkerDir)
+setwd(ICATimeBiomarkerDir)
+
+Idents(ICPCcellsFinal)
+
+Idents(ICPCcellsFinal) <- ICPCcellsFinal@meta.data$ICPCAnnot
+
+# extract the IC cells
+
+ICACellsFinal <- subset(ICPCcellsFinal, ident = "ICA")
+ICACellsFinal%>% head()
+
+ICACellsFinal <- ScaleData(object = ICACellsFinal, features = rownames(ICACellsFinal))
+# MAST was used to calculate the cluster
+# Identify the markers that are differentially expressed from controls
+Idents(ICACellsFinal) <- ICACellsFinal@meta.data$DataSet
+Dates<-levels(Idents(ICACellsFinal))
+Dates
+DateMarkers<- list()
+Top5UpMarkers <-list()
+Top5DownMarkers <-list()
+AllInfectUpMarkers <-list()
+AllInfectDownMarkers<-list()
+
+# for ICA
+for (m in c(2:4)) {
+  #m=2
+  SpecifiDate <- Dates[[m]]
+  # detect the differentially expressed genes compared to controls
+  DateMarkers[[SpecifiDate]] <-
+    FindMarkers(
+      ICACellsFinal,
+      ident.1 = SpecifiDate,
+      ident.2 = "0DPI",
+      logfc.threshold = 0.25,
+      test.use = "MAST",
+      min.pct = 0.25
+    )
+  # for upregulated genes
+  # we ignore the mitochondriondplyr::arrange(q_value) %>%
+  # remove the genes with mitochondrion
+  
+  Top5UpMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% filter (avg_log2FC > 0.25) %>%  slice_max(order_by = avg_log2FC, n = 5) %>% row.names()
+  Top5DownMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% filter (avg_log2FC < -0.25) %>%  slice_max(order_by = -avg_log2FC, n = 5) %>% row.names()
+  
+  AllInfectUpMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter (avg_log2FC >= 0.25 & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
+  
+  # AllInfectUpMarkers[[SpecifiDate]]
+  
+  AllInfectDownMarkers[[SpecifiDate]] <-
+    DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter (avg_log2FC <= -0.25 & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
+  # Top5DownMarkers[[SpecifiDate]]
+  # save all the specific date into files
+  write.csv(DateMarkers[[SpecifiDate]],
+            file = paste0(SpecifiDate, "InfectTimePTBiomarker.csv"),)
+  
+}
+
+#DateMarkers[["3DPI"]] %>% head()
+```
+
+
+# using the top 5 biomarkers and see their distribution, Dotplot, heatmap and featurePlot 
+```{r}
+#setwd(TimeBioMarkerDir)
+# select the top biomarkers that are in response to infection in PT cells
+FinalTopMarkers<- c(Top5UpMarkers %>% unlist() %>% unique(),Top5DownMarkers %>% unlist() %>% unique())
+
+FinalTopMarkers
+ICAInfectionMarkersDotPlot<-DotPlot(ICACellsFinal, features =FinalTopMarkers ) +RotatedAxis() +coord_flip()
+ICAInfectionMarkersDotPlot
+ggsave(
+  "ICAInfectionMarkersDotPlot.pdf",
+  plot = ICAInfectionMarkersDotPlot,
+  height = 9,
+  width = 6
+)
+
+ICAInfectionMarkersDotPlotDotheatmap<-DoHeatmap(ICACellsFinal, features = FinalTopMarkers , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
+ggsave(
+  "ICAInfectionMarkersDotPlotDotheatmap.pdf",
+  plot = ICAInfectionMarkersDotPlotDotheatmap,
+  height = 9,
+  width = 7
+)
+
+# create a fold to store all these biomarker featureplots
+FeatureICABiomarkerDir <- paste0(ICATimeBiomarkerDir, "ICAInfectBiomarkers")
+dir.create(FeatureICABiomarkerDir)
+setwd(FeatureICABiomarkerDir)
+
+for (i in FinalTopMarkers) {
+  ICAmarkerFeatureSplit <-
+    FeaturePlot(ICACellsFinal,
+                features = i,
+                split.by = "DataSet",
+                slot = "scale.data")
+  ICAmarkerFeature <-
+    FeaturePlot(ICPCcellsFinal, features = i, slot = "scale.data")
+  
+  ggsave(
+    paste0(i, "_ICAInfectedBiomarkerFeatureSplit.pdf"),
+    plot = ICAmarkerFeatureSplit,
+    height = 3,
+    width = 12
+  )
+  
+  ggsave(
+    paste0(i, "_ICASubBiomarkerFeature.pdf"),
+    plot = ICAmarkerFeature,
+    height = 3,
+    width = 4
+  )
+}
+
+```
+
+
+
+
+
+# Perform the GO enrichment and see the specific pathways in each categories
+```{r}
+ICATimeGOenrichDir<- paste0(ICATimeBiomarkerDir,"GOenrich")
+dir.create(ICATimeGOenrichDir)
+setwd(ICATimeGOenrichDir)
+
+# Create a GO comparison for the figure
+# for the up-regulated genes
+# we have stored the up-regulated genes into the AllInfectUpMarkers
+
+# Comparing the Cluster
+ICAInfectedspecifcUpgeneGOenrich <-
+  compareCluster(
+    geneClusters = AllInfectUpMarkers,
+    fun = "enrichGO",
+    OrgDb = "org.Mm.eg.db",
+    ont = "BP",
+    keyType = 'SYMBOL',
+    pvalueCutoff=1
+  )
+
+write.csv(ICAInfectedspecifcUpgeneGOenrich,
+          "ICAInfectedspecifcUpgeneGOenrich.csv")
+
+ICAInfectedspecifcUpgeneGOenrichDotPlot <-
+  dotplot(
+    ICAInfectedspecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 15,
+    #includeAll=FALSE
+  )
+? dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(
+  "ICAInfectedspecifcUpgeneGOenrichDotPlot.pdf",
+  plot = ICAInfectedspecifcUpgeneGOenrichDotPlot,
+  height = 11,
+  width = 8
+)
+
+## for the downregualted genes
+
+# we have stored the down-regulated genes into the AllInfectDownMarkers
+
+# Comparing the Cluster
+ICAInfectedspecifcDowngeneGOenrich <-
+  compareCluster(
+    geneClusters = AllInfectDownMarkers,
+    fun = "enrichGO",
+    OrgDb = "org.Mm.eg.db",
+    ont = "BP",
+    keyType = 'SYMBOL',
+    pvalueCutoff=1
+  )
+
+write.csv(ICAInfectedspecifcDowngeneGOenrich,
+          "ICAInfectedspecifcDowngeneGOenrich.csv")
+
+ICAInfectedspecifcDowngeneGOenrichDotPlot <-
+  dotplot(
+    ICAInfectedspecifcDowngeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 15,
+    #includeAll=FALSE
+  )
+? dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(
+  "ICAInfectedspecifcDowngeneGOenrichDotPlot.pdf",
+  plot = ICAInfectedspecifcDowngeneGOenrichDotPlot,
+  height = 11,
+  width = 8
+)
+
+```
+
+# KEGG pathway 
+```{r}
+
+ICATimeKEGGDir <- paste0(ICATimeBiomarkerDir,"KEGG/")
+dir.create(ICATimeKEGGDir)
+setwd(ICATimeKEGGDir)
+
+KEGGpathways <-list()
+KEGGpathwaysForView<-list()
+ICAInfectedDEGTransferUnirotID <-list()
+ICAInfectedDEGTransferENTREZID <-list()
+## put the list of UNIPROT into the list
+# we generate genes for the kegg pathview
+#as.data.frame(PTsubclusterBiomarkers)
+library("org.Mm.eg.db")
+ICAInfecteds <- levels(Idents(ICACellsFinal))
+TransferIDs<-list()
+AllInfectDEGMarkers<-list()
+#SectionDEGlistWithInfection
+for (m in c(2:4)) {
+
+  DateName <- ICAInfecteds[[m]]
+  DateName
+  AllInfectDEGMarkers[[DateName]] <-
+   DateMarkers[[SpecifiDate]] %>% rownames_to_column('GeneID') %>% filter ((avg_log2FC >= 0.25|avg_log2FC <= -0.25) & p_val_adj <= 0.05 & !grepl("mt-", GeneID)) %>% pull(GeneID)
+  length(AllInfectDEGMarkers[[DateName]])
+  AllInfectDEGMarkers[[DateName]] %>% unique()
+  
+  
+  # transfer biolgical ID to KEGG ID
+  TransferIDs[[DateName]] <-
+    bitr(
+      AllInfectDownMarkers[[DateName]],
+      fromType = "SYMBOL",
+      toType = c("UNIPROT", "ENSEMBL", "ENTREZID"),
+      OrgDb = "org.Mm.eg.db"
+    )
+  #nrow(TransferIDs[[DateName]])
+  TransferIDs[[DateName]] %>% group_by(SYMBOL)
+  # we only select the first uniprot id. because the one ID have multiple uniprot ID
+  ICAInfectedDEGTransferUnirotID[[DateName]] <-
+    TransferIDs[[DateName]] %>% group_by(SYMBOL) %>% slice(1) %>% pull(UNIPROT)
+  #   mapIds(org.Mm.eg.db, keys=AllInfectDownMarkers[[DateName]], column='UNIPROT', keytype='SYMBOL', multiVals="first") %>% as.matrix() %>% as.data.frame()
+  # #length(PTInfectedDEGTransferUnirotID[[DateName]]$V1)
+  # as.data.frame(as.matrix(PTInfectedDEGTransferUnirotID[[DateName]]))
+  #  #nrow(PTInfectedDEGTransferUnirotID[[DateName]]) 
+  
+  #length(PTInfectedDEGTransferUnirotID[[DateName]])
+  
+  ICAInfectedDEGTransferENTREZID[[DateName]] <-
+    TransferIDs[[DateName]] %>% group_by(SYMBOL) %>% slice(1) %>% pull(ENTREZID)
+  
+  #
+  # egID = bitr(
+  #   ICPCInfectedspecifcUpgene[[m]] ,
+  #   fromType = "SYMBOL",
+  #   toType = "ENTREZID",
+  #   OrgDb = "org.Mm.eg.db"
+  # )
+  ICAInfectedDEGTransferUnirotID[[DateName]]
+  KEGGpathwaysForView[[DateName]] <- enrichKEGG(gene =  ICAInfectedDEGTransferENTREZID[[DateName]],
+                                                organism = 'mmu',
+                                                pvalueCutoff = 0.05)
+  KEGGpathways[[DateName]] <-
+    enrichKEGG(
+      gene =  ICAInfectedDEGTransferUnirotID[[DateName]],
+      organism = 'mmu',
+      pvalueCutoff = 1,
+      keyType = 'uniprot'
+    )
+  
+  write.csv(KEGGpathways[[DateName]],
+            file = paste0(ICATimeKEGGDir, DateName, "_KeggDEGEnrichpath.csv"))
+
+  
+}
+
+```
+
+
+## compare the KEGG pathways among different time Infection
+```{r}
+
+length(ICAInfectedDEGTransferUnirotID$`3DPI`)
+length(ICAInfectedDEGTransferUnirotID$`7DPI`)
+length(ICAInfectedDEGTransferUnirotID$`28DPI`)
+length(AllInfectUpMarkers$`3DPI`)
+length(AllInfectUpMarkers$`7DPI`)
+length(AllInfectUpMarkers$`28DPI`)
+
+AllInfectUpMarkers
+# compare all DEG list with GO enrichment, we did not set up the p value
+ICAInfectedDEGTransferKEGG <-
+  compareCluster(
+    geneCluster = ICAInfectedDEGTransferUnirotID,
+    fun = enrichKEGG,
+    organism = "mmu",
+    keyType = 'uniprot',
+    pvalueCutoff = 1
+  )
+ICAInfectedDEGTransferKEGG %>% head()
+# setting into readable ID
+ICAInfectedDEGTransferKEGGReadable <-
+  setReadable(ICAInfectedDEGTransferKEGG,
+              OrgDb = "org.Mm.eg.db",
+              keyType = "UNIPROT")
+
+# remove the string - Mus musculus (house mouse)
+ICAInfectedDEGTransferKEGGReadable@compareClusterResult$Description <-
+  gsub(
+    pattern = " - Mus musculus (house mouse)",
+    replacement = "",
+    ICAInfectedDEGTransferKEGG@compareClusterResult$Description,
+    fixed = T
+  )
+
+# Show all the top15 pathways
+Top15Comparion <-
+  dotplot(
+    ICAInfectedDEGTransferKEGGReadable,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 15
+  )
+
+ggsave(
+  "ICAInfectedDEGTransferKEGG_DotPlot.pdf",
+  plot = Top15Comparion,
+  height = 9,
+  width = 7
+)
+
+write.csv(ICAInfectedDEGTransferKEGGReadable, file = "ICAInfectedDEGTransferKEGGReadable.csv")
+```
+
+
+
+
+
+
+
+
+
+```
+
+
 
 ```{r}
-ICPCcells@meta.data %>% head()
+ICPCcellsFinal@meta.data %>% head()
 
-ICPCcells@meta.data$Celltype.Stim <- paste(ICPCcells@meta.data$ICPCAnnot,ICPCcells@meta.data$DataSet, sep = "_")
+ICPCcellsFinal@meta.data$Celltype.Stim <- paste(ICPCcellsFinal@meta.data$ICPCAnnot,ICPCcellsFinal@meta.data$DataSet, sep = "_")
 # set up the identity
-Idents(ICPCcells) <- "Celltype.Stim"
-Idents(ICPCcells)
+Idents(ICPCcellsFinal) <- "Celltype.Stim"
+Idents(ICPCcellsFinal)
 # determine the DEGs from different cell types
 
-levels(Idents(ICPCcells))
+levels(Idents(ICPCcellsFinal))
 
 # comparison between 0DPI and 7DPI for ICA, ICB, PC, and CD
-ICA_DEGs_D7vsD0 <- FindMarkers(ICPCcells, ident.1 = "ICA_7DPI", ident.2 = "ICA_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
+ICA_DEGs_D7vsD0 <- FindMarkers(ICPCcellsFinal, ident.1 = "ICA_7DPI", ident.2 = "ICA_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
 nrow(ICA_DEGs_D7vsD0)
 
-ICB_DEGs_D7vsD0 <- FindMarkers(ICPCcells, ident.1 = "ICB_7DPI", ident.2 = "ICB_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
+ICB_DEGs_D7vsD0 <- FindMarkers(ICPCcellsFinal, ident.1 = "ICB_7DPI", ident.2 = "ICB_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
 
 
-PC_DEGs_D7vsD0 <- FindMarkers(ICPCcells, ident.1 = "PC_7DPI", ident.2 = "PC_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
+PC_DEGs_D7vsD0 <- FindMarkers(ICPCcellsFinal, ident.1 = "PC_7DPI", ident.2 = "PC_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
 
-CD_DEGs_D7vsD0 <- FindMarkers(ICPCcells, ident.1 = "CD_7DPI", ident.2 = "CD_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
+CD_DEGs_D7vsD0 <- FindMarkers(ICPCcellsFinal, ident.1 = "CD_7DPI", ident.2 = "CD_0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
 
 # Identify all the DEGs from the collect duct
-ICPCcells @meta.data %>% head()
-Idents(ICPCcells) <- "DataSet"
+ICPCcellsFinal @meta.data %>% head()
+Idents(ICPCcellsFinal) <- "DataSet"
 
-CollectingDuctAllDEGs <- FindMarkers(ICPCcells, ident.1 = "7DPI", ident.2 = "0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
+CollectingDuctAllDEGs <- FindMarkers(ICPCcellsFinal, ident.1 = "7DPI", ident.2 = "0DPI",verbose = FALSE,min.pct = 0.25,test.use= "MAST") 
 
 # check the GO enrichment of all collecting ducts
 CollectingDuctAllDEGsList <- CollectingDuctAllDEGs %>% filter(p_val_adj <=0.05) %>% rownames()
@@ -375,13 +746,13 @@ ggsave(filename = paste0(GOenrichDir, "CollectingDuctAllDEGsListGOenrich.pdf"), 
 
 # add the frequency
 ```{r}
-table(ICPCcells@meta.data$DataSet)/table(scrna@meta.data$DataSet)
-table(ICPCcells@meta.data$DataSet,Idents(ICPCcells)) %>% as.data.frame()
+table(ICPCcellsFinal@meta.data$DataSet)/table(scrna@meta.data$DataSet)
+table(ICPCcellsFinal@meta.data$DataSet,Idents(ICPCcellsFinal)) %>% as.data.frame()
 table(scrna@meta.data$DataSet)
-ICPCcellsPropotionWithinTime <- table(ICPCcells@meta.data$DataSet,Idents(ICPCcells)) %>% as.data.frame() %>%
+ICPCcellsFinalPropotionWithinTime <- table(ICPCcellsFinal@meta.data$DataSet,Idents(ICPCcellsFinal)) %>% as.data.frame() %>%
   group_by(Var1) %>%
   mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
-ggsave("ICPCcellsPropotionWithinTime.pdf", plot = ICPCcellsPropotionWithinTime, width = 4, height = 3)
+ggsave("ICPCcellsFinalPropotionWithinTime.pdf", plot = ICPCcellsFinalPropotionWithinTime, width = 4, height = 3)
 
 ```
 
@@ -1060,7 +1431,7 @@ progeny_hmap = pheatmap(ImmuneCellForHeatmap,fontsize=12,
                         treeheight_col = 0,  border_color = NA, treeheight_row=0)
 print(progeny_hmap)
 dev.off()
-test<- FeaturePlot(PTcells, features = "NFkB")
+test<- FeaturePlot(ICPCcellsFinal, features = "NFkB")
 ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
 # generate the featureplot 
 ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
@@ -1303,7 +1674,6 @@ ggsave("Immune_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
 
 # Panoptosis
 # Il1b, MLKL, Gsdmd,Ripk3
-
 # Fibrosis 
 # Fn1, Col1a1, Col3a1, Tgfb1
 # adaptive
@@ -1365,7 +1735,7 @@ for (i in KidneyStatuesTypeMarkers){
 ```{r}
 
 # change the levels of the immune cells
-Idents(ICPCcells)<-ordered(factor(Idents(ICPCcells)),levels=c("4","5","0","6","1","2","3"))
+Idents(ICPCcellsFinal)<-ordered(factor(Idents(ICPCcellsFinal)),levels=c("4","5","0","6","1","2","3"))
 
 # FinalMarkers <- c("Il1b","S100a8","S100a9", "Cd79a","Cd79b","C1qa","C1qb","Itgam","Cd81","Ctsh","Mgl2","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Mrc1","Il13","Cd163","Cd3g", "Cxcr6","Cd247","Cd3e","Capg","Lef1","Tcf7","Gzmk","Gimap7","Ms4a4b","Ccl5","Nkg7","Cd7","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
 CFilePath<- paste0(Outdir,"Candidatemarkers")
@@ -1376,7 +1746,7 @@ setwd(file.path(CFilePath))
 # 
 FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
 
-MYEGenesDotPlots<- DotPlot(ICPCcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
+MYEGenesDotPlots<- DotPlot(ICPCcellsFinal, features =  FinalMarkers, col.min = -1) +RotatedAxis()
 MYEGenesDotPlots
 ggsave(filename = "MYEGenesDotPlots.pdf", plot = MYEGenesDotPlots, width = 10, height = 5)
 
@@ -1409,7 +1779,7 @@ ggsave(filename = "MYEGenesDotPlots.pdf", plot = MYEGenesDotPlots, width = 10, h
 #                     "Mmp9","Ly6c1",
 #                     "Havcr1")
 # 
-# MarkerGenesDotPlots<- DotPlot(ICPCcells, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
+# MarkerGenesDotPlots<- DotPlot(ICPCcellsFinal, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
 # MarkerGenesDotPlots
 # ggsave(filename = "MarkerGenesExpression_ClusterAnnotate.pdf", plot = MarkerGenesDotPlots, width = 15, height = 8)
 # 
@@ -1420,13 +1790,13 @@ ggsave(filename = "MYEGenesDotPlots.pdf", plot = MYEGenesDotPlots, width = 10, h
 # For all the immune cell markers
 for (i in FinalMarkers){
 # 
-  FeaturePlots<-FeaturePlot(ICPCcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  FeaturePlots<-FeaturePlot(ICPCcellsFinal, features =  i, split.by = "DataSet" ) +RotatedAxis()
   ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =4, width = 14)
 }
 
 # heatmap for all the cells
 
-DoHeatmap(ICPCcells, features = FinalMarkers)
+DoHeatmap(ICPCcellsFinal, features = FinalMarkers)
 
 ```
 
@@ -1478,7 +1848,7 @@ for (i in 1:length(ImmuneDiffType)) {
     
     
     FeaturePlots <-
-      FeaturePlot(ICPCcells, features =  j, split.by = "DataSet") + RotatedAxis()
+      FeaturePlot(ICPCcellsFinal, features =  j, split.by = "DataSet") + RotatedAxis()
     ggsave(
       paste0(
         ImmuneCellTypeDir,
@@ -1502,10 +1872,10 @@ for (i in 1:length(ImmuneDiffType)) {
 # add the annotation using case_when
 setwd(Outdir)
 scrna@meta.data %>% head()
-ICPCcells@meta.data %>% head() 
+ICPCcellsFinal@meta.data %>% head() 
   
-levels(ICPCcells@meta.data$SCT_snn_res.0.3)
-ICPCcells@meta.data <- ICPCcells@meta.data %>%   mutate(ImmuneIntegrateAnnot = 
+levels(ICPCcellsFinal@meta.data$SCT_snn_res.0.3)
+ICPCcellsFinal@meta.data <- ICPCcellsFinal@meta.data %>%   mutate(ImmuneIntegrateAnnot = 
            case_when(SCT_snn_res.0.3 %in% c("0") ~ "T", # T cells
                      SCT_snn_res.0.3 %in% c("1") ~ "RecMAC", # Recruited MAC
                      SCT_snn_res.0.3 %in% c("2") ~ "M1-M2", # M1/M2 Macrophage
@@ -1515,10 +1885,10 @@ ICPCcells@meta.data <- ICPCcells@meta.data %>%   mutate(ImmuneIntegrateAnnot =
                      SCT_snn_res.0.3 %in% c("6") ~ "NEU", # Neutrophil
                  )) 
 
-ICPCcells@meta.data %>% head()
+ICPCcellsFinal@meta.data %>% head()
 
-Idents(ICPCcells) <- ICPCcells@meta.data$ImmuneIntegrateAnnot
-Idents(ICPCcells)
+Idents(ICPCcellsFinal) <- ICPCcellsFinal@meta.data$ImmuneIntegrateAnnot
+Idents(ICPCcellsFinal)
 
 # Reorder the levels:
 Idents(ICPCcells)<-ordered(factor(Idents(ICPCcells)),levels=c("NK","B","T","NEU","RecMAC","M1-M2","ResIMM"))
@@ -2248,7 +2618,7 @@ progeny_hmap = pheatmap(ImmuneCellForHeatmap,fontsize=12,
                         treeheight_col = 0,  border_color = NA, treeheight_row=0)
 print(progeny_hmap)
 dev.off()
-test<- FeaturePlot(PTcells, features = "NFkB")
+test<- FeaturePlot(ICPCcellsFinal, features = "NFkB")
 ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
 # generate the featureplot 
 ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
