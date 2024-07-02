@@ -1,0 +1,1670 @@
+---
+title: "Pipseq Urothelium Subcluster"
+author: "Xin Wang"
+date: "2024-07-01"
+description: Urothelium subclusters analyses:
+  - Pathway activity inference by PROGENy model from URO subclusters
+  - Transcription factor activity inference from URO subclusters
+  - DEGs and Pathways
+
+  
+output: html_document
+---
+# Loading the packages
+```{r}
+# check the session information
+sessionInfo()
+library(dplyr)
+library(Seurat)
+library(patchwork)
+
+#install.packages('devtools') #assuming it is not already installed
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+library(devtools)
+#install_github('andreacirilloac/updateR')
+# install.packages("sctransform")
+# install.packages("ggthemes")
+# loading the libarary
+library(updateR)
+
+library("sctransform")
+library("ggthemes")
+library(Seurat)
+
+# BiocManager::install("limma")
+# BiocManager::install("ComplexHeatmap")
+# BiocManager::install("biomaRt")
+# BiocManager::install("methrix")BiocManager::install("org.Hs.eg.db")
+# devtools::install_github("saeyslab/nichenetr")
+library(limma)
+library(nichenetr)
+library(tidyverse)
+library(dplyr)
+
+library(biomaRt)
+library("data.table")
+
+
+library(umap)
+library(patchwork)
+library(cowplot)
+library(installr)
+
+#install.packages("Matrix", repos = "http://cran.r-project.org")
+### we used discre color palettes from ggsci
+
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+
+#options(buildtools.check = function(action) TRUE )
+#devtools::install_url('https://cran.r-project.org/src/contrib/Archive/Matrix.utils/Matrix.utils_0.9.7.tar.gz')
+#devtools::install_github('cole-trapnell-lab/monocle3')
+#library(monocle3)
+
+library(harmony)
+library(Seurat)
+#library(SeuratData)
+library(tidyverse)
+library(tibble)
+#library(BPCells)
+library(ggplot2)
+library("devtools")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+#library(tibble)
+#library(future)
+library(here)
+library(patchwork)
+library(future)
+library(monocle3)
+library(readr)
+#devtools::install_dev("remotes")
+#remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+#remotes::install_github(repo ='chris-mcginnis-ucsf/DoubletFinder' )
+#install.packages("DoubletFinder")
+library(DoubletFinder)
+library(future.callr)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+#install.packages("magick")
+library(magick)
+library(progeny)
+library(pheatmap)
+
+library(decoupleR)
+
+
+#K means with 6 groups
+
+```
+
+
+## Set up the workspace environment:
+```{r}
+#rm(list =ls())
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/URO_Subclusters/")
+Indir <-c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
+Outdir <-c( "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/URO_Subclusters/")
+```
+
+# Create 
+```{r}
+# create folders for DEGs, Progeny, GO, KEGG and TF analyses
+# directory for DEGs
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
+
+# directory for biomarkers
+
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+# dirctory for cell cycle
+CellCycleDir<- paste0(Outdir,"CellCycle/")
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
+dir.create(CellCycleDir, showWarnings = FALSE)
+set.seed(10000)
+```
+
+
+# generate the health cluster of URO cells
+
+```{r}
+# Read the preclustered object
+
+scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS"))
+
+# check the dimplot of orignal data
+DimPlot(scrna)
+# We only collect the URO cells
+# CellType[CellType$cluster %in% c("1_0","1_1","0", "9","12","18", "19","3"),2] <- "URO" # "Proximal tubule"
+
+
+# check the Urothelium markers
+UrotheliumMarkers <- c("Krt5","Krt15","Krt14","Upk3bl","Krt6a","Cd44","Krt10","Upk2","Upk3a","Upk1a","Krt18","Krt7","Krt19","Krt20","Clu","Abhd2","Top2a","Mki67","Birc5")
+
+DotPlot(scrna, features = UrotheliumMarkers) +RotatedAxis()
+# check the URO markers: "Pdgfra","Pdgfrb","Dcn","Col1a1","Col1a2","Col6a3","Col5a1","Loxl1","Lum","Fbln1","Fbln2","Cd34","Tagln","Fbln5","Postn","C7","Cdh11","Cp","Negr1","Lama2","Pax7","Fgfr4"
+FeaturePlot(scrna, features = c("Fbln5","Pdgfra","Cdh11"))
+
+# UROroblast
+DotPlot(scrna, features = c("Pdgfra","Pdgfrb","Dcn","Col1a1","Col1a2","Col6a3","Col5a1","Loxl1","Lum","Fbln1","Fbln2","Cd34","Tagln","Fbln5","Postn","C7","Cdh11","Cp","Negr1","Lama2","Pax7","Fgfr4"))+RotatedAxis()
+
+# myoblast
+DotPlot(scrna, features = c("Col14a1","Agtr1a","Pdgfra","Tgfb1","Tnf","Trp53","Casp3"))+RotatedAxis()
+
+# smc
+DotPlot(scrna, features = c("Piezo2","Postn","Tagln","Tgfb1","Myh11","Acta2","Pdgfrb","Nphs1","Nphs2"))+RotatedAxis()
+
+# Epithelial-mesenchymal transition (EMT) markers EMT markers
+DotPlot(scrna, features = c("Cdh1","Cdh2","Vim","Snai1","Zbp1","Zeb2"))+RotatedAxis()
+
+# Mesenchymal markers
+DotPlot(scrna, features = c("Acta2","Cdh2","Fbn1","Itgb1","Mmp2","Mmp3","Mmp9","S100a11","Snai1","Vim","Tgfb1","Twist1","Wnt4","Wnt5a","Pdgfa"))+RotatedAxis()
+
+# Select the Urothelium Cells 
+
+UROcells0 <- subset(scrna, subset = (Raw_cell_type == "URO" ))
+# For those cells, we only consider the Krt5, Upk2, Upk3a, 
+
+UROcells <-subset(UROcells0, subset = Upk3a > 1 | Upk1a >1 |Upk1b >1 | Upk3b >1 |Krt5 >1 |Krt14 >1 )
+
+nrow(UROcells@meta.data)
+
+table(UROcells@meta.data$DataSet)
+# We then recluster the URO cells
+# recluster the cells
+UROcells <- SCTransform(UROcells, verbose = TRUE)
+UROcells <- RunPCA(UROcells,npcs = 10, verbose = TRUE)
+
+UROcells@meta.data
+# Run harmony for the URO cells
+UROcells <- RunHarmony(UROcells, 
+				group.by.vars = c("DataSet"), 
+				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+UROcells <- RunUMAP(UROcells, dims = 1:8, verbose = TRUE, reduction = "harmony")
+UROcells <- FindNeighbors(UROcells, dims = 1:8,  verbose = TRUE, reduction = "harmony")
+
+UROcells<- FindClusters(UROcells,  verbose = TRUE, resolution = 0.2)
+
+UROcellsDim<- DimPlot(UROcells,label = T)
+UROcellsDim
+ggsave(filename = "UROcellsDim.pdf", plot = UROcellsDim, width = 3.5, height = 3)
+UROcellsDimSplit<- DimPlot(UROcells,label = T, split.by = "DataSet")
+ggsave(filename = "UROcellsDimSplit.pdf", plot = UROcellsDimSplit, width = 8, height = 3)
+UROcellsDimSplit
+UROcells
+# we think the clueter 0 and cluster 1 are the doublet cells that experience with dying epithelial cells, so we removed the cluster 0 and cluster 1
+#UROcellssub<- subset(UROcells, idents = c(2,3,4,5))
+```
+
+# For the markers
+```{r}
+# For Urothelium Markers:
+# set up the directory
+# create a 
+#setwd(BioMarkerDir)
+
+# check the biomarkers for Urothelium
+Idents(UROcells) <- UROcells@meta.data$SCT_snn_res.0.2
+# check the Urothelium markers
+UrotheliumMarkers <- c("Krt5","Krt15","Krt14","Upk3bl","Krt6a","Cd44","Krt10","Upk2","Upk3a","Upk1a","Upk1b","Krt18","Krt7","Krt19","Krt20","Clu")
+UROcellsDotPlot<- DotPlot(UROcells, features = UrotheliumMarkers, assay = "RNA") +RotatedAxis()
+UROcellsDotPlot
+# save the plot
+ggsave(filename = "UROcellsDotPlot.pdf", plot = UROcellsDotPlot, height = 4, width = 6)
+
+
+# for vlnPlot, we only plot the interesting genes
+UrotheliumInterestMarkers <- c("Krt5","Upk3a","Upk2","Krt15","Krt14","Krt6a","Cd44","Upk1b","Krt18","Krt7","Krt19","Krt20")
+
+
+UROcellsVlnPlot<- VlnPlot(UROcells, features = UrotheliumInterestMarkers) +RotatedAxis()
+ggsave(filename = "UROcellsClusterVlnPlot.pdf", plot = UROcellsVlnPlot, height = 6, width = 8)
+
+DoHeatmap(UROcells, features = UrotheliumMarkers)
+Idents(UROcells)
+
+# set the identity into DataSet
+Idents(UROcells) <- UROcells@meta.data$DataSet
+UROcellsDateDotPlot<-DotPlot(UROcells, features = UrotheliumMarkers, assay = "RNA") +RotatedAxis()
+ggsave(filename = "UROcellsDateDotPlot.pdf", plot = UROcellsDateDotPlot, height = 4, width = 6.5)
+UROcellsDateVlnPlot<- VlnPlot(UROcells, features = UrotheliumInterestMarkers) +RotatedAxis()
+ggsave(filename = "UROcellsDateVlnPlot.pdf", plot = UROcellsDateVlnPlot, height = 6, width = 8)
+
+# other cell type markers
+# Cfh: Parietal epithelial cells
+Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (URO)
+                         "Vcam1","Cfh","Havcr1",
+                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+                      
+
+                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+                      "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
+                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+                     #"Enox1","Thsd4", #Macula densa
+                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+                    "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
+                    "Krt5","Upk1b","Krt14", # Urothelium
+                    "Cdh5","Igfbp3","Pecam1", # Endothelium
+                    "Col3a1","Fbn1","Lum","Col1a1", # UROroblast
+                    "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
+                    "S100a8","S100a9","Il1b", # Neutrophil
+                    "C1qa","C1qb","Aif1", # Macrophage
+                    "Cxcr6","Cd247","Cd3e", # T cells
+                    "Igkc","Cd79a","Cd79b", # B cells
+                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+)
+DotPlot(UROcells, features = Finalcelltypemarkers) +RotatedAxis()
+
+
+#saveRDS(UROcells, file = "PIPSeq_Annotated_OnlyURO_v0823.rds")
+#UROcells <- readRDS("PIPSeq_UROAnn_v061824.rds")
+# UROroblast
+# "Pdgfra","Pdgfrb","Dcn","Col1a1","Col1a2","Col6a3","Col5a1","Loxl1","Lum","Fbln1","Fbln2"
+
+# MyoUROroblast
+# "Col14a1","Agtr1a"
+# SMC
+# "Postn","Tagln","Myh11","Acta2","Mycd"
+# DotPlot(scrna, features = c("Col1a1","Col1a2","Col6a3","Col5a1","Pdgfra","Dcn","Loxl1","Lum","Fbln1","Fbln2","Col14a1","Agtr1a","Postn","Tagln","Myh11","Acta2","Myocd","Pecam1","Npr1","Emcn","Nphs1","Nphs2","Synpo","Upk3a","Upk2","Krt5")) +RotatedAxis()
+DotPlot(UROcells, features = c("Col1a1","Col1a2","Col6a3","Col5a1","Pdgfra","Dcn","Loxl1","Lum","Fbln1","Fbln2","Col14a1","Agtr1a","Postn","Tagln","Myh11","Acta2","Myocd","Pecam1","Npr1","Emcn")) +RotatedAxis()
+# UROroblast
+DotPlot(UROcells, features = c("Pdgfra","Pdgfrb","Dcn","Col1a1","Col1a2","Col6a3","Col5a1","Loxl1","Lum","Fbln1","Fbln2","Cd34","Tagln","Fbln5","Postn","C7","Cdh11","Cp","Negr1","Lama2","Fgfr4"))+RotatedAxis()
+DefaultAssay(UROcells) <-"RNA"
+# myoblast
+DotPlot(UROcells, features = c("Col14a1","Agtr1a","Pdgfra","Tgfb1","Trp53","Casp3"))+RotatedAxis()
+
+# smc
+DotPlot(UROcells, features = c("Piezo2","Postn","Tagln","Tgfb1","Myh11","Acta2"))+RotatedAxis()
+
+# Endothelium
+DotPlot(UROcells, features = c("Pecam1","Npr1","Emcn","Trpv4","Klf4","Kdr"))+RotatedAxis()
+
+#DefaultAssay(UROcells) <-"RNA"
+# Podotype
+DotPlot(UROcells, features = c("Wt1","Foxc2","Synpo","Nphs1","Nphs2","Npr1","Lrp2","Slc34a1","Slc5a2","Il1b","Mmp7"))+RotatedAxis()
+# Epithelial-mesenchymal transition (EMT) markers
+DotPlot(UROcells, features = c("Cdh1","Cdh2","Vim","Snai1","Zbp1","Zeb2"))+RotatedAxis()
+
+# Mesenchymal markers
+DotPlot(UROcells, features = c("Acta2","Cdh2","Fbn1","Itgb1","Mmp2","Mmp3","Mmp9","S100a11","Snai1","Vim"))+RotatedAxis()
+
+DimPlot(UROcells, split.by = "DataSet")
+
+```
+
+
+# Add the cell annotation to the orginal single cells
+```{r}
+UROcells@meta.data %>% head()
+
+# add the annotation using case_when
+
+UROcells@meta.data<- UROcells@meta.data %>%   mutate(UROAnnotation = 
+           case_when(UROcells$SCT_snn_res.0.2 %in% c("0") ~ "URO", # Original URO
+                     UROcells$SCT_snn_res.0.2 %in% c("1") ~ "aURO", # Adaptive URO
+                     )) 
+
+Idents(UROcells) <- UROcells@meta.data$UROAnnotation
+table(UROcells@meta.data$UROAnnotation)
+ 
+saveRDS(UROcells, file = "PIPSeq_UROAnn_v061824.rds")
+UROcells<-readRDS("PIPSeq_UROAnn_v061824.rds")
+
+# Final used Biomarkers
+
+FinalMarkers <- c("Krt5","Upk3a","Upk2","Krt15","Krt14","Krt6a","Cd44","Upk1b","Krt18","Krt7","Krt19","Krt20")
+# reorder the levels: 
+Idents(UROcells)<-ordered(factor(UROcells@meta.data$UROENDIntegrateAnnot2),levels=c("URO","aURO"))
+
+FinalMarkersDotPlot<-DotPlot(UROcells, features = FinalMarkers)+RotatedAxis()
+
+ggsave("Urothelium_finalmarkers_DotPlot.pdf", plot = FinalMarkersDotPlot, height = 4, width = 8)
+UROcellsDim<- DimPlot(UROcells,label = T)
+UROcellsDim
+ggsave(filename = "UROcellsDim_Ann.pdf", plot = UROcellsDim, width = 5, height = 4)
+
+# we think the clueter 0 and cluster 1 are the doublet cells that experience with dying epithelial cells, so we removed the cluster 0 and cluster 1
+#UROcellssub<- subset(UROcells, idents = c(2,3,4,5))
+
+
+UROcellsDimSplit<- DimPlot(UROcells,label = F, split.by = "DataSet")
+ggsave(filename = "UROcellsDimSplit_An.pdf", plot = UROcellsDimSplit, width = 8, height = 3)
+
+```
+
+# add the details into single cell final object
+```{r}
+Idents(UROcells)<-UROcells@meta.data$UROAnnotation
+# then add the PTIntegrateAnnot into the meta data of orignal
+# generate the data frame for PT cell meta data
+UROmataAnnotation <- UROcells@meta.data %>% dplyr::select(SCT_snn_res.0.2, UROAnnotation)
+UROmataAnnotation
+table(UROmataAnnotation$UROAnnotation)
+
+# read the object of scrna with the annotations of the PT, IC PC cells.
+scrna<- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/ICPC_Subclusters/PIPSeq_PTICPCAnnotated_v061824.rds")
+scrna@meta.data %>% head()
+## add this annotation into the meta dataset
+scrna@meta.data <- scrna@meta.data  %>% 
+  left_join( UROmataAnnotation %>% rownames_to_column('rn'),by="rn") %>% 
+# then add a new column that change the NA into Raw_cell_type
+  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
+  mutate(PTICPCENDUROFinalAnn = ifelse(is.na(UROENDIntegrateAnnot), PTICPCFinalAnn,UROENDIntegrateAnnot))
+### join the meta data to meta annoation
+levels(as.factor(scrna@meta.data$PTICPCENDUROFinalAnn))
+
+# set up the row name and identity
+row.names(scrna@meta.data) <- scrna@meta.data$rn
+Idents(scrna) <- scrna@meta.data$PTICPCENDUROFinalAnn
+
+ DimPlot(scrna,  label = TRUE, pt.size = 0.5)
+#left_join(rownames_to_column(UUOProjectObject_F@meta.data), MetaAnnotation, by=c("rownames" = "Symbol"))
+
+### join the meta data to meta annoation
+#UUOProjectObject_F@meta.data %>% mutate(Symbol=rownames(UUOProjectObject_F@meta.data))%>% left_join(MetaAnnotation %>% mutate(Symbol=rownames(MetaAnnotation)), by = 'Symbol')
+
+ 
+ saveRDS(scrna, file = "PIPSeq_PTICPCENDURO_Annotated_v061824.rds")
+ 
+ #scrna <- readRDS("PIPSeq_Annotated_v0823.rds")
+ 
+
+ Idents(scrna) 
+```
+
+
+# add the proportion within timepoints
+```{r}
+# Firstly, create a new column to combine Dataset and cluster
+UROcells@meta.data %>% head()
+
+UROcells@meta.data$UROENDIntegrateAnnot
+
+UROPropotionWithinTime <-table(UROcells@meta.data$DataSet,UROcells@meta.data$UROENDIntegrateAnnot) %>% as.data.frame() %>%
+  group_by(Var1) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
+ggsave("UROPropotionWithinTime.pdf", plot = UROPropotionWithinTime, width = 4, height = 3)
+UROPropotionWithinTime
+```
+
+# biomarker from other cell types
+```{r}
+# Cfh: Parietal epithelial cells
+Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (URO)
+                         "Vcam1","Cfh","Havcr1",
+                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+                      
+
+                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+                      "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
+                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+                     #"Enox1","Thsd4", #Macula densa
+                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+                    "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
+                    "Krt5","Upk1b","Krt14", # Urothelium
+                    "Cdh5","Igfbp3","Pecam1", # Endothelium
+                    "Col3a1","Fbn1","Lum","Col1a1", # UROroblast
+                    "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
+                    "S100a8","S100a9","Il1b", # Neutrophil
+                    "C1qa","C1qb","Aif1", # Macrophage
+                    "Cxcr6","Cd247","Cd3e", # T cells
+                    "Igkc","Cd79a","Cd79b", # B cells
+                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+)
+
+OtherMarkerGenesDotPlots<- DotPlot(UROcells, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
+ggsave(filename = "OtherMarkerGenesExpression_ClusterAnnotate.pdf", plot = OtherMarkerGenesDotPlots, width = 15, height = 8)
+OtherMarkerGenesDotPlots
+```
+
+
+# check the markers
+```{r}
+#dev.off()
+HealthyStatusDir<- paste0(BioMarkerDir, "HealthyInjuryStatus/")
+dir.create(HealthyStatusDir)
+setwd(HealthyStatusDir)
+
+# the healthy cells
+HealthMarkers<- c("Acsm1","Slc22a30", "Itgb8", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
+
+DotPlot(UROcells, features =  HealthMarkers, col.min = -0.5) +RotatedAxis()
+
+CyclingMarker <- "Mki67"
+DotPlot(UROcells, features =  CyclingMarker, col.min = -0.5) +RotatedAxis()
+
+EarlyInjuryMarkers <- c("Cdh13", "Cdh6", "Havcr1")
+DotPlot(UROcells, features =  EarlyInjuryMarkers, col.min = -0.5) +RotatedAxis()
+LateInjuryMarkers <-c( "Ccl2", "Gm17268", "Cald1")
+DotPlot(UROcells, features =  LateInjuryMarkers, col.min = -0.5) +RotatedAxis()
+
+ReparingMarkers <- "Top2a"
+
+DotPlot(UROcells, features =  ReparingMarkers, col.min = -0.5) +RotatedAxis()
+
+FailedFepairMarkers <- c("Ypel2","Kcnip4")
+
+DotPlot(UROcells, features =  FailedFepairMarkers, col.min = -0.5) +RotatedAxis()
+# 
+MaladUROiveMarkers <- c("Vcam1", "Havcr1",  "Icam1", "Prom1","Cxcl2","Ccl3","Myc")
+
+DotPlot(UROcells, features =  MaladUROiveMarkers, col.min = -0.5) +RotatedAxis()
+
+# Combined 
+#"Lrp2","Slc34a1","Slc13a1"
+KidneyStatuesMarkers<- c( "Nrg1","Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
+
+ DotPlot(UROcells, features =  KidneyStatuesMarkers,col.min = -1) +RotatedAxis()
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1")
+ DotPlot(UROcells, features =  KidneyStatuesTypeMarkers) +RotatedAxis()
+ 
+ KidneyStatuesTypeMarkers2<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1","Nfkbia")
+  DotPlot(UROcells, features =  KidneyStatuesTypeMarkers2) +RotatedAxis()
+
+ #, cluster 5: Fn1, Havcr1, Cst3, Igfbp7, S100a8, Il1b, Slc7a13 : ProUROrotic URO
+ # cluster 1: Spp1, Prom1, Kcnip4, Col27a1,Top2a,Nfkbia: Cycling URO
+ # cluster 8: Cdh13, Hsp90aa1,Inmt, Mki67 : Proliferating URO
+ 
+ # cluster 1: ASpp1, Prom1, Kcnipp4: Progenitor URO
+ 
+ # cluster 0: Aldob
+  
+  
+  
+```
+
+# the biomarkers for the candidate markers
+```{r}
+#setwd(BioMarkerDir) 
+# 
+DefaultAssay(UROcells) <- "SCT"
+CandidateMarkers <- c("Acsm1","Lrp2","Mt1", "Slc13a3","Slc5a12","Itgb8","Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13","Slc4a11","Slc3a1","Prlr","Ren1","Slc12a1","Umod","Klk1")
+
+CandidateMarkers2 <- c("Slc34a1","Lrp2","Slc5a2","Slc22a6","Agt","Acsm1","Mt1", "Slc13a3","Slc5a12","Itgb8","Aldob","Spp1","Spp2","Lcn2", "Slc22a8","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13","Slc4a11","Slc3a1","Prlr","Ren1","Slc12a1","Umod","Klk1","Slc12a3")
+CandidateMarkersDotPlot<-  DotPlot(UROcells, features =  CandidateMarkers, col.min = -1) +RotatedAxis()
+CandidateMarkersDotPlot
+ggsave("URO_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+
+CandidateMarkersDotPlot2<-  DotPlot(UROcells, features =  CandidateMarkers2, col.min = -1) +RotatedAxis()
+CandidateMarkersDotPlot2
+ggsave("URO_CandidateMarkersDotPlot_2.pdf", plot = CandidateMarkersDotPlot2, height = 6, width = 12)
+
+
+for (i in CandidateMarkers ){
+  p2 <-FeaturePlot(UROcells, features = i) & 
+ #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i,""))
+  
+  ggsave(paste0(i, "_URO_Marker_featurePlot.pdf"), plot = p2, width = 4, height = 3)
+    p3 <-FeaturePlot(UROcells, features = i, split.by = "DataSet") & 
+ #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i,""))
+  
+  ggsave(paste0(i, "_URO_Marker_featurePlot_split.pdf"), plot = p3, width = 12, height = 3)
+}
+```
+
+# generate the Injury, adaptive, cytokine, signaling, growth factor, prolfieratio, panoptosis, proUROrotic markers
+```{r}
+# dividing into cycling, transitioning, adap- tive (successful or maladaptive repair) and degenerative (damaged or stressed). 
+# cycling: Mki67
+# Early Injury: Cdh13, Cdh6, Havcr1
+# Late Injury: Ccl2, Gm17268, Cald1
+# conserved: Slc13a1, Slc5a2,  Slc7a13, Cyp7b1
+
+
+DefaultAssay(UROcells) <- "RNA"
+
+StatusTypeMakers <- list()
+
+StatusTypeMakers[["Inflammation"]]<- c("Cxcl1","Ccl4", "Ccl2", "Cxcl2","Il1b")# 
+StatusTypeMakers[["Growthfactor"]]<- c("Csf3","Csf2")
+StatusTypeMakers[["Cycling"]] <- c("Mki67","Top2a")
+StatusTypeMakers[["Injury"]] <- c("Havcr1","Lcn2")
+
+StatusTypeMakers[["CytokinesMarkers"]]<- c("Il23a","Ifngr1","Ifngr2","Il1a","Tnf","Il6")
+StatusTypeMakers[["Signaling"]] <- c("Myd88","Tlr2","Tlr4","Nlrp3","Nfkb1","Nos2","Cybb")
+StatusTypeMakers[["ProUROrotic"]] <- c("Mmp2","Mmp9","Tgfb1","Col4a1","Col1a1","Fn1","Col3a1")
+
+StatusTypeMakers[["Proliferating"]]<- c("Top2a","Mki67","Lmnb1","Cenpf")
+
+StatusTypeMakers[["FailedRepairing"]] <- c("Vcam1","Kcnip4")
+
+StatusTypeMakers[["Panoptosis"]] <- c("Il1b", "Mlkl", "Gsdmd","Ripk3")
+StatusTypeMakers[["UROrosis"]] <- c("Fn1", "Col1a1", "Col3a1", "Tgfb1")
+StatusTypeMakers[["adaptive"]] <- c("Vcam1", "Havcr1", "Icam1", "Prom1", "Itgb8")
+StatusTypeMakers[["degenerative"]] <- c("Spp1", "Cst3", "Gdf15","Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6","Egfr", "Vegfa", "Cdh5")
+StatusTypeMakers[["Oxidative"]] <- c("Gclm", "Slc7a11", "Txnrd1")
+StatusTypeMakers[["Progenitor"]] <- c("Sox4", "Sox9", "Pax2")
+StatusTypeMakers[["PRRs"]] <- c("Tlr1","Tlr2","Tlr3","Tlr4","Tlr5","Tlr6","Tlr7","Tlr8","Tlr9","Tlr12","Tlr13","Nod1","Nod2", "Ifih1","Dhx58","Clec4n","Gfer")
+StatusTypeMakers[["Chemokine"]] <- c("Ccl2","Ccl3","Ccl4","Ccl5","Ccl6","Ccl7","Ccl8","Ccl9","Ccl20","Cxcl1","Cxcl2","Cxcl3","Cxcl9", "Cxcl10","Cxcl12","Cxcl13","Cxcl14","Cxcl16","Cxcl17","Cx3cl1","Xcl1")
+StatusTypeMakers[["Cytokine"]] <- c("Il1a","Il1b","Tnf","Il2","Il3","Il4","Il5","Il7","Il9","Il10","Il11","Il12a","Il12b","Il13","Il15","Il16","Il17a","Il17b","Il19","Il20","Il21","Il22","Il23a","Il24","Il25","Il27","Il31","Il33","Il34","Il36a","Il36b")
+
+#StatusTypeMakers <- list() # this is for the new datasets
+# StatusTypeMakers[["PTS1"]] <- c("Lrp2","Slc5a12","Slc5a2","Slc4a4","Slc6a19","Slc7a7","Slc16a10","Slc16a14","Slc22a23","Slc5a2","Slc22a29","Atp6v0a4","Atp6v1b2","Atp2a2","Adra1a")
+# StatusTypeMakers[["PTS2"]] <- c("Slc7a13","Slc13a3","Slc34a1","Slc23a21","Slc22a30","Slc5a10","Slc5a8","Slc22a6","Slc1a1","Cyp7b1","Slc7a12","Atp11a","Aqp7")
+# StatusTypeMakers[["PTS3"]] <- c("Slc16a9","Slc7a13","Slc1a1","Slc5a4a","Slc9a8","Slc22a7","Slc39a8")
+
+StatusTypeMakers[["LateInjuried"]] <- c("Ccl2","Vcam1","Dcdc2a","Sema5a")
+StatusTypeMakers[["EarlyInjuried"]] <- c("Havcr1","Cdh13","Cdh6")
+StatusTypeMakers[["SuccessfulRepairedInjuried"]] <- c("Cxcl1","Bmp6","Cdh6")
+#StatusTypeMakers[["FailiedRepair"]] <- c("Sma5a","Ccl2")
+#StatusTypeMakers[["EarlyInjuried"]] <- c("Havcr1","Cdh13","Cdh6")
+
+StatusTypeMakers[["AKIApoptotic"]] <- c("Acin1","Tnfrsf12a","Clu","Nfkbia","Lgals1","Ctsd")
+StatusTypeMakers[["AKICycle"]] <- c("Ccnd1","Ccnl1","Ctnnb1","Pcna")
+StatusTypeMakers[["AKIGranulocye"]] <- c("C3","S100a11","Lcn2","Cstb","Anxa2")
+StatusTypeMakers[["AKIOxygen"]] <- c("Mgst1","Gpx3","Aoc1")
+StatusTypeMakers[["AKIOxygen"]] <- c("Mgst1","Gpx3","Aoc1","Cat","Idh1")
+StatusTypeMakers[["Phagocytosis"]] <- c("Havcr1","Cd36","Calr","Sod1","Cyba","Lamp2")
+StatusTypeMakers[["AKITNFregulation"]] <- c("Gstp2","Hspd1","Errfi1","Mif","Gstp1","Hmgb1")
+
+StatusTypeMakers[["Mesenchymal"]] <- c("Acta2","Cdh2","Fbn1","Itgb1","Mmp2","Mmp3","Mmp9","S100a11","Snai1","Vim")
+StatusTypeMakers[["UROroblast"]] <-c("Pdgfra","Pdgfrb","Dcn","Col1a1","Col1a2","Col6a3","Col5a1","Loxl1","Lum","Fbln1","Fbln2","Cd34","Tagln","Fbln5","Postn","C7","Cdh11","Cp","Negr1","Lama2","Pax7","Fgfr4")
+StatusTypeMakers[["myoblast"]] <-c("Col14a1","Agtr1a","Pdgfra","Tgfb1","Tnf","Trp53","Casp3")
+
+StatusTypeMakers[["SmoothMuscle"]] <-c("Piezo2","Postn","Tagln","Tgfb1","Myh11","Acta2","Pdgfrb","Nphs1","Nphs2")
+StatusTypeMakers[["EMT"]] <-c("Cdh1","Cdh2","Vim","Snai1","Zbp1","Zeb2","Snai2","Egfr")
+
+StatusTypeMakers[["Endothelium"]] <-c("Cdh5","Igfbp3","Pecam1")
+StatusTypeMakers
+# Panoptosis
+# Il1b, MLKL, Gsdmd,Ripk3
+
+# UROrosis 
+# Fn1, Col1a1, Col3a1, Tgfb1
+# adaptive
+# VCAM1, DCDC2 and HAVCR1, C3, ICAM1
+# VCAM1 PROM1 ITGB8
+# Vcam1, Havcr1, Dcdc2, Icam1, Prom1, ITgb8
+
+#degenerative
+# SPP1, CST3, CLU and IGFBP7, APOE ALDOB
+# B2M S100A6
+# Spp1, Cst3, GDF15,Clu, Igfbp7, Apoe, Aldob, B2m, S100a6
+# agionegious PEC,
+# EGFR, VEGF, Cdh5
+
+# Egfr, Vegf, Cdh5
+BioMarkerDir
+length(StatusTypeMakers)
+for (i in 1:length(StatusTypeMakers)) {
+  # Kidney Status type name
+  #i=18
+  StatusTypeMakersType <- names(StatusTypeMakers[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  StatusTypeMakersTypeDir <- paste0(BioMarkerDir,
+        StatusTypeMakersType,"/")
+  dir.create(StatusTypeMakersTypeDir,showWarnings = FALSE)
+  setwd(StatusTypeMakersTypeDir)
+  
+  DPlots<- DotPlot(UROcells, features =StatusTypeMakers[[StatusTypeMakersType]] )+RotatedAxis()
+  ggsave(paste0(StatusTypeMakersTypeDir, StatusTypeMakersType, "_DotPlot.pdf"), height = 4, width = 8)
+  # generate each feature
+  #ImmuneDiffType[[ImmuneCellType]]
+  for (j in StatusTypeMakers[[StatusTypeMakersType]]) {
+    
+    
+    FeaturePlots <-
+      FeaturePlot(UROcells, features =  j, split.by = "DataSet",order =TRUE) + RotatedAxis()
+    ggsave(
+      paste0(
+        StatusTypeMakersTypeDir,
+        StatusTypeMakersType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 14
+    )
+  }
+  
+}
+AKI_RelatedMakers <- c("Acin1","Tnfrsf12a","Clu","Nfkbia","Lgals1","Ctsd","Ccnd1","Ccnl1","Ctnnb1","Pcna","C3","S100a11","Lcn2","Cstb","Anxa2","Mgst1","Gpx3","Aoc1","Ak4")
+StatusTypeMakers[["AKIApoptotic"]] <- c("Acin1","Tnfrsf12a","Clu","Nfkbia","Lgals1","Ctsd")
+StatusTypeMakers[["AKICycle"]] <- c("Ccnd1","Ccnl1","Ctnnb1","Pcna")
+StatusTypeMakers[["AKIGranulocye"]] <- c("C3","S100a11","Lcn2","Cstb","Anxa2","Lamp2","Cd36")
+
+
+UROS1_S3Markers<- c("Lrp2","Slc5a12","Slc5a2","Slc4a4","Slc6a19","Slc7a7","Slc16a10","Slc16a14","Slc22a23","Slc22a29","Atp6v0a4","Atp6v1b2","Atp2a2","Adra1a","Slc7a13","Slc13a3","Slc34a1","Slc22a30","Slc5a10","Slc5a8","Slc22a6","Slc1a1","Cyp7b1","Slc7a12","Atp11a","Aqp7","Slc16a9","Slc5a4a","Slc9a8","Slc22a7","Slc39a8")
+UROS1_S3DotPlot <- DotPlot(UROcells, features = UROS1_S3Markers) +RotatedAxis()
+ggsave(paste0(Outdir,"UROS1_S3_DotPlot.pdf"), plot =UROS1_S3DotPlot ,height = 6, width = 12)
+
+UROS1_S3_DotPlot_representMarkers<-DotPlot(UROcells, features = c("Lrp2","Hnf4a","Slc5a12","Slc5a2","Slc13a1","Slc1a1","Slc13a3","Cyp7b1","Slc22a7","Slc7a12","Slc16a9","Spag5","Mki67","Havcr1","Cdh13","Cdh6","Cald1","Pdgfd","Kcnip4","Vcam1","Ccl2","Gm17268")) +RotatedAxis() +coord_flip() +scale_x_discrete(limits=rev)
+ggsave(paste0(Outdir,"UROS1_S3_DotPlot_representMarkers.pdf"), plot =UROS1_S3_DotPlot_representMarkers ,height = 6, width = 6)
+
+
+
+
+OtherStatusTypeMakersTypeDir <- paste0(BioMarkerDir,
+        "OtherKidneyStatuesMarkers/")
+dir.create(OtherStatusTypeMakersTypeDir)
+setwd(OtherStatusTypeMakersTypeDir)
+KidneyStatuesMarkers<- c("Slc13a1", "Slc5a2", "Slc7a13", "Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1")
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6")
+
+DotPlot(scrna, features =  KidneyStatuesMarkers, col.min = -0.5) +RotatedAxis()
+DotPlot(scrna, features =  KidneyStatuesTypeMarkers, col.min = -0.5) +RotatedAxis()
+
+
+for (i in KidneyStatuesMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(OtherStatusTypeMakersTypeDir, i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+for (i in KidneyStatuesTypeMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(OtherStatusTypeMakersTypeDir, i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+InflammationMarkers<- c("Cxcl1","Ccl4", "Ccl2", "Cxcl2")
+GrowthFactors<- c("Csf3","Csf2")
+InjuredMarkers <- c("Havcr1","Lcn2")
+CytokinesMarkers<- c("Il23a","Ifngr1","Ifngr2","Il12","Il1a","Tnf","Il6","Il1f6")
+Signaling <- c("Myd88","Tlr2","Tlr4","Nlrp3","Nfkb1","Nos2","Cybb")
+ProUROrotic <- c("Mmp2","Mmp9","Tgfb1","Col4a1","Col1a1","Fn1","Col3a1")
+
+Proliferating<- c("Top2a","Mki67","Lmnb1")
+
+FailedRepairing <- c("Vcam1","Kcnip4")
+
+# with the inflammation markers
+
+
+# with the UROrosis markers
+
+# with the apoptosis markers
+
+# with the necrosis markers
+
+# with the endothelial markers
+
+# response to ROS
+# Gapdh/Tpi1/Pgk1/Eno1/Eno1b
+# phagocystosi
+# Havcr1/Cd36/Calr/Sod1/Cyba
+# Potassium ion transport
+# Slc9a8/Aqp1/Hpn/Prnp/Cd63
+# Chemokine product
+# Gstp2/Mif/Gstp1/Hmgb1
+
+# Fabp1/Gpx1/Cat/Sod1/Park7/Gstp1/Prdx2/Rps3/Rack1/Prdx1/Romo1/Prdx6/Txn1
+
+
+```
+
+
+# Final used biomarkers for URO cells: 
+```{r}
+# final biomarkers
+FinalBioMarkerDir<- paste0(BioMarkerDir,"FinalUsedBiomarkers/")
+dir.create(FinalBioMarkerDir)
+setwd(FinalBioMarkerDir)
+
+# change the levels of the cluster
+levels(UROcells)<-rev(levels(UROcells))
+
+# These are the biomarkers for S1, S2, and S3
+FinalBiomarkers<- c("Lrp2","Slc5a2","Slc5a12","Slc12a3","Slc22a6","Slc16a9","Slc4a4","Slc13a3","Slc13a1","Slc22a7","Slc7a12","Aqp7","Igfbp7","Havcr1")
+
+
+UROCellTypeDotPlots <- DotPlot(UROcells, features = FinalBiomarkers) +
+  # using the guides to set up the color, shape, and size details 
+  guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() 
+# +coord_flip()
+    # 
+  # can add the color: ,cols = c("lightgray","steelblue")
+UROCellTypeDotPlots
+ggsave(paste0(FinalBioMarkerDir,  "UROCellType_S1_S2_S3DotPlots.pdf"), plot =UROCellTypeDotPlots, height =3.5, width = 7.5)
+# These are the biomarkers for Apoptosis, Inflammation/Granunlation, Cell cycling in AKI
+FinalAKIBiomarkers<- c("Lgals1","Ctsd","Clu","Defb1","Cstb","S100a11","Lcn2","Nfkb1","Cat","Idh1","Pcna","Ccng1","Ccnd3","Ccnh","Ccndbp1","Ccni","Ccn1")
+
+
+UROAKIDotPlots <- DotPlot(UROcells, features =FinalAKIBiomarkers)+
+guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() 
+
+
+#+guides(color = guide_colorbar(title = 'AveExp'))
+UROAKIDotPlots
+ggsave(paste0(FinalBioMarkerDir,  "UROAKI_Biomarker_DotPlots.pdf"), plot =UROAKIDotPlots, height =3.5, width = 7)
+
+?DotPlot
+
+
+```
+
+# #####################################
+## Measure the cell cylcel scores
+# #####################################
+
+```{r}
+
+setwd(CellCycleDir)
+# Read in the expression matrix The first row is a header row, the first column is rownames
+exp.mat <- read.table(file = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/cell_cycle_vignette_files/nestorawa_forcellcycle_expressionMatrix.txt",
+    header = TRUE, as.is = TRUE, row.names = 1)
+
+# A list of cell cycle markers, from Tirosh et al, 2015, is loaded with Seurat.  We can
+# segregate this list into markers of G2/M phase and markers of S phase
+s.genes <- cc.genes$s.genes
+s.genes
+g2m.genes <- cc.genes$g2m.genes
+
+#install.packages("gprofiler2")
+library(gprofiler2)
+mmus_s = gorth(s.genes, source_organism = "hsapiens", target_organism = "mmusculus")$ortholog_name
+mmus_g2m = gorth(g2m.genes, source_organism = "hsapiens", target_organism = "mmusculus")$ortholog_name
+
+UROcellcyle <-  CellCycleScoring(UROcells, s.features = mmus_s, g2m.features = mmus_g2m, set.ident = TRUE)
+
+# "#999999", "#E69F00", "#56B4E9"
+UROcellcyleDimplotTimepoint<- DimPlot(UROcellcyle, split.by = "DataSet",cols = c("#1a80bb","#b3b3b2","#ea801c"))
+ggsave("UROcellcyleDimplotTimepoint.pdf", plot = UROcellcyleDimplotTimepoint, height = 3, width = 10)
+
+UROcellcyleDimplotTimepoint
+UROcellcyleDimplotAll<- DimPlot(UROcellcyle, cols = c("#1a80bb","#b3b3b2","#ea801c"))
+ggsave("UROcellcyleDimplotAll.pdf", plot = UROcellcyleDimplotAll, height = 3, width = 4)
+UROcellcyleDimplotAll
+# measure the cycling score for each cluster
+# Firstly, create a new column to combine Dataset and cluster
+UROcellcyle@meta.data %>% head()
+
+UROCellCylcePropotionWithinClusters<-table(UROcellcyle@meta.data$Phase,UROcellcyle@meta.data$SCT_snn_res.0.1)%>% as.data.frame() %>%
+  group_by(Var2) %>%
+  mutate(pct= prop.table(Freq) )%>% ggplot(aes(x=Var2, y=pct, fill=Var1)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent) +scale_fill_manual(values=c("#b3b3b2","#1a80bb","#ea801c"))
+UROCellCylcePropotionWithinClusters
+ggsave("UROCellCylcePropotionWithinClusters.pdf", plot = UROCellCylcePropotionWithinClusters, width = 4, height = 3)
+table(UROcellcyle@meta.data$Phase,UROcellcyle@meta.data$SCT_snn_res.0.5,UROcells@meta.data$DataSet)
+
+UROCellCylcePropotionWithinTimepoint <-table(UROcellcyle@meta.data$Phase,UROcells@meta.data$DataSet) %>% as.data.frame() %>%
+  group_by(Var2) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var2, y=pct, fill=Var1)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent) +scale_fill_manual(values=c("#b3b3b2","#1a80bb","#ea801c"))
+ggsave("UROCellCylceWithinTime.pdf", plot = UROCellCylcePropotionWithinTimepoint, width = 4, height = 3)
+
+# Then we used the cyclins genes: cyclins control progression through the cell cycle and havebeen well -characerized patterns of expression
+
+Cyclin.genes<- rownames(UROcells)[grep("^Ccn",rownames(UROcells))]
+
+UROCellCylceGeneDotPlot<-DotPlot(UROcells, features =Cyclin.genes ) +RotatedAxis()
+ggsave("UROCellCylceGeneDotPlot.pdf", plot = UROCellCylceGeneDotPlot, width = 9, height = 3)
+Cyclin.genes
+for (i in Cyclin.genes){
+  #i=c("Ccnh")
+  CyclinFeaturePlot<- FeaturePlot(UROcells, features = i, split.by = "DataSet", order = T)
+  ggsave(paste0(CellCycleDir,i,"_featurePlot.pdf"), height = 3, width = 9)
+}
+
+```
+
+
+# #####################################
+## generate the Progeny signaling pathways
+# #####################################
+
+```{r}
+# set up the directory
+setwd(ProgenyDir)
+ProgenyDirCluster<- paste0(ProgenyDir,"/ClusterBased/")
+dir.create(ProgenyDirCluster)
+setwd(ProgenyDirCluster)
+## we set up with a high memory
+
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+
+# create cluster data frame with the cells, Celltypes
+UROCluster<- data.frame(Cell = names(Idents(UROcells)),   
+                              CellType = as.character(Idents(UROcells)),
+                              stringsAsFactors = FALSE)
+UROCluster
+
+UROcells <- progeny(UROcells, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+UROcells
+# setup the default assay as progeny
+DefaultAssay(object = UROcells) <- "progeny"
+
+UROcells <- Seurat::ScaleData(UROcells, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(UROcells, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, UROCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+
+# generate the heatmap for URO
+pdf(file="URO_Progeny_ForHeatmap.pdf",height = 4, width = 4)
+progeny_hmap = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
+                        fontsize_row = 8,  show_rownames=T, cluster_cols=F, cluster_rows=T, scale="row",
+                        cex=1, clustering_distance_rows="euclidean", cex=1,
+                        # clustering_distance_cols="euclidean", clustering_method="complete", 
+                        color=myColor, breaks = progenyBreaks, 
+                        main = "PROGENy (500)", angle_col = 45,
+                        border_color = NA,
+                        treeheight_col = 0,   treeheight_row=0)
+
+print(progeny_hmap)
+dev.off()
+progeny_hmap
+test<- FeaturePlot(UROcells, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p1 <-(FeaturePlot(UROcells, features = i) &
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) &
+  ggtitle(paste0(i," activity"))
+   ggsave(paste0(i, "_URO_VariousCluster_featurePlot.pdf"), plot = p1, width = 5, height = 5)
+  p2 <-(FeaturePlot(UROcells, features = i,split.by  = "DataSet") &
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) &
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_URO_cluster_featurePlot.pdf"), plot = p2, width = 10, height = 5)
+}
+
+# customize the figures
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+dev.off()
+i="EGFR"
+FeaturePlot(UROcells, features = "EGFR")
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-75, 50))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+i="Hypoxia"
+FeaturePlot(UROcells, features = "Hypoxia")
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-50, 250))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+i="NFkB"
+FeaturePlot(UROcells, features = "NFkB")
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-50, 600))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+i="JAK-STAT"
+FeaturePlot(UROcells, features = "JAK-STAT")
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(0, 400))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="TGFb"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 300))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+i="TNFa"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(0, 700))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+i="Trail"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i, pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-30, 30))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+
+i="VEGF"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i,  pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-75, 60))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_ClusterCombined.pdf"), plot = p2, width = 4, height = 3)
+
+
+# customize the UMAP in the 
+# 
+# FeaturePlotSingle<- function(obj, feature, metadata_column, ...){
+#   all_cells<- colnames(obj)
+#   groups<- levels(obj@meta.data[, metadata_column])
+#   
+#   # the minimal and maximal of the value to make the legend scale the same. 
+#   minimal<- min(obj[['RNA']]@data[feature, ])
+#   maximal<- max(obj[['RNA']]@data[feature, ])
+#   ps<- list()
+#   for (group in groups) {
+#     subset_indx<- obj@meta.data[, metadata_column] == group
+#     subset_cells<- all_cells[subset_indx]
+#     p<- FeaturePlot(obj, features = feature, cells= subset_cells, ...) +
+#       scale_color_viridis_c(limits=c(minimal, maximal), direction = 1) +
+#       ggtitle(group) +
+#       theme(plot.title = element_text(size = 10, face = "bold"))
+#     ps[[group]]<- p
+#   }
+#   
+#   
+#   return(ps)
+# }
+# 
+# for (i in ProgenyFeatures ){
+#   p2 <-FeaturePlotSingle(UROcells, feature= i, metadata_column = "DataSet", pt.size = 0.05, order =TRUE) &
+#   ggtitle(paste0(i," activity"))
+#   
+#   ggsave(paste0(i, "_URO_cluster_featurePlot_Custom.pdf"), plot = p2, width = 10, height = 5)
+# }
+# 
+# ProgenyFeatures
+# p_list<- FeaturePlotSingle(UROcells, feature= "EGFR", metadata_column = "DataSet", pt.size = 0.05, order =TRUE)
+```
+
+# performt he Progeny based on the timepoints instead of clusters
+
+```{r}
+# set up the directory
+setwd(ProgenyDir)
+## we set up with a high memory
+ProgenyDirDate<- paste0(ProgenyDir,"/DateBased/")
+dir.create(ProgenyDirDate)
+setwd(ProgenyDirDate)
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+UROcells@meta.data %>% head()
+Idents(UROcells) <- "DataSet"
+# create cluster data frame with the cells, Celltypes
+UROCluster<- data.frame(Cell = names(Idents(UROcells)),   
+                              CellType = as.character(Idents(UROcells)),
+                              stringsAsFactors = FALSE)
+UROCluster
+
+UROcells <- progeny(UROcells, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+UROcells
+# setup the default assay as progeny
+DefaultAssay(object = UROcells) <- "progeny"
+
+UROcells <- Seurat::ScaleData(UROcells, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(UROcells, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, UROCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+
+# generate the heatmap for URO
+pdf(file="DateTimePoints_ProximalTubuleCell_Progeny_ForHeatmap.pdf",height = 5, width = 5)
+progeny_hmap = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
+                        fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+                        cex=1, clustering_distance_rows="euclidean", cex=1,
+                        # clustering_distance_cols="euclidean", clustering_method="complete", 
+                        color=myColor, breaks = progenyBreaks, 
+                        main = "PROGENy (500)", angle_col = 45,
+                        border_color = NA,
+                        treeheight_col = 0,   treeheight_row=0)
+
+print(progeny_hmap)
+dev.off()
+test<- FeaturePlot(UROcells, features = "NFkB")
+ggsave("test_NFKB_date.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet") &
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red') &
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_URO_cluster_featurePlot_Date.pdf"), plot = p2, width = 10, height = 5)
+}
+
+```
+
+# we will combine the date and clusters
+```{r}
+UROcells@meta.data %>% head()
+
+UROcells@meta.data<- UROcells@meta.data %>% mutate(IntegratedClusterDate = paste(UROcells@meta.data$DataSet,UROcells@meta.data$SCT_snn_res.0.1, sep = "_"))
+levels(as.factor(UROcells@meta.data$IntegratedClusterDate))  
+c("0DPI_0","0DPI_1","0DPI_2","0DPI_3","0DPI_4","0DPI_5","0DPI_6","3DPI_0","3DPI_1","3DPI_2","3DPI_3","3DPI_4","3DPI_5","3DPI_6","7DPI_0","7DPI_1","7DPI_2","7DPI_3","7DPI_4","7DPI_5","7DPI_6","28DPI_0","28DPI_1","28DPI_2","28DPI_3","28DPI_4","28DPI_5","28DPI_6")
+
+Idents(UROcells)<-ordered(factor(UROcells@meta.data$IntegratedClusterDate),levels=c("0DPI_0","0DPI_1","0DPI_2","0DPI_3","0DPI_4","0DPI_5","0DPI_6","3DPI_0","3DPI_1","3DPI_2","3DPI_3","3DPI_4","3DPI_5","3DPI_6","7DPI_0","7DPI_1","7DPI_2","7DPI_3","7DPI_4","7DPI_5","7DPI_6","28DPI_0","28DPI_1","28DPI_2","28DPI_3","28DPI_4","28DPI_5","28DPI_6"))
+
+ProgenyDirDate<- paste0(ProgenyDir,"/DateClusterCombined/")
+dir.create(ProgenyDirDate)
+setwd(ProgenyDirDate)
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+UROcells@meta.data %>% head()
+
+# create cluster data frame with the cells, Celltypes
+UROCluster<- data.frame(Cell = names(Idents(UROcells)),   
+                              CellType = as.character(Idents(UROcells)),
+                              stringsAsFactors = FALSE)
+UROCluster
+
+UROcells <- progeny(UROcells, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+UROcells
+# setup the default assay as progeny
+DefaultAssay(object = UROcells) <- "progeny"
+
+UROcells <- Seurat::ScaleData(UROcells, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(UROcells, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, UROCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+ProximalTubuleCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+ProximalTubuleCellForHeatmap %>% head()
+# ProximalTubuleCellForHeatmapClusterordered<- ProximalTubuleCellForHeatmap[,c(1,15,22,8,2,16,23,9,3,17,24,10,4,18,25,11,5,19,26,12,6,20,27,13,7,21,28,14)]
+# ProximalTubuleCellForHeatmapDateordered <- ProximalTubuleCellForHeatmap[,c(1:7,15:28,8:14)]
+# generate the heatmap for URO
+pdf(file="DateClusterCombined_ProximalTubuleCell_Progeny_ForHeatmap_DateOrder.pdf",height = 5, width = 10)
+progeny_hmap = pheatmap(ProximalTubuleCellForHeatmap,fontsize=8, 
+                        fontsize_row = 8,  show_rownames=T, cluster_cols=F, cluster_rows=T, scale="row",
+                        cex=1, clustering_distance_rows="euclidean", cex=1,
+                        # clustering_distance_cols="euclidean", clustering_method="complete", 
+                        color=myColor, breaks = progenyBreaks, 
+                        main = "PROGENy (500)", angle_col = 45,
+                        border_color = NA,
+                        treeheight_col = 0,   treeheight_row=0)
+
+print(progeny_hmap)
+dev.off()
+
+
+
+test<- FeaturePlot(UROcells, features = "NFkB")
+ggsave("test_NFKB_date.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+
+
+i="EGFR"
+FeaturePlot(UROcells, features = "EGFR")
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 40))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="Hypoxia"
+FeaturePlot(UROcells, features = "Hypoxia")
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 300))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="NFkB"
+FeaturePlot(UROcells, features = "NFkB")
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 250))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="JAK-STAT"
+FeaturePlot(UROcells, features = "JAK-STAT")
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(0, 400))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="TGFb"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 200))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="TNFa"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 300))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+i="Trail"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-30, 30))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+
+i="VEGF"
+FeaturePlot(PTcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-100, 100))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+
+i="WNT"
+FeaturePlot(UROcells, features =i)
+
+p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet", pt.size = 1) &
+  scale_color_gradientn(colors = myColor, limits = c(-50, 30))  &
+  ggtitle(paste0(i," activity"))
+ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 12, height = 4)
+
+
+# 
+# ?FeaturePlot
+# for (i in ProgenyFeatures ){
+#   p2 <- FeaturePlot(UROcells, features = i, split.by = "DataSet") &
+#   scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red') &
+#   ggtitle(paste0(i," activity"))
+#   
+#   ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 10, height = 5)
+# }
+```
+
+
+
+
+### please ignore the following analyses
+# Add the cell annotation to the orginal single cells
+```{r}
+PTcells@meta.data %>% head()
+
+# add the annotation using case_when
+
+PTcells@meta.data<- PTcells@meta.data %>%   mutate(PTIntegrateAnnot = 
+           case_when(SCT_snn_res.0.2 %in% c("0") ~ "heaPT-S1", # health PT
+                     SCT_snn_res.0.2 %in% c("1") ~ "heaPT-S2", # health PT
+                     SCT_snn_res.0.2 %in% c("2") ~ "heaPT-S3", # health PT
+                     SCT_snn_res.0.2 %in% c("3") ~ "heaPT-S4", # health PT
+                     SCT_snn_res.0.2 %in% c("4") ~ "heaPT-S5", # health PT
+                     SCT_snn_res.0.2 %in% c("7") ~ "DegPT", # Degenerative PT
+                     SCT_snn_res.0.2 %in% c("5") ~ "MalaPT", # Maladaptive PT
+                     SCT_snn_res.0.2 %in% c("6") ~ "InfiPT", # Infiltration PT
+                      SCT_snn_res.0.2 %in% c("8") ~ "HybridPT", # Hybrid PT
+                     )) 
+levels(factor(PTcells@meta.data$PTIntegrateAnnot))
+
+# FinalCluster<- as.character(levels(factor(PTcells$SCT_snn_res.0.2)))
+# FinalCluster
+# # create a dataframe to store the single cell annotation:
+# CellType <- data.frame(cluster=FinalCluster , cell= FinalCluster)
+# 
+# # update the cell details
+# CellType[CellType$cluster %in% c("0","1","2", "3","4","5"),2] <- "health PT"
+# 
+# CellType[CellType$cluster %in% c("7"),2] <- "Degenerative PT"
+# 
+# CellType[CellType$cluster %in% c("5"),2] <- "Maladaptive PT"
+# 
+# CellType[CellType$cluster %in% c("6"),2] <- "Transient PT"
+# 
+# CellType[CellType$cluster %in% c("8"),2] <- "Acute injured PT"
+# 
+# # add the cell types to the mata datasets
+# 
+# PTcells@meta.data$PTStatus <- sapply(PTcells@meta.data$SCT_snn_res.0.2, function(x){CellType[CellType$cluster %in% x,2]})
+# 
+# # add the 
+
+# then add the PTIntegrateAnnot into the meta data of orignal
+# generate the data frame for PT cell meta data
+PTmataAnnotation <- PTcells@meta.data %>% dplyr::select(SCT_snn_res.0.2, PTIntegrateAnnot)
+
+table(PTmataAnnotation$PTIntegrateAnnot)
+
+## add this annotation into the meta dataset
+scrna@meta.data <- scrna@meta.data %>% rownames_to_column('rn') %>% 
+  left_join( PTmataAnnotation %>% rownames_to_column('rn'))%>% 
+# then add a new column that change the NA into Raw_cell_type
+  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
+  mutate(A_new = ifelse(is.na(PTIntegrateAnnot), Raw_cell_type,PTIntegrateAnnot))
+### join the meta data to meta annoation
+
+Idents(scrna) <- scrna@meta.data$A_new
+
+
+#left_join(rownames_to_column(UUOProjectObject_F@meta.data), MetaAnnotation, by=c("rownames" = "Symbol"))
+
+### join the meta data to meta annoation
+#UUOProjectObject_F@meta.data %>% mutate(Symbol=rownames(UUOProjectObject_F@meta.data))%>% left_join(MetaAnnotation %>% mutate(Symbol=rownames(MetaAnnotation)), by = 'Symbol')
+
+# set up the new cell types but keep the orginal cell types
+
+row.names(scrna@meta.data) <- scrna@meta.data$rn
+ DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
+ 
+ saveRDS(scrna, file = "PIPSeq_AnnotatedWithUro_v061324.rds")
+ 
+ #scrna <- readRDS("PIPSeq_AnnotatedWithENDURO_v061324.rds")
+ 
+
+ Idents(scrna) 
+```
+
+# Transcription factor activity inference from Immune scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(PTcells@assays$RNA@data)
+# Run ulm
+#acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+#                .mor='mor', minsize = 5)
+
+
+#saveRDS(acts, file="PT_Transcriptfactor.RDS")
+
+acts <- readRDS("PT_Transcriptfactor.RDS")
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+PTcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = PTcells) <- "tfsulm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$tfsulm@data <- PTcells@assays$tfsulm@scale.data
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 20
+
+t(as.matrix(PTcells@assays$tfsulm@data))
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$tfsulm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+# drop "Znf335" due to not exist in the expression
+#tfs <- tfs[!tfs == "Znf335"]
+
+#tfs[!tfs == "Znf335"]
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+PTTFheatmap<- pheatmap(t(top_acts_mat),border_color = NA, cluster_cols = F, 
+                        color=my_color,fontsize=12, fontsize_row = 10, 
+                        breaks = my_breaks, 
+                        #main = "Predicted TF activities", 
+                        #angle_col = 90,
+                        treeheight_col = 0, treeheight_row=0)
+
+
+ggsave("PTcellsHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PTTFheatmap, width = 4, height = 5)
+
+# draw the transcriptor factor activity and their expression
+# generate the figure of transcript factor activity:
+for (m in tfs){
+  p2 <- (FeaturePlot(PTcells, features = m) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(m, ' activity'))
+  
+  ggsave(paste0("TFActivity_",m,"_PTcells_FeaturePlot.pdf"), plot = p2, width = 4, height = 3)
+}
+
+DefaultAssay(object = PTcells) <- "RNA"
+
+for (n in tfs){
+  p3 <- (FeaturePlot(PTcells, features = n,slot= "scale.data") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression'))
+  
+  p4 <- (FeaturePlot(PTcells, features = n, split.by = "DataSet",slot= "scale.data") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle(paste0(n, ' expression (time)'))
+ 
+  ggsave(paste0("TFExpression_",n,"_PTcells_FeaturePlot.pdf"), plot = p3, width = 4, height = 3)
+  ggsave(paste0("TFExpression_",n,"_PTcells_FeaturePlot_Split.pdf"), plot = p3, width = 4, height = 3)
+
+}
+# add their activity in Dotplot
+Idents(PTcells)
+# get the order of row name
+GeneOrderByPheatmap <- rownames(t(top_acts_mat))[PTTFheatmap$tree_row$order]
+#IMMTFheatmap$tree_row$order
+GeneOrderByPheatmap
+?DotPlot
+TFDotPlot <- DotPlot(PTcells, features = rev(GeneOrderByPheatmap)) +
+  RotatedAxis() + coord_flip()+ 
+  #ggtitle("Predicted TF expression")+
+   theme(legend.position = "right")
+ggsave("PT_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
+
+```
+
+
+
+# Using PROGENy model from DecoupleR
+```{r}
+setwd(ProgenyDir)
+net <- get_progeny(organism = 'mouse', top = 500)
+
+# Activity inference with Multivariate Linear Model (MLM)
+# Extract the normalized log-transformed counts
+mat <- as.matrix(PTcells@assays$RNA@data)
+
+# Run mlm
+acts <- run_mlm(mat=mat, net=net, .source='source', .target='target',
+                .mor='weight', minsize = 5)
+
+acts
+# Visualization:
+# Extract mlm and store it in pathwaysmlm in data
+PTcells[['pathwaysmlm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+
+# Change assay
+DefaultAssay(object = PTcells) <- "pathwaysmlm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$pathwaysmlm@data <- PTcells@assays$pathwaysmlm@scale.data
+
+# run the source of pathways
+ProgenyFeatures <- levels(factor(acts$source))
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-FeaturePlot(PTcells, features = i) & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_PT_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 5)
+}
+
+#(c("royalblue", "white","lightcoral"))
+FeaturePlot(PTcells, features = "Hypoxia", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("Hypoxia"," activity"))
+
+FeaturePlot(PTcells, features = "NFkB", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("NFkB"," activity"))
+
+
+FeaturePlot(PTcells, features = "TNFa", min.cutoff = -4, max.cutoff = 6, split.by = "DataSet") & 
+ scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')& 
+  ggtitle(paste0("TNFa"," activity"))
+
+p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(PTcells, features = c("Trail")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('Trail activity')
+
+
+
+# Expore the mean activiey per group across pathways:
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$pathwaysmlm@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Transform to wide matrix
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-0.5, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 0.5, length.out=floor(palette_length/2)))
+
+# Plot
+PTcellsHeatmap<- pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+ggsave("PTcellsHeatmap_Progeny.pdf", plot = PTcellsHeatmap, width = 6, height = 6)
+
+```
+
+# Transcription factor activity inference from PT scRNA-seq
+```{r}
+# CollecTRI network
+# set up the directory
+setwd(TFDir)
+netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
+
+mat <- as.matrix(PTcells@assays$RNA@data)
+# Run wmean
+acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
+                .mor='mor', minsize = 5)
+
+# Activity inference with Univariate Linear Model (ULM)
+# Extract ulm and store it in tfsulm in pbmc
+PTcells[['tfsulm']] <- acts %>%
+  pivot_wider(id_cols = 'source', names_from = 'condition',
+              values_from = 'score') %>%
+  column_to_rownames('source') %>%
+  Seurat::CreateAssayObject(.)
+
+# Change assay
+DefaultAssay(object = PTcells) <- "tfsulm"
+
+# Scale the data
+PTcells <- ScaleData(PTcells)
+PTcells@assays$tfsulm@data <- PTcells@assays$tfsulm@scale.data
+
+p1 <- DimPlot(PTcells, reduction = "umap", label = TRUE, pt.size = 0.5) + 
+  NoLegend() + ggtitle('Cell types')
+p2 <- (FeaturePlot(PTcells, features = c("PAX5")) & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
+  ggtitle('PAX5 activity')
+DefaultAssay(object = PTcells) <- "RNA"
+p3 <- FeaturePlot(data, features = c("PAX5")) + ggtitle('PAX5 expression')
+DefaultAssay(object = PTcells) <- "tfswmean"
+p1 | p2 | p3
+
+# Explore the top 20 more varaible TFs
+n_tfs <- 25
+# Extract activities from object as a long dataframe
+df <- t(as.matrix(PTcells@assays$tfswmean@data)) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(PTcells)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score))
+
+# Get top tfs with more variable means across clusters
+tfs <- df %>%
+  group_by(source) %>%
+  summarise(std = sd(mean)) %>%
+  arrange(-abs(std)) %>%
+  head(n_tfs) %>%
+  pull(source)
+
+# Subset long data frame to top tfs and transform to wide matrix
+top_acts_mat <- df %>%
+  filter(source %in% tfs) %>%
+  pivot_wider(id_cols = 'cluster', names_from = 'source',
+              values_from = 'mean') %>%
+  column_to_rownames('cluster') %>%
+  as.matrix()
+
+# Choose color palette
+palette_length = 100
+my_color = colorRampPalette(c("Darkblue", "white","red"))(palette_length)
+
+my_breaks <- c(seq(-3, 0, length.out=ceiling(palette_length/2) + 1),
+               seq(0.05, 3, length.out=floor(palette_length/2)))
+
+# Plot
+pheatmap(top_acts_mat, border_color = NA, color=my_color, breaks = my_breaks) 
+
+```
