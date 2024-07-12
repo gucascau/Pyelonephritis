@@ -69,7 +69,7 @@ set.seed(200000)
 Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
 
 # spatial transcript directory:
-Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/PreProcess/V09052023_PreliminaryResults/"
+Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V06222024/"
 
 # Output directory :
 Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V06222024/"
@@ -130,7 +130,7 @@ setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results
 #Pyelonephritis_Infection<-readRDS("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V06192024/Pyelonephritis_Infection_Deconvoluted.RDS")
 
 # Reading the RDS file
-Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS"))
+Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "Pyelonephritis_Infection_Deconvoluted_v06222024.RDS"))
 
 Idents(Pyelonephritis_Infection)<-Pyelonephritis_Infection@meta.data$Annotation
 # 
@@ -140,7 +140,7 @@ SpatialDimPlot(Pyelonephritis_Infection)
 # We have two assays: Spatial and SCT
 Pyelonephritis_Infection[["Spatial"]]@counts
 
-Pyelonephritis_Infection[["SCT"]]@counts[1:10,1:10]
+Pyelonephritis_Infection[["SCT"]]@data[1:10,1:10]
 
 rownames(Pyelonephritis_Infection[["Spatial"]])
 colnames(Pyelonephritis_Infection[["Spatial"]])
@@ -151,6 +151,65 @@ DimPlot(Pyelonephritis_Infection)
 Test<-SpatialDimPlot(Pyelonephritis_Infection)
 ggsave("Test_Spatial.pdf",plot=Test, height = 4, width = 15)
 ```
+
+# Generate the specific feature plots for the AMP 
+
+```{r}
+# AMP gene list
+
+AMPCandidates <- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase7","Rnase2","Rnase4","Umod","Upk1a","Upk2","Upk3a","Ptx3")
+
+# create a folder to store all the files
+AMPBioMarkersDir<- paste0(CBiomadir,"AMP/")
+dir.create(AMPBioMarkersDir)
+setwd(AMPBioMarkersDir)
+
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+# generate the dotplot for all the genes
+Pyelonephritis_Infection
+
+# set up the assy as SCT
+DefaultAssay(Pyelonephritis_Infection) <-"SCT"
+AMPDotPlot<-DotPlot(Pyelonephritis_Infection, features = AMPCandidates) +RotatedAxis() +coord_flip()
+
+ggsave("AMP_DotPlot_Spatial.pdf", plot =AMPDotPlot, height = 6, width = 8 )
+
+# check the scale factors
+Pyelonephritis_Infection[["image"]]
+ScaleFactors(Pyelonephritis_Infection[["slice3"]])
+# generate the featureplot
+
+#print(Pyelonephritis_Infection[["SCT"]]@data[i,])
+
+for (i in AMPCandidates){
+  
+  # skip the genes that not exists that print will generate the errors
+  skip_to_next <- FALSE
+  
+  # Note that print(b) fails since b doesn't exist
+  tryCatch(print(Pyelonephritis_Infection[["SCT"]]@data[i,]), error = function(e) { skip_to_next <<- TRUE})
+  if(skip_to_next) { next }   
+
+  
+  # identify the highest value:
+  Maxvalue <- round(max(Pyelonephritis_Infection[["SCT"]]@data[i,]))
+  #max(Pyelonephritis_Infection[["SCT"]]@data[i,])
+  #min(Pyelonephritis_Infection[["SCT"]]@data[i,])
+    # Example plot using ggplot2
+     AMPGeneSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1500, crop = TRUE,slot = "data") &
+      ggplot2::scale_fill_gradientn(colours = myPalette(5), limits=c(0,Maxvalue))
+  
+     ggsave(paste0(AMPBioMarkersDir,i,"_AMP_SpatialFeatureplot.pdf"), plot = AMPGeneSpatialFeature, height = 4, width = 12)
+}
+
+
+# Toll like receptors:
+
+
+
+```
+
+
 
 ```{r}
 # integration with the scRNA-seq reference.
