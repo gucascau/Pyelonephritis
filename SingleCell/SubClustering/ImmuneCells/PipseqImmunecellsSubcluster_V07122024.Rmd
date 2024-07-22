@@ -100,7 +100,7 @@ library(magick)
 ## Step 2: Set up the workspace environment:
 ```{r}
 rm(list=ls())
-Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/OutputRDS/")
+Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
 Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/")
 
 DEGDir <- paste0(Outdir,"DEGs/")
@@ -134,20 +134,20 @@ set.seed(10000)
 ```
 
 
-# generate the health cluster of PT cells
+# generate the immune cell clusters
 
 ```{r}
 setwd(Outdir)
 # Read the preclustered object
 
-#scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS"))
+scrna <- readRDS(file = paste0(Indir,"Pyelonephritis_singlecell_harmony_withAnnotation_v0803.RDS"))
 
-scrna <- readRDS(file = paste0(Indir,"PIPSeq_Annotated_v0823.rds"))
+#scrna <- readRDS(file = paste0(Indir,"PIPSeq_Annotated_v0823.rds"))
 
 # We only collect the PT cells
 #CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
 
-scrna @meta.data
+table(scrna @meta.data$Raw_cell_type)
 
 IMMcells <- subset(scrna, subset = Raw_cell_type == "MAC"| Raw_cell_type == "NEU"| Raw_cell_type == "B"| Raw_cell_type == "NK"| Raw_cell_type == "T")
 IMMcells
@@ -156,41 +156,81 @@ IMMcells@meta.data
 # We then recluster the Immune cells
 # recluster the cells
 IMMcells <- SCTransform(IMMcells, verbose = TRUE)
-IMMcells <- RunPCA(IMMcells,npcs = 10, verbose = TRUE)
+IMMcells <- RunPCA(IMMcells,npcs = 20, verbose = TRUE)
 
 # Run harmony for the Immune cells
 IMMcells <- RunHarmony(IMMcells, 
 				group.by.vars = c("DataSet"), 
 				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
-IMMcells <- RunUMAP(IMMcells, dims = 1:10, verbose = TRUE, reduction = "harmony")
-IMMcells <- FindNeighbors(IMMcells, dims = 1:10,  verbose = TRUE, reduction = "harmony")
+IMMcells <- RunUMAP(IMMcells, dims = 1:20, verbose = TRUE, reduction = "harmony")
+IMMcells <- FindNeighbors(IMMcells, dims = 1:20,  verbose = TRUE, reduction = "harmony")
 
-IMMcells<- FindClusters(IMMcells,  verbose = TRUE, resolution = 0.3)
+IMMcells<- FindClusters(IMMcells,  verbose = TRUE, resolution = 0.1)
 
 IMMcellsDim<- DimPlot(IMMcells,label = T)
-
+IMMcellsDim
 ggsave(filename = "IMMcellsDim.pdf", plot = IMMcellsDim, width = 8, height = 6)
 
 IMMcellsDimSplit<-DimPlot(IMMcells, split.by = "DataSet",label = T)
 IMMcellsDimSplit 
 ggsave(filename = "IMMcellsDimSplit.pdf", plot = IMMcellsDimSplit, width = 24, height = 6)
 
+# Monocyte
+FeaturePlot(IMMcells, features = "Ly6c2")
+
+FeaturePlot(IMMcells, features = "Ccr2", split.by = "DataSet")
+# cd64
+FeaturePlot(IMMcells, features = "Fcgr1", split.by = "DataSet")
+#FeaturePlot(IMMcells, features = "Nos2", split.by = "DataSet")
+FeaturePlot(IMMcells, features = "Cx3cr1", split.by = "DataSet")
+#FeaturePlot(IMMcells, features = "Chil3", split.by = "DataSet")
+# Macorphoge
+FeaturePlot(IMMcells, features = "Adgre1", split.by = "DataSet")
+
+#FeaturePlot(IMMcells, features = "Fcgr1")
+FeaturePlot(IMMcells, features = "Cd68", split.by = "DataSet")
+
+FeaturePlot(IMMcells, features = "H2-Ab1", split.by = "DataSet")
+FeaturePlot(IMMcells, features = "Lyz2", split.by = "DataSet")
+# Neutrophil
+FeaturePlot(IMMcells, features = "S100a8")
+#FeaturePlot(IMMcells, features = "Fcgr1a", split.by = "DataSet")
+# B
+FeaturePlot(IMMcells, features = "Cd79a")
+# DC
+FeaturePlot(IMMcells, features = "Cd209a")
+
+# NK
+FeaturePlot(IMMcells, features = "Nkg7")
+# T
+FeaturePlot(IMMcells, features = "Cd3e")
+
+FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Cd68","Adgre1","Clec4e","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1","Ly6c2","Ireb2","Alas2","C78334")
+
+MYEGenesDotPlots<- DotPlot(IMMcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
+MYEGenesDotPlots
+# FeaturePlot(IMMcells, features = "Lyve1")
+# FeaturePlot(IMMcells, features = "Chil3")
 ```
+
+
 
 
 ```{r}
 
 # change the levels of the immune cells
-Idents(IMMcells)<-ordered(factor(Idents(IMMcells)),levels=c("4","5","0","6","1","2","3"))
+#Idents(IMMcells)<-ordered(factor(Idents(IMMcells)),levels=c("4","5","0","6","1","2","3"))
 
 # FinalMarkers <- c("Il1b","S100a8","S100a9", "Cd79a","Cd79b","C1qa","C1qb","Itgam","Cd81","Ctsh","Mgl2","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Mrc1","Il13","Cd163","Cd3g", "Cxcr6","Cd247","Cd3e","Capg","Lef1","Tcf7","Gzmk","Gimap7","Ms4a4b","Ccl5","Nkg7","Cd7","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
-CFilePath<- paste0(Outdir,"Candidatemarkers")
+
+# create a new candidate biomarkers for each subtypes
+CFilePath<- paste0(Outdir,"NewCandidatemarkers/")
 
 dir.create(file.path(CFilePath))
 setwd(file.path(CFilePath))
 
 # 
-FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
+FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Cd68","Adgre1","Csf1r","Clec4e","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1","Ly6c2","Cma1","Kit","Rab27b",'Klrk1','Il7r',"Cd8a","Flt3","Cd83","Ly6g")
 
 MYEGenesDotPlots<- DotPlot(IMMcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
 MYEGenesDotPlots
@@ -248,10 +288,81 @@ DoHeatmap(IMMcells, features = FinalMarkers)
 
 ```
 
+# Highlight the co-expression of cells
+```{r}
+
+# for multiple genes co-expression
+cells <- WhichCells(IMMcells, expression = Ly6c2 > 1 & "H2-Ab1" > 1,slot = "counts")
+?DimPlot
+DimPlot(IMMcells, cells.highlight = cells)
+
+# monocyte
+FeaturePlot(object = IMMcells,
+features = c("Itgam", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+FeaturePlot(object = IMMcells,
+features = c("Cd68", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+
+# for two genes co-expression
+FeaturePlot(object = IMMcells,
+features = c("Ccr2", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+# for two genes co-expression
+FeaturePlot(object = IMMcells,
+features = c("Adgre1", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+FeaturePlot(object = IMMcells,
+features = c("Lyz1", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+
+FeaturePlot(object = IMMcells,
+features = c("Cd68", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+FeaturePlot(object = IMMcells,
+features = c("Ccr2", "Fcgr1"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+FeaturePlot(object = IMMcells,
+features = c("C1qa", "Ly6c2"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+
+FeaturePlot(object = IMMcells,
+features = c("Cx3cr1", "Adgre1"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+
+FeaturePlot(object = IMMcells,
+features = c("Ccr2", "Csf1r"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+
+FeaturePlot(object = IMMcells,
+features = c("S100a8", "Ly6g"),
+reduction = "umap", pt.size = 0.8, blend = TRUE, blend.threshold = 1, order = T)
+
+
+DefaultAssay(IMMcells) <- "RNA"
+cell_typeA_marker_gene_list <- list(c( "Ccr2", "H2-Ab1","Cx3cr1","Adgre1"))
+object <- AddModuleScore(object = IMMcells, features = cell_typeA_marker_gene_list, name = "cell_typeA_score")
+FeaturePlot(object = object, features = "cell_typeA_score1")
+
+```
+
+
+
+
 ```{r}
 # T cells and others
 # https://www.biocompare.com/Editorial-Articles/597618-A-Guide-to-Naive-T-Cell-Markers/
 # https://www.cellsignal.com/pathways/immune-cell-markers-mouse
+# Reference: Spatiotemporal dynamics of macrophage heterogeneity and a potential function of Trem2hi macrophages in infarcted hearts
 # Put the marker gene into a list
 
 ImmuneDiffType <- list()
@@ -270,15 +381,21 @@ ImmuneDiffType[["Innate"]]<-c('Tlr4', 'Tlr5', 'Tlr11', 'Il6', 'Cxcr1', 'Cxcr2', 
 ImmuneDiffType[["AMP"]]<-c('Rnase4', 'Rnase6', 'Mbd1', 'Mbd2', 'Umod', 'Ltf', 'Camp')
 ImmuneDiffType[["Bcells"]] <-c('Jchain', 'Pax5', 'Ms4a1', 'Cd19', 'Ighd', 'Cd27', 'Cd24a', 'Ptprc',  'Cd38', 'Cd79a', 'Ssr1', 'Fkbp11', 'Sec11c', 'Derl3', 'Prdx4', 'Cd79b', 'Vpreb3', 'Sdc1')
 ImmuneDiffType[["Bcellsp"]]<-c("Cd19", "Jchain", "Pax5", "Ms4a1", "Ighd", "Cd79a", "Cd79b", "Ptprc", "H2-Ab1")
-ImmuneDiffType[["neutrophil"]] <-c('Fut4', 'Fcgr3','Cxcr2', 'Mpo', 'Elane', 'Prtn3', 'Lyz1', 'S100a8', 'S100a9',  'Chil1', 'Anxa3', 'Cxcl1', 'Tgm3', 'Mmp9',  'Bpi',  'Ltf', "Gca", 'Camp', 'Ngp', "Chil3", 'Ly6g')
+ImmuneDiffType[["neutrophil"]] <-c('Fut4', 'Fcgr3','Cxcr2', 'Mpo', 'Elane', 'Prtn3', 'Lyz1', 'S100a8', 'S100a9',  'Chil1', 'Anxa3', 'Cxcl1', 'Tgm3', 'Mmp9',  'Bpi',  'Ltf', "Gca", 'Camp', 'Ngp', "Chil3", 'Ly6g',"Csf3r")
 ImmuneDiffType[["neutros"]] <-c("Itgam", "Csf1r", "Ly6g")
 ImmuneDiffType[["monocytes_macrophages"]] <-c('Itgam', 'Csf1r', 'Adgre1', 'Cd68', 'H2-Ab1', 'Cx3cr1')
-ImmuneDiffType[["DC"]]<-c("Itgax", 'H2-Ab1', 'Bst2')
+ImmuneDiffType[["DC"]]<-c("Itgax", 'H2-Ab1', 'Bst2',"Fscn1","Cacnb3","Flt3")
 ImmuneDiffType[["NKcells"]]<-c('Nkg7', 'Klrk1', "Ncr1")
 ImmuneDiffType[["Mono_Macro"]]<-c('Cd14', 'Fcgr3', 'Cst3', 'C1qc', 'Il1b','Mrc1', 'Msr1', 'Gca', "Ccr2", "Adgre1", 'Ly6c1')
-ImmuneDiffType[["Mast_cells"]]<-c("Slc18a2", 'Fcer1a', 'Hpgds', 'Enpp3', 'Fcgr2b')
+ImmuneDiffType[["Mast_cells"]]<-c("Slc18a2", 'Fcer1a', 'Hpgds', 'Enpp3', 'Fcgr2b',"Cma1","Kit","Rab27b")
 ImmuneDiffType[["Eosinophils"]]<-c('Ifng', 'Tnf')
+ImmuneDiffType[["ResidentMacro"]]<-c('Cx3cr1','Cd68',"H2-Ab1","Csf1r","Adgre1","Irf9","Nfatc1")
+ImmuneDiffType[["Monocyte"]]<-c('Ccr2','Csf1r',"Cd68","Adgre1","Ly6c2","Chil3","F10","Plac8")
+ImmuneDiffType[["Plasma"]]<-c('Ly6d','Ly6c2',"Ms4a1")
 
+ImmuneDiffType[["Mono_Macro2"]]<-c('Nos2',"Ccr2",'Csf1r',"Cd68","Adgre1")
+ImmuneDiffType[["MacrophageOverall"]]<-c('Adgre1',"Cd68",'Csf1r',"Fcgrt")
+ImmuneDiffType[["NK_Tcell"]]<-c('Cd3e','Klrk1','Il7r')
 length(ImmuneDiffType)
 for (i in 1:length(ImmuneDiffType)) {
   # cell type name
@@ -317,20 +434,23 @@ for (i in 1:length(ImmuneDiffType)) {
 
 # add the Immune cell names
 ```{r}
+DotPlot(IMMcells, features = FinalMarkers) +RotatedAxis()
+DimPlot(IMMcells,label = T, split.by = "DataSet")
 # add the annotation using case_when
 setwd(Outdir)
 scrna@meta.data %>% head()
 IMMcells@meta.data %>% head() 
   
-levels(IMMcells@meta.data$SCT_snn_res.0.3)
+levels(IMMcells@meta.data$SCT_snn_res.0.1)
 IMMcells@meta.data <- IMMcells@meta.data %>%   mutate(ImmuneIntegrateAnnot = 
-           case_when(SCT_snn_res.0.3 %in% c("0") ~ "T", # T cells
-                     SCT_snn_res.0.3 %in% c("1") ~ "RecMAC", # Recruited MAC
-                     SCT_snn_res.0.3 %in% c("2") ~ "M1-M2", # M1/M2 Macrophage
-                     SCT_snn_res.0.3 %in% c("3") ~ "ResIMM", # Resident immune
-                     SCT_snn_res.0.3 %in% c("4") ~ "NK", # NK cell
-                     SCT_snn_res.0.3 %in% c("5") ~ "B", # B 
-                     SCT_snn_res.0.3 %in% c("6") ~ "NEU", # Neutrophil
+           case_when(SCT_snn_res.0.1 %in% c("0") ~ "MonMAC", # Monocyte ma crophage
+                     SCT_snn_res.0.1 %in% c("1") ~ "T", # Recruited MAC
+                     SCT_snn_res.0.1 %in% c("2") ~ "InfPT", # M1/M2 Macrophage
+                     SCT_snn_res.0.1 %in% c("3") ~ "NK", # Resident immune
+                     SCT_snn_res.0.1 %in% c("4") ~ "B", # NK cell
+                     SCT_snn_res.0.1 %in% c("5") ~ "NEU", # B 
+                     SCT_snn_res.0.1 %in% c("6") ~ "B", # Neutrophil
+                    # SCT_snn_res.0.2 %in% c("7") ~ "NEU", # Neutrophil
                  )) 
 
 IMMcells@meta.data %>% head()
@@ -339,8 +459,8 @@ Idents(IMMcells) <- IMMcells@meta.data$ImmuneIntegrateAnnot
 Idents(IMMcells)
 
 # Reorder the levels:
-Idents(IMMcells)<-ordered(factor(Idents(IMMcells)),levels=c("NK","B","T","NEU","RecMAC","M1-M2","ResIMM"))
-
+Idents(IMMcells)<-ordered(factor(Idents(IMMcells)),levels=c("NK","B","T","NEU","MonMAC","PL","InfPT"))
+Idents(IMMcells)
 FinalMarkersWithAnn <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1")
 
 MYEGenesDotPlotsWithAnn<- DotPlot(IMMcells, features =  FinalMarkersWithAnn, col.min = -1) +RotatedAxis()
@@ -383,11 +503,19 @@ row.names(scrna@meta.data) <- scrna@meta.data$CellID
 # add the frequency
 ```{r}
 table(IMMcells@meta.data$DataSet)/table(scrna@meta.data$DataSet)
+table(scrna@meta.data$DataSet)
+table(IMMcells@meta.data$DataSet) %>% as.data.frame()
+
+# calculate the overall ratio at different timepoints
+ImmuneCellNumber<-table(Idents(IMMcells),IMMcells@meta.data$DataSet)
+ImmuneCellNumber
+write.csv( file = "ImmuneCellNumber.csv",ImmuneCellNumber)
 
 IMMcellsPropotionWithinTime <- table(IMMcells@meta.data$DataSet,Idents(IMMcells)) %>% as.data.frame() %>%
   group_by(Var1) %>%
   mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
 ggsave("IMMcellsPropotionWithinTime.pdf", plot = IMMcellsPropotionWithinTime, width = 4, height = 3)
+
 
 ```
 
@@ -518,6 +646,51 @@ CandidateMarkersDotPlot<-  DotPlot(IMMcells, features =  CandidateMarkers, col.m
 CandidateMarkersDotPlot
 ggsave("IMM_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
 ```
+
+
+# we sepecific concentrate on the macrophage and neutrophil
+
+```{r}
+
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/MACNEUMON_Subclusters/")
+# we only select the Macrophage and neutrophil
+IMMcells@meta.data %>% head()
+Idents(IMMcells)
+
+
+# get a high resolution fo Immune cells
+
+IMMcells<- FindClusters(IMMcells,  verbose = TRUE, resolution = 1.2)
+
+DimPlot(IMMcells, split.by = "DataSet")
+
+MACNEUCells <- 
+subset(IMMcells, subset =  ImmuneIntegrateAnnot == "MonMAC")
+
+Idents(MACNEUCells)
+# then recluster them
+DimPlot(MACNEUCells)
+
+# we reclustered them
+
+#for high resolution
+MACNEUCells <- SCTransform(MACNEUCells, verbose = TRUE)
+MACNEUCells <- RunPCA(MACNEUCells,npcs = 8, verbose = TRUE)
+
+# Run harmony for the Immune cells
+MACNEUCells <- RunHarmony(MACNEUCells, 
+				group.by.vars = c("DataSet"), 
+				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+MACNEUCells <- RunUMAP(MACNEUCells, dims = 1:8, verbose = TRUE, reduction = "harmony")
+MACNEUCells <- FindNeighbors(MACNEUCells, dims = 1:8,  verbose = TRUE, reduction = "harmony")
+
+MACNEUCells<- FindClusters(MACNEUCells,  verbose = TRUE, resolution = 0.2)
+
+DimPlot(MACNEUCells)
+
+```
+
+
 
 # #############################################
 ## generate the Trajectories of Macrophage cells
