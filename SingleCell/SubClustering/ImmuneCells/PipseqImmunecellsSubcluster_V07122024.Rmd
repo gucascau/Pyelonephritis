@@ -165,7 +165,7 @@ IMMcells <- RunHarmony(IMMcells,
 IMMcells <- RunUMAP(IMMcells, dims = 1:20, verbose = TRUE, reduction = "harmony")
 IMMcells <- FindNeighbors(IMMcells, dims = 1:20,  verbose = TRUE, reduction = "harmony")
 
-IMMcells<- FindClusters(IMMcells,  verbose = TRUE, resolution = 0.1)
+IMMcells<- FindClusters(IMMcells,  verbose = TRUE, resolution = 0.8)
 
 IMMcellsDim<- DimPlot(IMMcells,label = T)
 IMMcellsDim
@@ -205,13 +205,126 @@ FeaturePlot(IMMcells, features = "Nkg7")
 # T
 FeaturePlot(IMMcells, features = "Cd3e")
 
-FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Cd68","Adgre1","Clec4e","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1","Ly6c2","Ireb2","Alas2","C78334")
+FinalMarkers <- c("Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Cd3g", "Cxcr6","Cd247","Cd3e","Il1b","S100a8","S100a9", "C1qa","C1qb","Cd68","Adgre1","Clec4e","Itgam","Ctsh","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Arg1","Mrc1","Il13","Lrp2","Umod","Aqp2","Igfbp7","Havcr1","Lcn2","Ly6c1","Ly6c2","Ireb2","Alas2","Lef1","Tnfrsf4","Irf8","Cd74","Ifitm1")
 
 MYEGenesDotPlots<- DotPlot(IMMcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
 MYEGenesDotPlots
 # FeaturePlot(IMMcells, features = "Lyve1")
 # FeaturePlot(IMMcells, features = "Chil3")
 ```
+
+# set up the names of the different cell types
+```{r}
+
+# set up the name of the Immune cells
+DimPlot(IMMcells, label = T)
+levels(IMMcells@meta.data$SCT_snn_res.0.8)
+IMMcells@meta.data <- IMMcells@meta.data %>%   mutate(ImmuneIntegrateAnnot = 
+           case_when(SCT_snn_res.0.8 %in% c("0") ~ "T", # Inflammated PT
+                     SCT_snn_res.0.8 %in% c("1") ~ "T", # Inflammated PT
+                     SCT_snn_res.0.8 %in% c("2") ~ "MONb", # Monocyte B
+                     SCT_snn_res.0.8 %in% c("3") ~ "MACa", # Macrophage a
+                     SCT_snn_res.0.8 %in% c("4") ~ "InfPT", # Inflammated PT
+                     SCT_snn_res.0.8 %in% c("5") ~ "InfPT", # Inflammated PT
+                     SCT_snn_res.0.8 %in% c("6") ~ "ResMac", # Resident Macrophage
+                     SCT_snn_res.0.8 %in% c("7") ~ "NK", # NK cells
+                     SCT_snn_res.0.8 %in% c("8") ~ "MONa", # Monocyte ma crophage
+                     SCT_snn_res.0.8 %in% c("9") ~ "MACb", # Recruited MAC
+                     SCT_snn_res.0.8 %in% c("10") ~ "T", # T cells
+                     SCT_snn_res.0.8 %in% c("11") ~ "B", # Resident immune
+                     SCT_snn_res.0.8 %in% c("12") ~ "NEU", # NK cell
+                     SCT_snn_res.0.8 %in% c("13") ~ "B", # B 
+                     SCT_snn_res.0.8 %in% c("14") ~ "InfPT", # Neutrophil
+                 )) 
+
+IMMcells@meta.data %>% head()
+
+# then annotate the Immune cells
+Idents(IMMcells) <- "ImmuneIntegrateAnnot"
+
+levels(Idents(IMMcells))
+DimPlot(IMMcells,label = T)
+#IMMcells<- FindClusters(IMMcells,  verbose = TRUE, resolution = 1.2)
+Idents(IMMcells)<-ordered(factor(Idents(IMMcells)),levels=c("ResMac","MONa","MONb","MACa","MACb","NEU","T","NK","B","InfPT"))
+
+
+# save the Immune object
+saveRDS(IMMcells, file = "IMMcell_obj_v0729.rds")
+IMMcells <- readRDS("IMMcell_obj_v0729.rds")
+# 
+# generate the Dotplot for the IMmune cells
+FinalMarkers <- c("Cd68","Ly6c2","Ccr2","Itgam","Csf1r","Adgre1","C1qa","S100a8","S100a9","Ly6g","Cd3g", "Cxcr6","Cd247","Cd3e","Ccl5","Nkg7","Cd7","Cd79a","Cd79b","Ms4a1","Il1b", "Lrp2","Umod","Igfbp7","Tnfrsf4")
+
+MYEGenesDotPlots<- DotPlot(IMMcells, features =  FinalMarkers, col.min = -1) +RotatedAxis()
+MYEGenesDotPlots
+# save the figure for the Immune cells
+ggsave("IMMcell_obj_markers_v07292024.pdf", height = 4, width = 8)
+
+# save the dimplot
+IMMcellsAnnotate<-DimPlot(IMMcells, label = T)
+ggsave("IMMcellsAnnotate_v07292024.pdf", plot =IMMcellsAnnotate,  height = 5, width = 5)
+
+IMMcellsAnnotateSplit<-DimPlot(IMMcells, label = F, split.by = "DataSet")
+ ggsave("IMMcellsAnnotateSplit_v07292024.pdf", plot =IMMcellsAnnotateSplit,  height = 5, width = 12)
+```
+
+# add the Immune cells types into the orginal datasets after the Urothelium, Fibroblast, ICPC and PT annotation
+```{r}
+# Please pay attention, we obtained the Object with the 
+scrna<- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/URO_Subclusters/PIPSeq_PTICPCENDFIBURO_Annotated_v061924.rds")
+DimPlot(scrna,label = T)
+
+IMMcells@meta.data %>% head()
+scrna@meta.data%>% head()
+ImmuneSubAnnotation <- IMMcells@meta.data %>% dplyr::select(ImmuneIntegrateAnnot)
+ImmuneSubAnnotation %>% head()
+nrow(ImmuneSubAnnotation)
+## add this annotation into the meta dataset
+scrna@meta.data<- scrna@meta.data %>% rownames_to_column('CellID') %>% 
+  left_join( ImmuneSubAnnotation %>% rownames_to_column('CellID')) %>% 
+# then add a new column that change the NA into Raw_cell_type
+  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
+  mutate(ImmuneSub = ifelse(is.na(ImmuneIntegrateAnnot), PTICPCENDFIBUROFinalAnn,ImmuneIntegrateAnnot))
+### join the meta data to meta annoation
+
+Idents(scrna) <- scrna@meta.data$ImmuneSub
+
+scrna@meta.data %>% head()
+
+row.names(scrna@meta.data) <- scrna@meta.data$CellID
+
+Idents(scrna) <- scrna@meta.data$ImmuneSub
+ DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
+
+ saveRDS(scrna, file = paste0(Outdir,"OutputRDS/","PIPSeq_PTICPCENDFIBUROIMMFinalAnn_Annotated_v07292024.rds"))
+
+ levels(Idents(scrna))
+ 
+```
+
+
+
+
+# add the frequency
+```{r}
+table(IMMcells@meta.data$DataSet)/table(scrna@meta.data$DataSet)
+table(scrna@meta.data$DataSet)
+table(IMMcells@meta.data$DataSet) %>% as.data.frame()
+
+# calculate the overall ratio at different timepoints
+ImmuneCellNumber<-table(Idents(IMMcells),IMMcells@meta.data$DataSet)
+ImmuneCellNumber
+write.csv( file = "ImmuneCellNumber.csv",ImmuneCellNumber)
+
+IMMcellsPropotionWithinTime <- table(IMMcells@meta.data$DataSet,Idents(IMMcells)) %>% as.data.frame() %>%
+  group_by(Var1) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
+ggsave("IMMcellsPropotionWithinTime.pdf", plot = IMMcellsPropotionWithinTime, width = 4, height = 3)
+IMMcellsPropotionWithinTime
+
+```
+
+
 
 
 
@@ -470,52 +583,6 @@ ggsave(filename = "MYEGenesDotPlots_WithAnn.pdf", plot = MYEGenesDotPlotsWithAnn
 IMMcellsDimWithAnno<- DimPlot(IMMcells,label = T)
 IMMcellsDimWithAnno
 ggsave(filename = "IMMcellsDimWithAnno.pdf", plot = IMMcellsDimWithAnno, width = 6, height =4)
-
-```
-
-# add the Immune cells types into the orginal datasets
-```{r}
-IMMcells@meta.data %>% head()
-
-ImmuneSubAnnotation <- IMMcells@meta.data %>% dplyr::select(ImmuneIntegrateAnnot)
-ImmuneSubAnnotation %>% head()
-## add this annotation into the meta dataset
-scrna@meta.data<- scrna@meta.data %>% rownames_to_column('CellID') %>% 
-  left_join( ImmuneSubAnnotation %>% rownames_to_column('CellID')) %>% 
-# then add a new column that change the NA into Raw_cell_type
-  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
-  mutate(ImmuneSub = ifelse(is.na(ImmuneIntegrateAnnot), A_new,ImmuneIntegrateAnnot))
-### join the meta data to meta annoation
-
-Idents(scrna) <- scrna@meta.data$ImmuneSub
-
-scrna@meta.data %>% head()
-
-row.names(scrna@meta.data) <- scrna@meta.data$CellID
- DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
-
- saveRDS(scrna, file = paste0(Outdir,"OutputRDS/","PIPSeq_ImmuneSub_Annotated_v0823.RDS"))
-
- levels(Idents(scrna))
- 
-```
-
-# add the frequency
-```{r}
-table(IMMcells@meta.data$DataSet)/table(scrna@meta.data$DataSet)
-table(scrna@meta.data$DataSet)
-table(IMMcells@meta.data$DataSet) %>% as.data.frame()
-
-# calculate the overall ratio at different timepoints
-ImmuneCellNumber<-table(Idents(IMMcells),IMMcells@meta.data$DataSet)
-ImmuneCellNumber
-write.csv( file = "ImmuneCellNumber.csv",ImmuneCellNumber)
-
-IMMcellsPropotionWithinTime <- table(IMMcells@meta.data$DataSet,Idents(IMMcells)) %>% as.data.frame() %>%
-  group_by(Var1) %>%
-  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
-ggsave("IMMcellsPropotionWithinTime.pdf", plot = IMMcellsPropotionWithinTime, width = 4, height = 3)
-
 
 ```
 

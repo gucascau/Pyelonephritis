@@ -125,6 +125,8 @@ PTcells @meta.data %>% head()
 # set up the PT cells as the number of cluster
 Idents(PTcells) <- PTcells @meta.data$SCT_snn_res.0.3
 Idents(PTcells)
+
+DimPlot(PTcells, split.by = "DataSet")
 ```
 
 # Biomarker detection from these cluster of PT
