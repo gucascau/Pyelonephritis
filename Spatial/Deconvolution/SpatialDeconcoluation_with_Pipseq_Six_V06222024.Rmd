@@ -209,6 +209,23 @@ allen_reference@meta.data <-
       )
   )
 
+Idents(allen_reference) <- "FinalAnnotation"
+length(levels(Idents(allen_reference)))
+# set up the order 
+CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
+
+Idents(allen_reference)<- ordered(factor(Idents(allen_reference)),levels=CelltypeOrder)
+
+# DefaultAssay(allen_reference) <-"RNA"
+# 
+# DotPlot(allen_reference, features = c("C3","Ccl3","Ccl4","Ccl5"))+ guides(color = guide_colorbar(title = 'AverExp'),
+#          size = guide_legend(title = "PercExp")) + RotatedAxis() 
+# save the single cell object as the final one
+# /Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803
+# setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024")
+# saveRDS(allen_reference, file = "PIPSeq_Final_Annotated_v08012024.rds")
+
+
 levels(Idents(allen_reference))
 # set up the identity with the new name:
 Idents(allen_reference)<-allen_reference@meta.data$FinalAnnotation
