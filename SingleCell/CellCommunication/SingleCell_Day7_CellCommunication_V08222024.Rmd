@@ -1,29 +1,27 @@
 ---
-title: "Spatial_AllRegions_Deconcoluation_with_Pipseq_Six_V1012"
+title: "Single Cell cell-cell communication at day7"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
 Copyright (c) 2024 Kidney and Urology Tract Center
 Nationwide Children's Hospital
-date: "2024-08-21"
+date: "2024-08-23"
 Description: 
-#   This script is to profile the all the regions at Day 7
+#   This script is to profile the cell-cell communications in the single cell resolution.
 
 #     Note:
-#    #     We have already got the deconvolution of the spatial transcriptomics
-#    #     We will concentrate on the Abscess neighbourhood
+#    #     We will try to concentrate on the immune cells, especially the chemikine and cytokine, and 
+#.   #     We will identify the other epithelial cells that result in this interactions.
+#    #     We will trace the interaction within the different timepoints
 
 #     Function:
-#           1). Generate overall features of these abscess regions 
+#           1). Generate the ligand and receptor interaction in the 
 #           2).  Generate the deconvoluted cell types of these abscess regions 
-#           3). Generate the biomarkers and DEGs of these abscess regions
-#           4). Generate the GO enrichments of these abscess regions
-#           5). Generate the Signaling of these abscess regions
-#           6). Generate the transcript factor of these abacess regions
-#           7). Generate the niche-niche communication
+#   
 #           8). 
-
-#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
+#     Method:  
+#         Using the cellchat
+#     Reference: https://github.com/jinworks/CellChat
 ---
 
 # load the library packages
@@ -76,6 +74,10 @@ library(progeny)
 library(pheatmap)
 library(clusterProfiler)
 library(decoupleR)
+library(CellChat)
+library(patchwork)
+options(stringsAsFactors = FALSE)
+options(future.globals.maxSize = 891289600000) 
 
 ```
 
@@ -87,67 +89,20 @@ library(decoupleR)
 set.seed(200000)
 
 # single cell directory:
-#Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
+Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024/"
 
 # spatial transcript directory that contain the deconvoluted file 
-Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
+# Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
 
-# Output directory :
-Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/"
-
-# Cell types deconvolution:
-
-CDecodir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/Deconvolution/"
-
-# BasicSpatialDim
-
-CAbdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/BasicSpatialDim/"
-
-# Biomarkers
-CBiomadir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/CellTypesBiomarkers/"
-
-
-CDEGdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/DEGs/"
-
-# GOEnrichment
-
-CGOEndir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/GOenrich/"
-
-# Progeny
-CProgenydir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/Progeny/"
-
-# Transcript factor
-CTFdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/TranscriptFactors/"
-
-# Niche niche Communication
-
-CNichComdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/NicheCommunicate/"
-
-# Concentrate on the infection area abscess from CorMed
-
-InfCorMeddir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/"
-
-# nichenet path
+# The cell-cell communication output directory for day 7:
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Cell_CellCommunication/OverallDay7/"
 
 data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
 
 
-dir.create(CDecodir, showWarnings = F)
-dir.create(CAbdir, showWarnings = F)
-dir.create(CBiomadir, showWarnings = F)
-dir.create(CGOEndir, showWarnings = F)
-dir.create(CProgenydir, showWarnings = F)
-dir.create(CTFdir, showWarnings = F)
-dir.create(CNichComdir, showWarnings = F)
-#dir.create(Day7dir, showWarnings = F)
-dir.create(InfCorMeddir, showWarnings = F)
-#dir.create(InfCorMeddir, showWarnings = F)
-dir.create(CDEGdir, showWarnings = F)
-
 
 getwd()
-setwd(InfCorMeddir)
-InfCorMeddir
+setwd(Outdir)
 ```
 
 <!-- # Read the RDS objects from the spatial and single cells, briefly check the objects -->
@@ -172,93 +127,161 @@ InfCorMeddir
 <!-- DimPlot(Pyelonephritis_Infection) -->
 <!-- ``` -->
 
-# read the deconvoluted object into Pyelonephritis_Infection_Deconvoluted.RDS
+# read the final single cell object with detailed annotation
 ```{r}
 #saveRDS(file = "Pyelonephritis_Infection_Deconvoluted.RDS", object = Pyelonephritis_Infection)
-
-Pyelonephritis_Infection <- readRDS(file = paste0(Spindir,"Pyelonephritis_Infection_Deconvoluted_v07292024.RDS"))
-Allimagmes= names(Pyelonephritis_Infection @images)
-
-# Briefly went through all the details
-# 
-Pyelonephritis_Infection
-
-SpatialDimPlot(Pyelonephritis_Infection, pt.size.factor = 1500)
-# We have four assays: Spatial,integrated, prediction, and SCT
-Pyelonephritis_Infection[["Spatial"]]
-
-Pyelonephritis_Infection[["SCT"]]@data
-Pyelonephritis_Infection[["predictions"]]
-rownames(Pyelonephritis_Infection[["Spatial"]])
-colnames(Pyelonephritis_Infection[["Spatial"]])
-selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
-Idents(Pyelonephritis_Infection)
-
-DimPlot(Pyelonephritis_Infection)
+# read the single cell
+SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_Final_Annotated_v08012024.rds"))
+SingleCellObj@meta.data %>% head()
+# check the dimplot
+DimPlot(SingleCellObj, split.by = "DataSet")
 
 ```
 # ############################## 
-# only concentrate on day 7
-# Overall Regions
+# We only concentrate on day 7
 # ############################## 
 ```{r}
-setwd(CAbdir)
-CAbdir
-DefaultAssay(Pyelonephritis_Infection) <-"Spatial"
-# we only select the Day 1
-Pyelonephritis_Infection$orig.ident
+
+# we only select the Day 7
+SingleCellObj$DataSet
 Pyelonephritis_InfectionSubslidesD7 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-#names(Pyelonephritis_InfectionSubslidesD7@images)
-  # there seems to be an error in the susetting, so we removed other igmages
-  #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)
-SelectedImageName
-OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
-OtherImages
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
-# for a specific regions and specific clusters
-# get the coordate of these cluster
-coords <- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
-coords %>% head()
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
-summary(coords)
-Pyelonephritis_InfectionSubslidesD7@images$slice8
+    subset (SingleCellObj, subset= (DataSet == "7DPI"))
 
-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,pt.size.factor = 1500)
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <-"Spatial"
+nrow(Pyelonephritis_InfectionSubslidesD07@meta.data)
+SingleCellObj
+### create a cellchat object
 
-# we define the overall regions
+cellChat <- createCellChat(object = Pyelonephritis_InfectionSubslidesD7, group.by = "DataSet", assay = "RNA")
 
-# we then select the regions for the cluster : , invert = TRUE
-# Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7,slice8_imagerow > 270 | slice8_imagecol > 270, invert = TRUE)
-# SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7, pt.size.factor = 1500)
-# Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7, idents = c("N13","N14","N15","N16","N17"))
-InfectedCorMedRegionD7Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,label = TRUE, pt.size.factor =1600)
- ?SpatialDimPlot
-InfectedCorMedRegionD7Spatial
-ggsave("Spatial_infectedPelivis_day7_SpatialDimplot.pdf",
-      plot = InfectedCorMedRegionD7Spatial,
-      height = 8,
-      width = 8 )
 
-# InfectedCorMedRegionD7SpatialDim<- DimPlot(Pyelonephritis_InfectionSubslidesD7,label = TRUE)
-# ggsave("Spatial_infectedPelivis_day7_Dimplot.pdf",
-#       plot = InfectedCorMedRegionD7SpatialDim,
-#       height = 3,
-#       width = 4 )
-# InfectedCorMedRegionD7SpatialDim
-# # define the cell type order
-# # set up the order 
-CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
+# set the database#
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+showDatabaseCategory(CellChatDB)
+
+# subset the expression data of signaling genes for saving computation cost
+cellchat@DB <- CellChatDB
+
+#Preprocessing the expression data for cell-cell communication analysis
+# subset the expression data of signaling genes for saving computation cost
+#cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+
+#future::plan("multisession", workers = 4) # do parallel
+
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+
+#execution.time = Sys.time() - ptm
+# print(as.numeric(execution.time, units = "secs"))
+
+#### Part II: Inference of cell-cell communication network
+ptm = Sys.time()
+cellchat <- computeCommunProb(cellchat, type = "triMean")
+
+# save the object of all the cells
+
+saveRDS(cellchat, file = "SingleCellDate7.rds")
+
+# read the object
+cellchat<- readRDS("SingleCellAlltime.rds")
+# then we fileterd the cellgroup for cell cell communintion is 10
+cellchat <- filterCommunication(cellchat, min.cells = 3)
+
+# Then extracte the infered celllular communciation network as a dataframe
+df.net <- subsetCommunication(cellchat)
+df.net <- subsetCommunication(cellchat, sources.use = c(1,2), targets.use = c(4,5))
+df.net <- subsetCommunication(cellchat, signaling = c("WNT", "TGFb"))
+df.net
+
+
+# Infer the cell-cell communication at a signaling pathway level
+# CellChat computes the communication probability on signaling pathway level by summarizing the communication probabilities of all ligands-receptors interactions associated with each signaling pathway.
+
+# NB: The inferred intercellular communication network of each ligand-receptor pair and each signaling pathway is stored in the slot ‘net’ and ‘netP’, respectively.
+cellchat <- computeCommunProbPathway(cellchat)
+
+# Calculate the aggregated cell-cell communication network
+cellchat <- aggregateNet(cellchat)
+ptm = Sys.time()
+groupSize <- as.numeric(table(cellchat@idents))
+pdf("SignalingSedingFromAllCellTypes_Date7.pdf", height = 6, width = 12)
+
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+dev.off()
+# Due to the complicated cell-cell communication network, we can examine the signaling sent from each cell group. Here we also control the parameter edge.weight.max so that we can compare edge weights between differet networks.
+mat <- cellchat@net$weight
+nrow(mat)
+pdf("SignalingSedingFromEachCelltype_Date7.pdf", height = 30, width = 30)
+par(mfrow = c(5,7), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+dev.off()
+
+# Part III: Visualization of cell-cell communication network
+cellchat@netP$pathways
+
 # 
-# 
-#  ordered((rownames(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)),levels =CelltypeOrder)
-#  
-# get the summary of the selected regions
- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
- summary(GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7))
+pathways.show <- c("CXCL","CCL","TNF") 
+# Hierarchy plot
+# Here we define `vertex.receive` so that the left portion of the hierarchy plot shows signaling to fibroblast and the right portion shows signaling to immune cells 
+vertex.receiver = seq(1,4) # a numeric vector. 
+
+#cellchat@net$LRs
+pdf("Pathwayshow_Date7.pdf", height = 6, width = 6)
+netVisual_aggregate(cellchat, signaling = pathways.show,  vertex.receiver = vertex.receiver)
+dev.off()
+# Circle plot
+pdf("Pathwayshow_Cxcl_CCL_Date7.pdf", height = 6, width = 6)
+par(mfrow=c(1,1))
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "circle")
+dev.off()
+# using the chord diagram
+pdf("Pathwayshow_Cxcl_CCL_Date7_Chord.pdf", height = 5, width = 5)
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "chord")
+dev.off()
+
+# Compute the contribution of each ligand-receptor pair to the overall signaling pathway and visualize cell-cell communication mediated by a single ligand-receptor pair
+# generate the ligand receptor pairs
+pdf("Pathwayshow_Cxcl_CCL_Date7_netAnalysis_contribution.pdf", height = 5, width = 5)
+netAnalysis_contribution(cellchat, signaling = pathways.show)
+dev.off()
+pairLR.CXCL <- extractEnrichedLR(cellchat, signaling = pathways.show, geneLR.return = FALSE)
+pairLR.CXCL$interaction_name
+
+# generate the potential interactions
+for (i in pairLR.CXCL$interaction_name){
+  pdf(paste0(i,"PairedPathwayshow_Chord_Date7.pdf"), height = 4, width = 4)
+  netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = i, layout = "chord")
+  dev.off()
+}
+
+LR.show <- i # show one ligand-receptor pair
+LR.show
+# Hierarchy plot
+vertex.receiver = seq(1,4) # a numeric vector
+netVisual_individual(cellchat, signaling = pathways.show,  pairLR.use = LR.show, vertex.receiver = vertex.receiver)
+#> [[1]]
+# Circle plot
+
+# gernerate the interaction of two pairs
+#CXCL1_CXCR2
+
+netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = LR.show, layout = "circle")
+pdf("PairedPathwayshow_CXCL1_CXCR2_Chord.pdf", height = 5, width = 5)
+netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = LR.show, layout = "chord")
+dev.off()
+
+pdf("PairedPathwayshow_CCL_CXCL_DotPlots.pdf", height = 5, width = 10)
+netVisual_bubble(cellchat, signaling = c("CCL","CXCL"), remove.isolate = FALSE)
+dev.off()
+# visulaize cell-cell communication mediated by ligand and receptors
+
 ```
 # ############################## 
 # Generate the deconvoluted details

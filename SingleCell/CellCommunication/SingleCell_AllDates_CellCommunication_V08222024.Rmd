@@ -1,29 +1,27 @@
 ---
-title: "Spatial_AllRegions_Deconcoluation_with_Pipseq_Six_V1012"
+title: "Single Cell cell-cell communication at day7"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
 Copyright (c) 2024 Kidney and Urology Tract Center
 Nationwide Children's Hospital
-date: "2024-08-21"
+date: "2024-08-23"
 Description: 
-#   This script is to profile the all the regions at Day 7
+#   This script is to profile the cell-cell communications in the single cell resolution.
 
 #     Note:
-#    #     We have already got the deconvolution of the spatial transcriptomics
-#    #     We will concentrate on the Abscess neighbourhood
+#    #     We will try to concentrate on the immune cells, especially the chemikine and cytokine, and 
+#.   #     We will identify the other epithelial cells that result in this interactions.
+#    #     We will trace the interaction within the different timepoints
 
 #     Function:
-#           1). Generate overall features of these abscess regions 
+#           1). Generate the ligand and receptor interaction in the 
 #           2).  Generate the deconvoluted cell types of these abscess regions 
-#           3). Generate the biomarkers and DEGs of these abscess regions
-#           4). Generate the GO enrichments of these abscess regions
-#           5). Generate the Signaling of these abscess regions
-#           6). Generate the transcript factor of these abacess regions
-#           7). Generate the niche-niche communication
+#   
 #           8). 
-
-#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
+#     Method:  
+#         Using the cellchat
+#     Reference: https://github.com/jinworks/CellChat
 ---
 
 # load the library packages
@@ -76,6 +74,10 @@ library(progeny)
 library(pheatmap)
 library(clusterProfiler)
 library(decoupleR)
+library(CellChat)
+library(patchwork)
+options(stringsAsFactors = FALSE)
+options(future.globals.maxSize = 891289600000) 
 
 ```
 
@@ -87,67 +89,20 @@ library(decoupleR)
 set.seed(200000)
 
 # single cell directory:
-#Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
+Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024/"
 
 # spatial transcript directory that contain the deconvoluted file 
-Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
+# Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
 
-# Output directory :
-Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/"
-
-# Cell types deconvolution:
-
-CDecodir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/Deconvolution/"
-
-# BasicSpatialDim
-
-CAbdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/BasicSpatialDim/"
-
-# Biomarkers
-CBiomadir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/CellTypesBiomarkers/"
-
-
-CDEGdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/DEGs/"
-
-# GOEnrichment
-
-CGOEndir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/GOenrich/"
-
-# Progeny
-CProgenydir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/Progeny/"
-
-# Transcript factor
-CTFdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/TranscriptFactors/"
-
-# Niche niche Communication
-
-CNichComdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/NicheCommunicate/"
-
-# Concentrate on the infection area abscess from CorMed
-
-InfCorMeddir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V07292024/OverallDay7/"
-
-# nichenet path
+# The cell-cell communication output directory for day 7:
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Cell_CellCommunication/AllDates/"
 
 data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
 
 
-dir.create(CDecodir, showWarnings = F)
-dir.create(CAbdir, showWarnings = F)
-dir.create(CBiomadir, showWarnings = F)
-dir.create(CGOEndir, showWarnings = F)
-dir.create(CProgenydir, showWarnings = F)
-dir.create(CTFdir, showWarnings = F)
-dir.create(CNichComdir, showWarnings = F)
-#dir.create(Day7dir, showWarnings = F)
-dir.create(InfCorMeddir, showWarnings = F)
-#dir.create(InfCorMeddir, showWarnings = F)
-dir.create(CDEGdir, showWarnings = F)
-
 
 getwd()
-setwd(InfCorMeddir)
-InfCorMeddir
+setwd(Outdir)
 ```
 
 <!-- # Read the RDS objects from the spatial and single cells, briefly check the objects -->
@@ -172,102 +127,273 @@ InfCorMeddir
 <!-- DimPlot(Pyelonephritis_Infection) -->
 <!-- ``` -->
 
-# read the deconvoluted object into Pyelonephritis_Infection_Deconvoluted.RDS
+# read the final single cell object with detailed annotation
 ```{r}
 #saveRDS(file = "Pyelonephritis_Infection_Deconvoluted.RDS", object = Pyelonephritis_Infection)
-
-Pyelonephritis_Infection <- readRDS(file = paste0(Spindir,"Pyelonephritis_Infection_Deconvoluted_v07292024.RDS"))
-Allimagmes= names(Pyelonephritis_Infection @images)
-
-# Briefly went through all the details
-# 
-Pyelonephritis_Infection
-
-SpatialDimPlot(Pyelonephritis_Infection, pt.size.factor = 1500)
-# We have four assays: Spatial,integrated, prediction, and SCT
-Pyelonephritis_Infection[["Spatial"]]
-
-Pyelonephritis_Infection[["SCT"]]@data
-Pyelonephritis_Infection[["predictions"]]
-rownames(Pyelonephritis_Infection[["Spatial"]])
-colnames(Pyelonephritis_Infection[["Spatial"]])
-selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
-Idents(Pyelonephritis_Infection)
-
-DimPlot(Pyelonephritis_Infection)
+# read the single cell
+SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_Final_Annotated_v08012024.rds"))
+SingleCellObj@meta.data %>% head()
+# check the dimplot
+DimPlot(SingleCellObj, split.by = "DataSet")
 
 ```
 # ############################## 
-# only concentrate on day 7
-# Overall Regions
+# We concentrate on all dates
 # ############################## 
 ```{r}
-setwd(CAbdir)
-CAbdir
-DefaultAssay(Pyelonephritis_Infection) <-"Spatial"
-# we only select the Day 1
-Pyelonephritis_Infection$orig.ident
-Pyelonephritis_InfectionSubslidesD7 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-#names(Pyelonephritis_InfectionSubslidesD7@images)
-  # there seems to be an error in the susetting, so we removed other igmages
-  #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)
-SelectedImageName
-OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
-OtherImages
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
-# for a specific regions and specific clusters
-# get the coordate of these cluster
-coords <- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
-coords %>% head()
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
-summary(coords)
-Pyelonephritis_InfectionSubslidesD7@images$slice8
 
-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,pt.size.factor = 1500)
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <-"Spatial"
+# we  select the all dates
+SingleCellObj$DataSet
+Pyelonephritis_InfectionAllDates <- SingleCellObj
+   # subset (SingleCellObj, subset= (DataSet == "7DPI"))
 
-# we define the overall regions
+nrow(Pyelonephritis_InfectionAllDates@meta.data)
+SingleCellObj
+### create a cellchat object
 
-# we then select the regions for the cluster : , invert = TRUE
-# Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7,slice8_imagerow > 270 | slice8_imagecol > 270, invert = TRUE)
-# SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7, pt.size.factor = 1500)
-# Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7, idents = c("N13","N14","N15","N16","N17"))
-InfectedCorMedRegionD7Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,label = TRUE, pt.size.factor =1600)
- ?SpatialDimPlot
-InfectedCorMedRegionD7Spatial
-ggsave("Spatial_infectedPelivis_day7_SpatialDimplot.pdf",
-      plot = InfectedCorMedRegionD7Spatial,
-      height = 8,
-      width = 8 )
+cellChat <- createCellChat(object = Pyelonephritis_InfectionAllDates, group.by = "DataSet", assay = "RNA")
 
-# InfectedCorMedRegionD7SpatialDim<- DimPlot(Pyelonephritis_InfectionSubslidesD7,label = TRUE)
-# ggsave("Spatial_infectedPelivis_day7_Dimplot.pdf",
-#       plot = InfectedCorMedRegionD7SpatialDim,
-#       height = 3,
-#       width = 4 )
-# InfectedCorMedRegionD7SpatialDim
-# # define the cell type order
-# # set up the order 
-CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
+
+# set the database#
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+showDatabaseCategory(CellChatDB)
+
+# subset the expression data of signaling genes for saving computation cost
+cellchat@DB <- CellChatDB
+
+#Preprocessing the expression data for cell-cell communication analysis
+# subset the expression data of signaling genes for saving computation cost
+#cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+
+#future::plan("multisession", workers = 4) # do parallel
+
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+
+#execution.time = Sys.time() - ptm
+# print(as.numeric(execution.time, units = "secs"))
+
+#### Part II: Inference of cell-cell communication network
+ptm = Sys.time()
+cellchat <- computeCommunProb(cellchat, type = "triMean")
+
+# save the object of all the cells
+
+saveRDS(cellchat, file = "SingleCellAllDates.rds")
+
+# read the object
+#cellchat<- readRDS("SingleCellAllDates.rds")
+# then we fileterd the cellgroup for cell cell communintion is 10
+cellchat <- filterCommunication(cellchat, min.cells = 3)
+
+# Then extracte the infered celllular communciation network as a dataframe
+df.net <- subsetCommunication(cellchat)
+#df.net <- subsetCommunication(cellchat, sources.use = c(1,2), targets.use = c(4,5))
+#df.net <- subsetCommunication(cellchat, signaling = c("WNT", "TGFb"))
+df.net
+
+
+# Infer the cell-cell communication at a signaling pathway level
+# CellChat computes the communication probability on signaling pathway level by summarizing the communication probabilities of all ligands-receptors interactions associated with each signaling pathway.
+
+# NB: The inferred intercellular communication network of each ligand-receptor pair and each signaling pathway is stored in the slot ‘net’ and ‘netP’, respectively.
+cellchat <- computeCommunProbPathway(cellchat)
+
+# Calculate the aggregated cell-cell communication network
+cellchat <- aggregateNet(cellchat)
+ptm = Sys.time()
+groupSize <- as.numeric(table(cellchat@idents))
+pdf("SignalingSedingFromAllCellTypes_AllDates.pdf", height = 6, width = 12)
+
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+dev.off()
+# Due to the complicated cell-cell communication network, we can examine the signaling sent from each cell group. Here we also control the parameter edge.weight.max so that we can compare edge weights between differet networks.
+mat <- cellchat@net$weight
+nrow(mat)
+pdf("SignalingSedingFromEachCelltype_AllDates.pdf", height = 30, width = 30)
+par(mfrow = c(5,7), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+dev.off()
+
+# Part III: Visualization of cell-cell communication network
+cellchat@netP$pathways
+
 # 
-# 
-#  ordered((rownames(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)),levels =CelltypeOrder)
-#  
-# get the summary of the selected regions
- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
- summary(GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7))
+pathways.show <- c("CXCL","CCL","TNF") 
+# Hierarchy plot
+# Here we define `vertex.receive` so that the left portion of the hierarchy plot shows signaling to fibroblast and the right portion shows signaling to immune cells 
+vertex.receiver = seq(1,4) # a numeric vector. 
+
+#cellchat@net$LRs
+pdf("Pathwayshow_AllDates.pdf", height = 6, width = 6)
+netVisual_aggregate(cellchat, signaling = pathways.show,  vertex.receiver = vertex.receiver)
+dev.off()
+# Circle plot
+pdf("Pathwayshow_Cxcl_CCL_AllDates.pdf", height = 6, width = 6)
+par(mfrow=c(1,1))
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "circle")
+dev.off()
+# using the chord diagram
+pdf("Pathwayshow_Cxcl_CCL_AllDates_Chord.pdf", height = 5, width = 5)
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "chord")
+dev.off()
+
+
+# Compute the contribution of each ligand-receptor pair to the overall signaling pathway and visualize cell-cell communication mediated by a single ligand-receptor pair
+# generate the ligand receptor pairs
+pdf("Pathwayshow_Cxcl_CCL_AllDates_netAnalysis_contribution.pdf", height = 5, width = 5)
+netAnalysis_contribution(cellchat, signaling = pathways.show)
+dev.off()
+pairLR.CXCL <- extractEnrichedLR(cellchat, signaling = pathways.show, geneLR.return = FALSE)
+pairLR.CXCL$interaction_name
+
+# generate the potential interactions
+for (i in pairLR.CXCL$interaction_name){
+  pdf(paste0(i,"PairedPathwayshow_Chord_AllDates.pdf"), height = 4, width = 4)
+  netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = i, layout = "chord")
+  dev.off()
+}
+
+LR.show <- i # show one ligand-receptor pair
+LR.show
+# Hierarchy plot
+vertex.receiver = seq(1,4) # a numeric vector
+netVisual_individual(cellchat, signaling = pathways.show,  pairLR.use = LR.show, vertex.receiver = vertex.receiver)
+#> [[1]]
+# Circle plot
+
+# gernerate the interaction of two pairs
+#CXCL1_CXCR2
+
+netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = LR.show, layout = "circle")
+pdf("PairedPathwayshow_CXCL1_CXCR2_Chord_allDates.pdf", height = 5, width = 5)
+netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = LR.show, layout = "chord")
+dev.off()
+
+pdf("PairedPathwayshow_CCL_CXCL_DotPlots_allDates.pdf", height = 5, width = 10)
+netVisual_bubble(cellchat, signaling = c("CCL","CXCL"), remove.isolate = FALSE)
+dev.off()
+# visulaize cell-cell communication mediated by ligand and receptors
+
 ```
+
+
+
+# We generate the contribution of the ligand-receptor from CCL, CXCL and TNF, comparing the different dates
+
+```{r}
+# we need to perform the contribution of each L-R pair from day 0 and day 7
+rm(list=ls())
+# 
+InfectedDates <- levels(SingleCellObj@meta.data$DataSet)
+
+# we select each dates and perform the cellchat
+seurat.obj.day0 <- subset (SingleCellObj, subset= (DataSet == "0DPI"))
+
+cellChatDay0 <- createCellChat(object = seurat.obj.day0, group.by = "DataSet", assay = "RNA")
+
+
+# set the database#
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+showDatabaseCategory(CellChatDB)
+
+# subset the expression data of signaling genes for saving computation cost
+cellChatDay0@DB <- CellChatDB
+
+#Preprocessing the expression data for cell-cell communication analysis
+# subset the expression data of signaling genes for saving computation cost
+#cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
+cellChatDay0 <- subsetData(cellChatDay0) # This step is necessary even if using the whole database
+
+#future::plan("multisession", workers = 4) # do parallel
+
+cellChatDay0 <- identifyOverExpressedGenes(cellChatDay0)
+cellChatDay0 <- identifyOverExpressedInteractions(cellChatDay0)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+
+#execution.time = Sys.time() - ptm
+# print(as.numeric(execution.time, units = "secs"))
+
+#### Part II: Inference of cell-cell communication network
+ptm = Sys.time()
+cellChatDay0 <- computeCommunProb(cellChatDay0, type = "triMean")
+
+
+#### day 7
+# we select each dates and perform the cellchat
+seurat.obj.day7 <- subset (SingleCellObj, subset= (DataSet == "7DPI"))
+
+cellChatDay7 <- createCellChat(object = seurat.obj.day7, group.by = "DataSet", assay = "RNA")
+
+
+# set the database#
+CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
+showDatabaseCategory(CellChatDB)
+
+# subset the expression data of signaling genes for saving computation cost
+cellChatDay7@DB <- CellChatDB
+
+#Preprocessing the expression data for cell-cell communication analysis
+# subset the expression data of signaling genes for saving computation cost
+#cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
+cellChatDay7 <- subsetData(cellChatDay7) # This step is necessary even if using the whole database
+
+#future::plan("multisession", workers = 4) # do parallel
+
+cellChatDay7 <- identifyOverExpressedGenes(cellChatDay7)
+cellChatDay7 <- identifyOverExpressedInteractions(cellChatDay7)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+
+#execution.time = Sys.time() - ptm
+# print(as.numeric(execution.time, units = "secs"))
+
+#### Part II: Inference of cell-cell communication network
+ptm = Sys.time()
+cellChatDay7 <- computeCommunProb(cellChatDay7, type = "triMean")
+
+
+
+
+
+
+object.list <- list(NL = cellChatDay0, LS = cellChatDay7)
+cellchat <- mergeCellChat(object.list, add.names = names(object.list))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ############################## 
 # Generate the deconvoluted details
 # ############################## 
 ```{r}
 setwd(CDecodir)
 # the prediction of the object
-Pyelonephritis_InfectionSubslidesD7[["predictions"]]
-InfectedMat_CorMed<- t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)
+Pyelonephritis_InfectionAllDates[["predictions"]]
+InfectedMat_CorMed<- t(Pyelonephritis_InfectionAllDates[["predictions"]]@data)
 colnames(InfectedMat_CorMed) <- ordered (colnames(InfectedMat_CorMed), levels =CelltypeOrder)
 
 # change the order
@@ -329,7 +455,7 @@ ct
    "#9b59b6"#NK 
   )
 
-#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
+#DefaultAssay(Pyelonephritis_InfectionAllDates) <- "Spatial"
 
 # choose three color
 # pal<-colorRampPalette(c("LightBlue","white","FireBrick"))(length(ct))
@@ -342,13 +468,13 @@ pal <- colorRampPalette(paletteMartin)(length(ct))
 
 names(pal) <- ct
 #pal
-rownames(Pyelonephritis_InfectionSubslidesD7)
-colnames(Pyelonephritis_InfectionSubslidesD7)
-str(Pyelonephritis_InfectionSubslidesD7)
+rownames(Pyelonephritis_InfectionAllDates)
+colnames(Pyelonephritis_InfectionAllDates)
+str(Pyelonephritis_InfectionAllDates)
 #SPOTlight:::. extract_image(Pyelonephritis_Infection )
 #rownames(Pyelonephritis_Infection)
 SpatialScatterPieCorMed <-plotSpatialScatterpie(
-  x= Pyelonephritis_InfectionSubslidesD7,
+  x= Pyelonephritis_InfectionAllDates,
   y= InfectedMat_CorMedCellType,
   cell_types = colnames(InfectedMat_CorMedCellType),
     img = TRUE,
@@ -382,14 +508,14 @@ setwd(CNichComdir)
 
 # we only concentrate on the cell-cell communication for Day 28 pelvic
 
-Seurat::SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,pt.size.factor = 1500)
+Seurat::SpatialDimPlot(Pyelonephritis_InfectionAllDates,pt.size.factor = 1500)
 # Prepare input data for CelChat analysis
-data.input = Seurat::GetAssayData(Pyelonephritis_InfectionSubslidesD7, slot = "data", assay = "SCT") # normalized data matrix
+data.input = Seurat::GetAssayData(Pyelonephritis_InfectionAllDates, slot = "data", assay = "SCT") # normalized data matrix
 #> Warning: The `slot` argument of `GetAssayData()` is deprecated as of SeuratObject 5.0.0.
-Seurat::Idents(Pyelonephritis_InfectionSubslidesD7)
+Seurat::Idents(Pyelonephritis_InfectionAllDates)
 # Define the meta data: 
 # a column named `samples` should be provided for spatial transcriptomics analysis, which is useful for analyzing cell-cell communication by aggregating multiple samples/replicates. Of note, for comparison analysis across different conditions, users still need to create a CellChat object seperately for each condition.  
-meta = data.frame(labels = Seurat::Idents(Pyelonephritis_InfectionSubslidesD7), samples = "sample1", row.names = names(Seurat::Idents(Pyelonephritis_InfectionSubslidesD7))) # manually create a dataframe consisting of the cell labels
+meta = data.frame(labels = Seurat::Idents(Pyelonephritis_InfectionAllDates), samples = "sample1", row.names = names(Seurat::Idents(Pyelonephritis_InfectionAllDates))) # manually create a dataframe consisting of the cell labels
 meta
 
 meta$samples <- factor(meta$samples)
@@ -403,7 +529,7 @@ unique(meta$samples) # check the sample labels
 
 # load spatial transcriptomics information
 # Spatial locations of spots from full (NOT high/low) resolution images are required. For 10X Visium, this information is in `tissue_positions.csv`. 
-spatial.locs = Seurat::GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7, scale = NULL, cols = c("imagerow", "imagecol")) 
+spatial.locs = Seurat::GetTissueCoordinates(Pyelonephritis_InfectionAllDates, scale = NULL, cols = c("imagerow", "imagecol")) 
 
 # Spatial factors of spatial coordinates
 # For 10X Visium, the conversion factor of converting spatial coordinates from Pixels to Micrometers can be computed as the ratio of the theoretical spot size (i.e., 65um) over the number of pixels that span the diameter of a theoretical spot size in the full-resolution image (i.e., 'spot_diameter_fullres' in pixels in the 'scalefactors_json.json' file). 
@@ -521,7 +647,7 @@ Test<-netAnalysis_contribution(cellchat, signaling = CandidatePathways, sources.
 dev.off()
 
 # generate the contribute of netanalyses for each cluster
-RequestedClusters<- levels(Idents(Pyelonephritis_InfectionSubslidesD7))
+RequestedClusters<- levels(Idents(Pyelonephritis_InfectionAllDates))
 RequestedClusters
 RequestLigendReceptors<-list()
 for (i in RequestedClusters){
@@ -650,7 +776,7 @@ for (j in pairLR.Interested$interaction_name){
 CBiomadir
 setwd(CBiomadir)
 # generate the Dotplot for the biomarkers
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <-"SCT"
+DefaultAssay(Pyelonephritis_InfectionAllDates) <-"SCT"
 Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
                       "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
 
@@ -677,7 +803,7 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
 
 
  for (i in Finalcelltypemarkers){
-   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = i, pt.size.factor = 6000, crop = TRUE)
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_InfectionAllDates, features = i, pt.size.factor = 6000, crop = TRUE)
    #& ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
   
   ggsave(filename = paste0(i,"_SpatialFeatureAllMarkersDotPlot_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
@@ -695,15 +821,15 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
 ```{r}
 setwd(CDEGdir)
 
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "SCT"
+DefaultAssay(Pyelonephritis_InfectionAllDates) <- "SCT"
 
 
 ? FindAllMarkers
-Pyelonephritis_InfectionSubslidesD7 <- ScaleData(object = Pyelonephritis_InfectionSubslidesD7, features = rownames(Pyelonephritis_InfectionSubslidesD7))
+Pyelonephritis_InfectionAllDates <- ScaleData(object = Pyelonephritis_InfectionAllDates, features = rownames(Pyelonephritis_InfectionAllDates))
 # MAST was used to calculate the cluster
 CorMed_nichesBiomarkers <-
   FindAllMarkers(
-    object = Pyelonephritis_InfectionSubslidesD7,
+    object = Pyelonephritis_InfectionAllDates,
     logfc.threshold = 0.25,
     test.use = "MAST",
     min.pct = 0.25
@@ -722,7 +848,7 @@ CorMed_nichesBiomarkersTop5 <-
 
 CorMed_nichesBiomarkersTop5 %>% unique()
 
-CorMed_nichesBiomarkersTop5Heatmap<- DoHeatmap(Pyelonephritis_InfectionSubslidesD7, features = CorMed_nichesBiomarkersTop5 , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
+CorMed_nichesBiomarkersTop5Heatmap<- DoHeatmap(Pyelonephritis_InfectionAllDates, features = CorMed_nichesBiomarkersTop5 , slot = "scale.data") + scale_fill_gradientn(colors = c("blue", "white", "red")) + theme(axis.text.y = element_text(size = 10))
 ggsave(
   "CorMed_nichesBiomarkersTop5_heatmap.pdf",
   plot = CorMed_nichesBiomarkersTop5Heatmap,
@@ -732,7 +858,7 @@ ggsave(
 
 
 CorMedCorMedPTSubBiomarkersTop5DotPlot <-
-  DotPlot(Pyelonephritis_InfectionSubslidesD7, features = CorMed_nichesBiomarkersTop5 %>% unique()) +
+  DotPlot(Pyelonephritis_InfectionAllDates, features = CorMed_nichesBiomarkersTop5 %>% unique()) +
   RotatedAxis()
 
 ggsave(
@@ -752,7 +878,7 @@ Top5PTMarker <-
 for (i in Top5PTMarker) {
   
   PTmarkerSpatialFeature <-
-    SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = i, slot = "scale.data",pt.size.factor = 4)
+    SpatialFeaturePlot(Pyelonephritis_InfectionAllDates, features = i, slot = "scale.data",pt.size.factor = 4)
   
   ggsave(
     paste0(i, "_PTSubBiomarkerFeatureSplit.pdf"),
@@ -786,8 +912,8 @@ ggsave(
 # Create a GO comparison for the figure
 CorMed_infectionSpecifcUpgene <- list()
 
-Idents(Pyelonephritis_InfectionSubslidesD7)
-for (n in Idents(Pyelonephritis_InfectionSubslidesD7)) {
+Idents(Pyelonephritis_InfectionAllDates)
+for (n in Idents(Pyelonephritis_InfectionAllDates)) {
   # put he DEG into the up-regulated gene for comparision
   CorMed_infectionSpecifcUpgene[[n]] <-
     CorMed_nichesBiomarkers %>% filter(cluster %in% n &
@@ -858,23 +984,23 @@ setwd(CProgenydir)
 options(future.globals.maxSize = 89128960000000) 
 ## We compute the Progeny activity scores and add them to our Seurat object
 ## as a new assay called Progeny. 
-Idents(Pyelonephritis_InfectionSubslidesD7)
+Idents(Pyelonephritis_InfectionAllDates)
 # create cluster data frame with the cells, Celltypes
-CorMedCluster<- data.frame(Cell = names(Idents(Pyelonephritis_InfectionSubslidesD7)),   
-                              CellType = as.character(Idents(Pyelonephritis_InfectionSubslidesD7)),
+CorMedCluster<- data.frame(Cell = names(Idents(Pyelonephritis_InfectionAllDates)),   
+                              CellType = as.character(Idents(Pyelonephritis_InfectionAllDates)),
                               stringsAsFactors = FALSE)
 
 ?progeny
-Pyelonephritis_InfectionSubslidesD7 <- progeny(Pyelonephritis_InfectionSubslidesD7, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE,assay_name = "SCT")
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates <- progeny(Pyelonephritis_InfectionAllDates, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE,assay_name = "SCT")
+Pyelonephritis_InfectionAllDates
 # setup the default assay as progeny
-DefaultAssay(object = Pyelonephritis_InfectionSubslidesD7) <- "progeny"
+DefaultAssay(object = Pyelonephritis_InfectionAllDates) <- "progeny"
 
-Pyelonephritis_InfectionSubslidesD7 <- Seurat::ScaleData(Pyelonephritis_InfectionSubslidesD7, assay = "progeny") 
+Pyelonephritis_InfectionAllDates <- Seurat::ScaleData(Pyelonephritis_InfectionAllDates, assay = "progeny") 
 ## We can now directly apply Seurat functions in our Progeny scores. 
 ## For instance, we scale the pathway activity scores. 
 progeny_scores_df <- 
-  as.data.frame(t(GetAssayData(Pyelonephritis_InfectionSubslidesD7, slot = "scale.data", 
+  as.data.frame(t(GetAssayData(Pyelonephritis_InfectionAllDates, slot = "scale.data", 
                                assay = "progeny"))) %>%
   rownames_to_column("Cell") %>%
   gather(Pathway, Activity, -Cell) 
@@ -921,19 +1047,19 @@ progeny_hmap = pheatmap(CorMedForHeatmap,fontsize=8,
 
 progeny_hmap
 dev.off()
-test<- FeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = "NFkB")
+test<- FeaturePlot(Pyelonephritis_InfectionAllDates, features = "NFkB")
 ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
 # generate the featureplot 
 ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
 ProgenyFeatures
 for (i in ProgenyFeatures ){
-  p2 <-(FeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = i) & 
+  p2 <-(FeaturePlot(Pyelonephritis_InfectionAllDates, features = i) & 
   scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
   ggtitle(paste0(i," activity"))
   
   ggsave(paste0(i, "_CorMedInfected_cluster_featurePlot.pdf"), plot = p2, width = 6, height = 6)
   
-  p3 <- (SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = i, pt.size.factor = 4) +ggtitle(paste0(i," activity")))
+  p3 <- (SpatialFeaturePlot(Pyelonephritis_InfectionAllDates, features = i, pt.size.factor = 4) +ggtitle(paste0(i," activity")))
   ggsave(paste0(i, "_CorMedInfected_cluster_SpatialfeaturePlot.pdf"), plot = p3, width = 6, height = 6)
   
 }
@@ -951,8 +1077,8 @@ for (i in ProgenyFeatures ){
 setwd(CTFdir)
 netTF <-  readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/get_collectri_human_mouse20230716/get_collectri_mouse_process_table.rds")
 
-Pyelonephritis_InfectionSubslidesD7@assays$SCT@data %>% head()
-mat <- as.matrix(Pyelonephritis_InfectionSubslidesD7@assays$SCT@data)
+Pyelonephritis_InfectionAllDates@assays$SCT@data %>% head()
+mat <- as.matrix(Pyelonephritis_InfectionAllDates@assays$SCT@data)
 # Run ulm
 acts <- run_ulm(mat=mat, net=netTF, .source='source', .target='target',
                 .mor='mor', minsize = 5)
@@ -964,27 +1090,27 @@ saveRDS(acts, file="CorMed_Transcriptfactor.RDS")
 #acts <- readRDS("PT_Transcriptfactor.RDS")
 # Activity inference with Univariate Linear Model (ULM)
 # Extract ulm and store it in tfsulm in pbmc
-Pyelonephritis_InfectionSubslidesD7[['tfsulm']] <- acts %>%
+Pyelonephritis_InfectionAllDates[['tfsulm']] <- acts %>%
   pivot_wider(id_cols = 'source', names_from = 'condition',
               values_from = 'score') %>%
   column_to_rownames('source') %>%
   Seurat::CreateAssayObject(.)
 
 # Change assay
-DefaultAssay(object = Pyelonephritis_InfectionSubslidesD7) <- "tfsulm"
+DefaultAssay(object = Pyelonephritis_InfectionAllDates) <- "tfsulm"
 
 # Scale the data
-Pyelonephritis_InfectionSubslidesD7 <- ScaleData(Pyelonephritis_InfectionSubslidesD7)
-Pyelonephritis_InfectionSubslidesD7@assays$tfsulm@data <- Pyelonephritis_InfectionSubslidesD7@assays$tfsulm@scale.data
+Pyelonephritis_InfectionAllDates <- ScaleData(Pyelonephritis_InfectionAllDates)
+Pyelonephritis_InfectionAllDates@assays$tfsulm@data <- Pyelonephritis_InfectionAllDates@assays$tfsulm@scale.data
 
 # Explore the top 20 more varaible TFs
 n_tfs <- 20
 
-t(as.matrix(Pyelonephritis_InfectionSubslidesD7@assays$tfsulm@data))
+t(as.matrix(Pyelonephritis_InfectionAllDates@assays$tfsulm@data))
 # Extract activities from object as a long dataframe
-df <- t(as.matrix(Pyelonephritis_InfectionSubslidesD7@assays$tfsulm@data)) %>%
+df <- t(as.matrix(Pyelonephritis_InfectionAllDates@assays$tfsulm@data)) %>%
   as.data.frame() %>%
-  mutate(cluster = Idents(Pyelonephritis_InfectionSubslidesD7)) %>%
+  mutate(cluster = Idents(Pyelonephritis_InfectionAllDates)) %>%
   pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
   group_by(cluster, source) %>%
   summarise(mean = mean(score))
@@ -1032,39 +1158,39 @@ ggsave("CorMedInfectionHeatmap_Transcriptfactor_Progeny_Decouple.pdf", plot = PT
 # draw the transcriptor factor activity and their expression
 # generate the figure of transcript factor activity:
 for (m in tfs){
-  p2 <- (SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = m,pt.size.factor = 4) +
+  p2 <- (SpatialFeaturePlot(Pyelonephritis_InfectionAllDates, features = m,pt.size.factor = 4) +
   #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
   ggtitle(paste0(m, ' activity')))
   
   ggsave(paste0("TFActivity_",m,"_CorMedInfection_SpatialFeaturePlot.pdf"), plot = p2, width = 6, height = 6)
 }
 
-Pyelonephritis_InfectionSubslidesD7
-DefaultAssay(object = Pyelonephritis_InfectionSubslidesD7) <- "SCT"
+Pyelonephritis_InfectionAllDates
+DefaultAssay(object = Pyelonephritis_InfectionAllDates) <- "SCT"
 
 for (n in tfs){
-  p3 <- (FeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = n,slot= "scale.data") + 
+  p3 <- (FeaturePlot(Pyelonephritis_InfectionAllDates, features = n,slot= "scale.data") + 
   #scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
   ggtitle(paste0(n, ' expression')))
   
-  p4 <- (SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = n, pt.size.factor = 4, slot= "scale.data") +
+  p4 <- (SpatialFeaturePlot(Pyelonephritis_InfectionAllDates, features = n, pt.size.factor = 4, slot= "scale.data") +
  # scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red')) +
   ggtitle(paste0(n, ' expression (time)')))
  
-  ggsave(paste0("TFExpression_",n,"_Pyelonephritis_InfectionSubslidesD7_FeaturePlot.pdf"), plot = p3, width = 6, height = 6)
-  ggsave(paste0("TFExpression_",n,"_Pyelonephritis_InfectionSubslidesD7_SpatilFeaturePlot.pdf"), plot = p4, width = 6, height = 6)
+  ggsave(paste0("TFExpression_",n,"_Pyelonephritis_InfectionAllDates_FeaturePlot.pdf"), plot = p3, width = 6, height = 6)
+  ggsave(paste0("TFExpression_",n,"_Pyelonephritis_InfectionAllDates_SpatilFeaturePlot.pdf"), plot = p4, width = 6, height = 6)
 
 }
 
 
 # add their activity in Dotplot
-Idents(Pyelonephritis_InfectionSubslidesD7)
+Idents(Pyelonephritis_InfectionAllDates)
 # get the order of row name
 GeneOrderByPheatmap <- rownames(t(top_acts_mat))[PTTFheatmap$tree_row$order]
 #IMMTFheatmap$tree_row$order
 GeneOrderByPheatmap
 ?DotPlot
-TFDotPlot <- DotPlot(Pyelonephritis_InfectionSubslidesD7, features = rev(GeneOrderByPheatmap)) +
+TFDotPlot <- DotPlot(Pyelonephritis_InfectionAllDates, features = rev(GeneOrderByPheatmap)) +
   RotatedAxis() + coord_flip()+ 
   #ggtitle("Predicted TF expression")+
    theme(legend.position = "right")
@@ -1084,19 +1210,19 @@ ggsave("CorMed_TFDotPlot.pdf", plot = TFDotPlot, width = 5, height = 6)
 # refernece: https://github.com/saeyslab/nichenetr/blob/master/vignettes/differential_nichenet.md
 # Run the nichenet_seruratobj_aggregate for the different regions
 ```{r}
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "SCT"
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
-#Idents(Pyelonephritis_InfectionSubslidesD7) <- Pyelonephritis_InfectionSubslidesD7@meta.data$Sub2
+DefaultAssay(Pyelonephritis_InfectionAllDates) <- "SCT"
+Pyelonephritis_InfectionAllDates@meta.data %>% head()
+#Idents(Pyelonephritis_InfectionAllDates) <- Pyelonephritis_InfectionAllDates@meta.data$Sub2
 
 # reset the identity, Combine the PT cells
 
-Idents(Pyelonephritis_InfectionSubslidesD7)
-Pyelonephritis_InfectionSubslidesD7@meta.data
+Idents(Pyelonephritis_InfectionAllDates)
+Pyelonephritis_InfectionAllDates@meta.data
 # adjust the levels
-# Idents(Pyelonephritis_InfectionSubslidesD7) <-
-# ordered(factor(Idents(Pyelonephritis_InfectionSubslidesD7)), levels=c( "5_1","10_1","10_0","2_1","2_0","5_0","5_2","4","7","0","1","9","6","3","8"))
+# Idents(Pyelonephritis_InfectionAllDates) <-
+# ordered(factor(Idents(Pyelonephritis_InfectionAllDates)), levels=c( "5_1","10_1","10_0","2_1","2_0","5_0","5_2","4","7","0","1","9","6","3","8"))
 
-levels(Idents(Pyelonephritis_InfectionSubslidesD7))
+levels(Idents(Pyelonephritis_InfectionAllDates))
 ```
 
 # use the wrap 
@@ -1107,7 +1233,7 @@ sender_cluster <- c("N8","N10","N11","N12","N15")
 # define receive cluster
 
 receiver_cluster <- c("N15")
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
+Pyelonephritis_InfectionAllDates@meta.data %>% head()
 ```
 
 
@@ -1131,16 +1257,16 @@ weighted_networks_lr <-
                by = c("from", "to"))
 
 
-Pyelonephritis_InfectionSubslidesD7 = alias_to_symbol_seurat(Pyelonephritis_InfectionSubslidesD7, "mouse")
+Pyelonephritis_InfectionAllDates = alias_to_symbol_seurat(Pyelonephritis_InfectionAllDates, "mouse")
 
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
-Pyelonephritis_InfectionSubslidesD7@meta.data$IntegrateAnnot %>% table() 
+Pyelonephritis_InfectionAllDates@meta.data %>% head()
+Pyelonephritis_InfectionAllDates@meta.data$IntegrateAnnot %>% table() 
 
 head(weighted_networks$gr) 
-DimPlot(Pyelonephritis_InfectionSubslidesD7)
+DimPlot(Pyelonephritis_InfectionAllDates)
 
 # If you use convert_to_alias before here, this one won't work
-Pyelonephritis_InfectionSubslidesD7 = Seurat::PrepSCTFindMarkers(Pyelonephritis_InfectionSubslidesD7, assay = "SCT", verbose = FALSE)
+Pyelonephritis_InfectionAllDates = Seurat::PrepSCTFindMarkers(Pyelonephritis_InfectionAllDates, assay = "SCT", verbose = FALSE)
 lr_network = lr_network %>% dplyr::rename(ligand = from, receptor = to) %>% distinct(ligand, receptor)
 
 # define niches
@@ -1156,10 +1282,10 @@ niches = list(
 
 
 lr_network %>% head()
-Pyelonephritis_InfectionSubslidesD7 %>% subset(features = lr_network$ligand %>% intersect(rownames(Pyelonephritis_InfectionSubslidesD7)))
+Pyelonephritis_InfectionAllDates %>% subset(features = lr_network$ligand %>% intersect(rownames(Pyelonephritis_InfectionAllDates)))
 # calcualte the niches difference 
-DE_sender = nichenetr::calculate_niche_de(seurat_obj  = Pyelonephritis_InfectionSubslidesD7 %>% subset(features = lr_network$ligand %>% intersect(rownames(Pyelonephritis_InfectionSubslidesD7))), niches = niches, type = "sender", assay_oi = "SCT") # only ligands important for sender cell types
-DE_receiver = nichenetr::calculate_niche_de(seurat_obj  = Pyelonephritis_InfectionSubslidesD7 %>% subset(features = lr_network$receptor %>% unique()), niches = niches, type = "receiver", assay_oi = "SCT") # only receptors now, later on: DE analysis to find targets
+DE_sender = nichenetr::calculate_niche_de(seurat_obj  = Pyelonephritis_InfectionAllDates %>% subset(features = lr_network$ligand %>% intersect(rownames(Pyelonephritis_InfectionAllDates))), niches = niches, type = "sender", assay_oi = "SCT") # only ligands important for sender cell types
+DE_receiver = nichenetr::calculate_niche_de(seurat_obj  = Pyelonephritis_InfectionAllDates %>% subset(features = lr_network$receptor %>% unique()), niches = niches, type = "receiver", assay_oi = "SCT") # only receptors now, later on: DE analysis to find targets
 
 
 DE_sender = DE_sender %>% mutate(avg_log2FC = ifelse(avg_log2FC == Inf, max(avg_log2FC[is.finite(avg_log2FC)]), ifelse(avg_log2FC == -Inf, min(avg_log2FC[is.finite(avg_log2FC)]), avg_log2FC)))
@@ -1179,7 +1305,7 @@ DE_sender_receiver
 lfc_cutoff = 0.15 # recommended for 10x as min_lfc cutoff. 
 specificity_score_targets = "min_lfc"
 
-DE_receiver_targets = nichenetr::calculate_niche_de_targets(seurat_obj = Pyelonephritis_InfectionSubslidesD7, niches = niches, lfc_cutoff = lfc_cutoff, expression_pct = expression_pct, assay_oi = "SCT") 
+DE_receiver_targets = nichenetr::calculate_niche_de_targets(seurat_obj = Pyelonephritis_InfectionAllDates, niches = niches, lfc_cutoff = lfc_cutoff, expression_pct = expression_pct, assay_oi = "SCT") 
 
 DE_receiver_processed_targets = nichenetr::process_receiver_target_de(DE_receiver_targets = DE_receiver_targets, niches = niches, expression_pct = expression_pct, specificity_score = specificity_score_targets)
   
@@ -1202,7 +1328,7 @@ length(geneset_Margin)
 
 
 nichenet_output = nichenet_seuratobj_aggregate(
-  seurat_obj = Pyelonephritis_InfectionSubslidesD7, 
+  seurat_obj = Pyelonephritis_InfectionAllDates, 
   receiver = "PT", 
   condition_colname = "DataSet", condition_oi = "7DPI", condition_reference = "0DPI", 
   sender = c("FIB","M1M2","RecMAC","NEU","ResIMM","T"), 
@@ -1225,7 +1351,7 @@ ggsave(filename = "PIPseq_Cell_Cell_Communication_ligandreceptor_heatmapp_v1011.
 ```{r}
 # Calculate average ligand expression in sender cells
 # avg_expression_ligands = AverageExpression(seuratObj %>% subset(subset = aggregate == "LCMV"),features = nichenet_output$top_ligands) # if want to look specifically in LCMV-only cells
-avg_expression_ligands = AverageExpression(Pyelonephritis_InfectionSubslidesD7, features = nichenet_output$top_ligands)
+avg_expression_ligands = AverageExpression(Pyelonephritis_InfectionAllDates, features = nichenet_output$top_ligands)
 
 # Assign ligands to sender cells
 sender_ligand_assignment = avg_expression_ligands$RNA %>% apply(1, function(ligand_expression){
@@ -1423,7 +1549,7 @@ OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
 OtherImages
 Pyelonephritis_InfectionSubslidesD0@images[OtherImages] = NULL
 
-#nrow(Pyelonephritis_InfectionSubslidesD7@meta.data )
+#nrow(Pyelonephritis_InfectionAllDates@meta.data )
 SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0, crop = T)
 
 # the prediction of the object
@@ -1479,7 +1605,7 @@ paletteMartin <- c(
     "#E2D1F9", #B
     "#CC0033" #NK
   )
-#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
+#DefaultAssay(Pyelonephritis_InfectionAllDates) <- "Spatial"
 
 # choose three color
 # pal<-colorRampPalette(c("LightBlue","white","FireBrick"))(length(ct))
@@ -1566,25 +1692,25 @@ for (i in Finalcelltypemarkers){
 setwd(Day7dir)
 
 Pyelonephritis_Infection$orig.ident
-Pyelonephritis_InfectionSubslidesD7 <-
+Pyelonephritis_InfectionAllDates <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)[5]
+SelectedImageName <- names(Pyelonephritis_InfectionAllDates@images)[5]
 SelectedImageName
 OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
 OtherImages
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
+Pyelonephritis_InfectionAllDates@images[OtherImages] = NULL
 
-#nrow(Pyelonephritis_InfectionSubslidesD7@meta.data )
-Pyelonephritis_InfectionSubslidesD7Dimplot <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7, crop = T)
+#nrow(Pyelonephritis_InfectionAllDates@meta.data )
+Pyelonephritis_InfectionAllDatesDimplot <-SpatialDimPlot(Pyelonephritis_InfectionAllDates, crop = T)
 
-ggsave("Pyelonephritis_InfectionSubslidesD7Dimplot.pdf", plot =Pyelonephritis_InfectionSubslidesD7Dimplot, height = 6, width = 6 )
+ggsave("Pyelonephritis_InfectionAllDatesDimplot.pdf", plot =Pyelonephritis_InfectionAllDatesDimplot, height = 6, width = 6 )
 
 # the prediction of the object
-Pyelonephritis_InfectionSubslidesD7[["predictions"]]
-InfectedMat_D7<- t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)
+Pyelonephritis_InfectionAllDates[["predictions"]]
+InfectedMat_D7<- t(Pyelonephritis_InfectionAllDates[["predictions"]]@data)
 colnames(InfectedMat_D7) <- ordered (colnames(InfectedMat_D7), levels =CelltypeOrder)
 # change the order
 InfectedMat_D7<- InfectedMat_D7[ ,CelltypeOrder]
@@ -1636,7 +1762,7 @@ paletteMartin <- c(
     "#E2D1F9", #B
     "#CC0033" #NK
   )
-#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
+#DefaultAssay(Pyelonephritis_InfectionAllDates) <- "Spatial"
 
 # choose three color
 # pal<-colorRampPalette(c("LightBlue","white","FireBrick"))(length(ct))
@@ -1649,13 +1775,13 @@ pal <- colorRampPalette(paletteMartin)(length(ct))
 
 names(pal) <- ct
 #pal
-rownames(Pyelonephritis_InfectionSubslidesD7)
-colnames(Pyelonephritis_InfectionSubslidesD7)
-str(Pyelonephritis_InfectionSubslidesD7)
+rownames(Pyelonephritis_InfectionAllDates)
+colnames(Pyelonephritis_InfectionAllDates)
+str(Pyelonephritis_InfectionAllDates)
 #SPOTlight:::. extract_image(Pyelonephritis_Infection )
 #rownames(Pyelonephritis_Infection)
 SpatialScatterPieDay7 <-plotSpatialScatterpie(
-  x= Pyelonephritis_InfectionSubslidesD7,
+  x= Pyelonephritis_InfectionAllDates,
   y= InfectedMat_D7CellType,
   cell_types = colnames(InfectedMat_D7CellType),
     img = TRUE,
@@ -1674,10 +1800,10 @@ pdf(file = "SpatialScatterPieDay7_CellTypeNetwork.pdf", height = 8,width = 8)
 plotInteractions(InfectedMat_D7CellType, "network")
 dev.off()
 
-Idents(Pyelonephritis_InfectionSubslidesD7)
+Idents(Pyelonephritis_InfectionAllDates)
 
 # generate the Dotplot for the biomarkers
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <-"SCT"
+DefaultAssay(Pyelonephritis_InfectionAllDates) <-"SCT"
 Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
                       "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
 
@@ -1699,13 +1825,13 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
                     "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
 )
 
-SpatialD7MarkersDotPlot<- DotPlot(Pyelonephritis_InfectionSubslidesD7, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+SpatialD7MarkersDotPlot<- DotPlot(Pyelonephritis_InfectionAllDates, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
 
 ggsave("SpatialD7MarkersDotPlot.pdf", plot = SpatialD7MarkersDotPlot, height = 6, width = 14)
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates
 
 for (i in Finalcelltypemarkers){
-   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD7, features = i, pt.size.factor = 1.6, crop = TRUE) 
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_InfectionAllDates, features = i, pt.size.factor = 1.6, crop = TRUE) 
    #&
        #   ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
   
@@ -1732,37 +1858,37 @@ pdf(paste0(Pdate,"_MeanProp_tidyHeatmap.pdf"),height = 5, width = 6)
 # set up the day 7
 setwd(InfCPiedir)
 Pyelonephritis_Infection$orig.ident
-Pyelonephritis_InfectionSubslidesD7 <-
+Pyelonephritis_InfectionAllDates <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)[5]
+SelectedImageName <- names(Pyelonephritis_InfectionAllDates@images)[5]
 SelectedImageName
 OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
 OtherImages
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
+Pyelonephritis_InfectionAllDates@images[OtherImages] = NULL
 
 # we here only select the list at day 7 (slide 8)
 
-Pyelonephritis_InfectionSubslidesD7 <-
+Pyelonephritis_InfectionAllDates <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)[5]
+SelectedImageName <- names(Pyelonephritis_InfectionAllDates@images)[5]
  
   OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
   
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
+Pyelonephritis_InfectionAllDates@images[OtherImages] = NULL
 
-#nrow(Pyelonephritis_InfectionSubslidesD7@meta.data )
-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7)
+#nrow(Pyelonephritis_InfectionAllDates@meta.data )
+SpatialDimPlot(Pyelonephritis_InfectionAllDates)
 
 # the prediction of the object
 
-Pyelonephritis_InfectionSubslidesD7[["predictions"]]
-InfectedMat_D7<- t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)
+Pyelonephritis_InfectionAllDates[["predictions"]]
+InfectedMat_D7<- t(Pyelonephritis_InfectionAllDates[["predictions"]]@data)
 InfectedMat_D7
 # for final celltype matrix: 
 InfectedMat_D7CellType<- InfectedMat_D7[,!colnames(InfectedMat_D7) %in% c("max")]
@@ -1810,18 +1936,18 @@ paletteMartin <- c(
     "#E2D1F9", #B
     "#CC0033" #NK
   )
-#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
+#DefaultAssay(Pyelonephritis_InfectionAllDates) <- "Spatial"
 
 pal <- colorRampPalette(paletteMartin)(length(ct))
 names(pal) <- ct
 #pal
-rownames(Pyelonephritis_InfectionSubslidesD7)
-colnames(Pyelonephritis_InfectionSubslidesD7)
-str(Pyelonephritis_InfectionSubslidesD7)
+rownames(Pyelonephritis_InfectionAllDates)
+colnames(Pyelonephritis_InfectionAllDates)
+str(Pyelonephritis_InfectionAllDates)
 #SPOTlight:::. extract_image(Pyelonephritis_Infection )
 #rownames(Pyelonephritis_Infection)
 plotSpatialScatterpie(
-  x= Pyelonephritis_InfectionSubslidesD7,
+  x= Pyelonephritis_InfectionAllDates,
   y= InfectedMat_D7CellType,
   cell_types = colnames(InfectedMat_D7CellType),
     img = TRUE,
@@ -1837,7 +1963,7 @@ plotSpatialScatterpie(
 plotInteractions(InfectedMat_D7CellType, "network")
 
 # we only focused on the specific clusters
-Idents(Pyelonephritis_InfectionSubslidesD7)
+Idents(Pyelonephritis_InfectionAllDates)
 ```
 
 # ###################################
@@ -1850,38 +1976,38 @@ Idents(Pyelonephritis_InfectionSubslidesD7)
 ```{r}
 setwd(InfCorMeddir)
 Pyelonephritis_Infection$orig.ident
-Pyelonephritis_InfectionSubslidesD7 <-
+Pyelonephritis_InfectionAllDates <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)[5]
+SelectedImageName <- names(Pyelonephritis_InfectionAllDates@images)[5]
 SelectedImageName
 OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
 OtherImages
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
+Pyelonephritis_InfectionAllDates@images[OtherImages] = NULL
 
 # for a specific regions and specific clusters
 # get the coordate of these cluster
-coords <- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
+coords <- GetTissueCoordinates(Pyelonephritis_InfectionAllDates)
 coords
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
+Pyelonephritis_InfectionAllDates@meta.data %>% head()
 summary(coords)
-Pyelonephritis_InfectionSubslidesD7@images$slice8
+Pyelonephritis_InfectionAllDates@images$slice8
 
 # we select the regions for the cluster
-Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7, slice8_imagerow > 140 | slice8_imagecol > 200, invert = TRUE)
-Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7, idents = c("N13","N14","N15","N16","N17"))
-InfectedCorMedRegionD1Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,crop = TRUE, label = FALSE)
+Pyelonephritis_InfectionAllDates <- subset (Pyelonephritis_InfectionAllDates, slice8_imagerow > 140 | slice8_imagecol > 200, invert = TRUE)
+Pyelonephritis_InfectionAllDates <- subset (Pyelonephritis_InfectionAllDates, idents = c("N13","N14","N15","N16","N17"))
+InfectedCorMedRegionD1Spatial <-SpatialDimPlot(Pyelonephritis_InfectionAllDates,crop = TRUE, label = FALSE)
 InfectedCorMedRegionD1Spatial
 ggsave("Spatial_infected_day7_SpatialDimplot.pdf",
       plot = InfectedCorMedRegionD1Spatial,
       height = 3,
       width = 4.5 )
 
-Pyelonephritis_InfectionSubslidesD7@meta.data[,c("orig.ident","Annotation")]
+Pyelonephritis_InfectionAllDates@meta.data[,c("orig.ident","Annotation")]
 ## merge is way too troublesome, therefore
-FinalIntergratedTableAbcess<- merge(Pyelonephritis_InfectionSubslidesD7@meta.data[,c("orig.ident","Annotation")], t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data), all=TRUE, by="row.names") 
+FinalIntergratedTableAbcess<- merge(Pyelonephritis_InfectionAllDates@meta.data[,c("orig.ident","Annotation")], t(Pyelonephritis_InfectionAllDates[["predictions"]]@data), all=TRUE, by="row.names") 
 ?Heatmap
 col_fun <- circlize::colorRamp2(c(0, 0.01, 1), c("white", "blue", "red"))
 
@@ -1937,21 +2063,21 @@ paletteMartin <- c(
     "#E2D1F9", #B
     "#CC0033" #NK
   )
-#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
+#DefaultAssay(Pyelonephritis_InfectionAllDates) <- "Spatial"
 
 pal <- colorRampPalette(paletteMartin)(length(ct))
 names(pal) <- ct
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrix <-t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)
+Pyelonephritis_InfectionAllDatesCellTypeMatrix <-t(Pyelonephritis_InfectionAllDates[["predictions"]]@data)
 
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax <- Pyelonephritis_InfectionSubslidesD7CellTypeMatrix[,!colnames(Pyelonephritis_InfectionSubslidesD7CellTypeMatrix) %in% c("max")]
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax
+Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax <- Pyelonephritis_InfectionAllDatesCellTypeMatrix[,!colnames(Pyelonephritis_InfectionAllDatesCellTypeMatrix) %in% c("max")]
+Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax
 # generate the scatter pie plot
-colnames(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax)
+colnames(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax)
 #D0subclusterCellTypeMatrixNoMax[D0subclusterCellTypeMatrixNoMax < 0.1] <- 0
 InfectedCorMedRegionD1SpatialPie<- plotSpatialScatterpie(
-  x= Pyelonephritis_InfectionSubslidesD7,
-  y= Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax,
-  cell_types = colnames(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax),
+  x= Pyelonephritis_InfectionAllDates,
+  y= Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax,
+  cell_types = colnames(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax),
     img = TRUE,
     scatterpie_alpha = 1,
     pie_scale = 0.7,axis ="v") +
@@ -1966,14 +2092,14 @@ ggsave("Spatial_infected_day7_SpatialCellType_Scatterpie.pdf",
       width = 4.5 )
 
 # correlation
-InfectedCorMedRegionD1SpatialPieCorrelationMatrix <- plotCorrelationMatrix(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax)
+InfectedCorMedRegionD1SpatialPieCorrelationMatrix <- plotCorrelationMatrix(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax)
 ggsave("Spatial_infected_day7_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.pdf",
       plot = InfectedCorMedRegionD1SpatialPieCorrelationMatrix,
       height = 4.5,
       width = 4.5 )
 # we only select the matrix that rowsum >0
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMaxLarger<- Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax[,colSums(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax[])>0]
-InfectedPevRegionD1Interactions<- plotInteractions(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMaxLarger, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
+Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMaxLarger<- Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax[,colSums(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax[])>0]
+InfectedPevRegionD1Interactions<- plotInteractions(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMaxLarger, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 ?plotInteractions
 ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
       plot = InfectedPevRegionD1Interactions,
@@ -1995,29 +2121,29 @@ ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
 ```{r}
 setwd(InfCPiedir)
 Pyelonephritis_Infection$orig.ident
-Pyelonephritis_InfectionSubslidesD7 <-
+Pyelonephritis_InfectionAllDates <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
-Pyelonephritis_InfectionSubslidesD7
+Pyelonephritis_InfectionAllDates
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
-SelectedImageName <- names(Pyelonephritis_InfectionSubslidesD7@images)[5]
+SelectedImageName <- names(Pyelonephritis_InfectionAllDates@images)[5]
 SelectedImageName
 OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
 OtherImages
-Pyelonephritis_InfectionSubslidesD7@images[OtherImages] = NULL
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
+Pyelonephritis_InfectionAllDates@images[OtherImages] = NULL
+Pyelonephritis_InfectionAllDates@meta.data %>% head()
 # for a specific regions and specific clusters
 # get the coordate of these cluster
-coords <- GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD7)
+coords <- GetTissueCoordinates(Pyelonephritis_InfectionAllDates)
 coords %>% head()
-Pyelonephritis_InfectionSubslidesD7@meta.data %>% head()
+Pyelonephritis_InfectionAllDates@meta.data %>% head()
 summary(coords)
-Pyelonephritis_InfectionSubslidesD7@images$slice8
+Pyelonephritis_InfectionAllDates@images$slice8
 
 # we select the regions for the cluster : , invert = TRUE
-Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7, (slice8_imagerow >310 & slice8_imagerow <450 )  & (slice8_imagecol < 330 & slice8_imagecol> 220) )
-Pyelonephritis_InfectionSubslidesD7 <- subset (Pyelonephritis_InfectionSubslidesD7, idents = c("N8","N10","N11","N12","N15"))
-InfectedCorMedRegionD1Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,label = TRUE)
+Pyelonephritis_InfectionAllDates <- subset (Pyelonephritis_InfectionAllDates, (slice8_imagerow >310 & slice8_imagerow <450 )  & (slice8_imagecol < 330 & slice8_imagecol> 220) )
+Pyelonephritis_InfectionAllDates <- subset (Pyelonephritis_InfectionAllDates, idents = c("N8","N10","N11","N12","N15"))
+InfectedCorMedRegionD1Spatial <-SpatialDimPlot(Pyelonephritis_InfectionAllDates,label = TRUE)
 InfectedCorMedRegionD1Spatial
 ggsave("Spatial_infected_day7_SpatialDimplot.pdf",
       plot = InfectedCorMedRegionD1Spatial,
@@ -2035,25 +2161,25 @@ library(STutility)
 ?
 ?FindAllMarkers
 InfectedCorMedRegionD1Spatial
-Pyelonephritis_InfectionSubslidesD7
-DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "integrated"
-nbs_2.markers <- FindAllMarkers(Pyelonephritis_InfectionSubslidesD7,test.use ="MAST")
+Pyelonephritis_InfectionAllDates
+DefaultAssay(Pyelonephritis_InfectionAllDates) <- "integrated"
+nbs_2.markers <- FindAllMarkers(Pyelonephritis_InfectionAllDates,test.use ="MAST")
 nbs_2.markers
 ??SubsetSTData
 #nbs_2.markers$gene <- rownames(nbs_2.markers)
 
 nbs_2.markers
-#se.subset <- SubsetSTData(Pyelonephritis_InfectionSubslidesD7, expression = nbs_2 %in% c("N12", "N15"))
+#se.subset <- SubsetSTData(Pyelonephritis_InfectionAllDates, expression = nbs_2 %in% c("N12", "N15"))
 sorted.marks <- nbs_2.markers %>% group_by(cluster) %>% arrange(-avg_log2FC) %>% top_n(n = 10, wt = abs(avg_log2FC)) 
 sorted.marks
 
 # Here we only selected several marker genes: 
-DotPlot(Pyelonephritis_InfectionSubslidesD7, features = sorted.marks$gene %>% unique()) +RotatedAxis()
-#DoHeatmap(Pyelonephritis_InfectionSubslidesD7, features = sorted.marks$gene, group.colors = c("red", "lightgray"))
+DotPlot(Pyelonephritis_InfectionAllDates, features = sorted.marks$gene %>% unique()) +RotatedAxis()
+#DoHeatmap(Pyelonephritis_InfectionAllDates, features = sorted.marks$gene, group.colors = c("red", "lightgray"))
 
-Pyelonephritis_InfectionSubslidesD7@meta.data[,c("orig.ident","Annotation")]
+Pyelonephritis_InfectionAllDates@meta.data[,c("orig.ident","Annotation")]
 ## merge is way too troublesome, therefore
-FinalIntergratedTableAbcess<- merge(Pyelonephritis_InfectionSubslidesD7@meta.data[,c("orig.ident","Annotation")], t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data), all=TRUE, by="row.names") 
+FinalIntergratedTableAbcess<- merge(Pyelonephritis_InfectionAllDates@meta.data[,c("orig.ident","Annotation")], t(Pyelonephritis_InfectionAllDates[["predictions"]]@data), all=TRUE, by="row.names") 
 ?Heatmap
 col_fun <- circlize::colorRamp2(c(0, 0.01, 1), c("white", "blue", "red"))
 
@@ -2111,21 +2237,21 @@ paletteMartin <- c(
     "#E2D1F9", #B
     "#CC0033" #NK
   )
-#DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <- "Spatial"
+#DefaultAssay(Pyelonephritis_InfectionAllDates) <- "Spatial"
 
 pal <- colorRampPalette(paletteMartin)(length(ct))
 names(pal) <- ct
 #pal
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrix <-t(Pyelonephritis_InfectionSubslidesD7[["predictions"]]@data)
+Pyelonephritis_InfectionAllDatesCellTypeMatrix <-t(Pyelonephritis_InfectionAllDates[["predictions"]]@data)
 
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax <- Pyelonephritis_InfectionSubslidesD7CellTypeMatrix[,!colnames(Pyelonephritis_InfectionSubslidesD7CellTypeMatrix) %in% c("max")]
+Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax <- Pyelonephritis_InfectionAllDatesCellTypeMatrix[,!colnames(Pyelonephritis_InfectionAllDatesCellTypeMatrix) %in% c("max")]
 # generate the scatter pie plot
-colnames(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax)
+colnames(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax)
 #D0subclusterCellTypeMatrixNoMax[D0subclusterCellTypeMatrixNoMax < 0.1] <- 0
 InfectedCorMedRegionD1SpatialPie<- plotSpatialScatterpie(
-  x= Pyelonephritis_InfectionSubslidesD7,
-  y= Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax,
-  cell_types = colnames(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax),
+  x= Pyelonephritis_InfectionAllDates,
+  y= Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax,
+  cell_types = colnames(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax),
     img = TRUE,
     scatterpie_alpha = 1,
     pie_scale = 0.7,axis ="v") +
@@ -2140,14 +2266,14 @@ ggsave("Spatial_infected_day7_SpatialCellType_Scatterpie.pdf",
       width = 4.5 )
 
 # correlation
-InfectedCorMedRegionD1SpatialPieCorrelationMatrix <- plotCorrelationMatrix(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax)
+InfectedCorMedRegionD1SpatialPieCorrelationMatrix <- plotCorrelationMatrix(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax)
 ggsave("Spatial_infected_day7_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.pdf",
       plot = InfectedCorMedRegionD1SpatialPieCorrelationMatrix,
       height = 4.5,
       width = 4.5 )
 # we only select the matrix that rowsum >0
-Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMaxLarger<- Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax[,colSums(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMax[])>0]
-InfectedPevRegionD1Interactions<- plotInteractions(Pyelonephritis_InfectionSubslidesD7CellTypeMatrixNoMaxLarger, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
+Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMaxLarger<- Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax[,colSums(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMax[])>0]
+InfectedPevRegionD1Interactions<- plotInteractions(Pyelonephritis_InfectionAllDatesCellTypeMatrixNoMaxLarger, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 ?plotInteractions
 ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
       plot = InfectedPevRegionD1Interactions,
