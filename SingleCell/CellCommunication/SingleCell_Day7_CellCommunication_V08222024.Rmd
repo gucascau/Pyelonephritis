@@ -184,7 +184,7 @@ cellchat <- computeCommunProb(cellchat, type = "triMean")
 saveRDS(cellchat, file = "SingleCellDate7.rds")
 
 # read the object
-cellchat<- readRDS("SingleCellAlltime.rds")
+cellchat<- readRDS("SingleCellDate7.rds")
 # then we fileterd the cellgroup for cell cell communintion is 10
 cellchat <- filterCommunication(cellchat, min.cells = 3)
 
@@ -194,6 +194,7 @@ df.net <- subsetCommunication(cellchat, sources.use = c(1,2), targets.use = c(4,
 df.net <- subsetCommunication(cellchat, signaling = c("WNT", "TGFb"))
 df.net
 
+# check the subset of cellular communication network of 
 
 # Infer the cell-cell communication at a signaling pathway level
 # CellChat computes the communication probability on signaling pathway level by summarizing the communication probabilities of all ligands-receptors interactions associated with each signaling pathway.
@@ -204,6 +205,7 @@ cellchat <- computeCommunProbPathway(cellchat)
 # Calculate the aggregated cell-cell communication network
 cellchat <- aggregateNet(cellchat)
 ptm = Sys.time()
+
 groupSize <- as.numeric(table(cellchat@idents))
 pdf("SignalingSedingFromAllCellTypes_Date7.pdf", height = 6, width = 12)
 
@@ -227,7 +229,7 @@ dev.off()
 cellchat@netP$pathways
 
 # 
-pathways.show <- c("CXCL","CCL","TNF") 
+pathways.show <- c("CXCL","CCL","TNF","IFN-II") 
 # Hierarchy plot
 # Here we define `vertex.receive` so that the left portion of the hierarchy plot shows signaling to fibroblast and the right portion shows signaling to immune cells 
 vertex.receiver = seq(1,4) # a numeric vector. 
@@ -254,6 +256,13 @@ dev.off()
 pairLR.CXCL <- extractEnrichedLR(cellchat, signaling = pathways.show, geneLR.return = FALSE)
 pairLR.CXCL$interaction_name
 
+# save the netAnalysis contritbution
+Test<- netAnalysis_contribution(cellchat, signaling = pathways.show, return.data=T)
+
+# save the netAnalysis contribution for Cytokine and Chemokine
+write.csv(Test$LR.contribution, file = "Chemokine_Cytokine_Cell_Contribution_date7.csv")
+
+  #RequestLigendReceptors[[i]] <- Test$LR.contribution
 # generate the potential interactions
 for (i in pairLR.CXCL$interaction_name){
   pdf(paste0(i,"PairedPathwayshow_Chord_Date7.pdf"), height = 4, width = 4)
@@ -277,10 +286,13 @@ pdf("PairedPathwayshow_CXCL1_CXCR2_Chord.pdf", height = 5, width = 5)
 netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = LR.show, layout = "chord")
 dev.off()
 
-pdf("PairedPathwayshow_CCL_CXCL_DotPlots.pdf", height = 5, width = 10)
-netVisual_bubble(cellchat, signaling = c("CCL","CXCL"), remove.isolate = FALSE)
+pdf("PairedPathwayshow_CCL_CXCL_DotPlots.pdf", height = 3.5, width = 7)
+netVisual_bubble(cellchat, signaling = c("CCL","CXCL","TNF"), remove.isolate = FALSE)
 dev.off()
 # visulaize cell-cell communication mediated by ligand and receptors
+
+# save the aggregated cell-cell communication
+saveRDS(cellchat, file = "cellchat_PN_D7_final.rds")
 
 ```
 # ############################## 
