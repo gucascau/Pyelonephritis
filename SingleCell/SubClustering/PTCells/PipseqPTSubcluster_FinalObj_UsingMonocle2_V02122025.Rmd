@@ -5,7 +5,7 @@ date: "2023-08-22"
 description: Proximal tubule subclusters analyses:
   - Subclusters of PT
   - Annotation of subclusters using the candidate markers
-  - Psudotime of PT
+  - Psudotime of PT using monocle2, instead of monocle3
   - Basic statistics of PT
 output: html_document
 ---
@@ -78,7 +78,15 @@ library("org.Hs.eg.db")
 library(here)
 library(patchwork)
 library(future)
-library(monocle3)
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("monocle")
+
+#library(monocle3)
+
+# install monocle
+
+#BiocManager::install("monocle",force = TRUE)
+library(monocle)
 #devtools::install_dev("remotes")
 #remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
 #remotes::install_github(repo ='chris-mcginnis-ucsf/DoubletFinder' )
@@ -107,7 +115,39 @@ Outdir <-c( "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluati
 set.seed(10000)
 ```
 
+# Create 
+```{r}
+# create folders for DEGs, Progeny, GO, KEGG and TF analyses
+# directory for DEGs
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"PyseudotimeMonocle2/")
 
+# directory for biomarkers
+
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
+
+set.seed(10000)
+```
 # generate the health cluster of PT cells
 
 ```{r}
@@ -124,7 +164,7 @@ DimPlot(PTcells)
 # We only collect the PT cells
 #CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
 
-scrna @meta.data
+PTcells @meta.data
 
 # PTcells <- subset(scrna, subset = Raw_cell_type == "PT")
 # 
@@ -242,27 +282,119 @@ ggsave(filename = "OtherMarkerGenesExpression_ClusterAnnotate.pdf", plot = Other
 ```
 
 # #####################################
-## generate the Trajectories of PT cells
+## generate the Trajectories of PT cells using monocle2, instead of monocle3
 # #####################################
 # 2.2 Prepared cds the object
 ```{r}
-# build cds object
+# transfer Seurat object to cellDataset object
 
+# build cds object
+# set up the pathway
+setwd(PyseudotimeDir)
+
+# the expression
 PTcells_expr_matrix = LayerData(PTcells, layer  = "counts")
 
 # check expression matrix:
-PTcells_expr_matrix
-# Cell meta annotation
+
+# Cell meta annotation -- phenotype
 p_data <- PTcells@meta.data 
 head(p_data)
+rownames(PTcells_expr_matrix)
 # Gene meta annotation
-f_data<- data.frame(gene_short_name = row.names(PTcells), row.names = row.names(PTcells))
+f_data<- data.frame(gene_short_name = rownames(PTcells_expr_matrix), row.names = rownames(PTcells_expr_matrix))
+f_data
+# UMIs or read ounts are better modele with the negative biomial.
+pd <- new("AnnotatedDataFrame", data = p_data)
+fd <- new("AnnotatedDataFrame", data = f_data)
+PTcells_expr_matrix
+
+CDS <- monocle::newCellDataSet(as.matrix(PTcells_expr_matrix), 
+                       phenoData = pd, 
+                       featureData = fd,
+                       expressionFamily=negbinomial.size())
+CDS
+CDS <- estimateSizeFactors(CDS)
+CDS <- estimateDispersions(CDS)
+
+# quality control:
+## 起初是 24582 features, 768 samples 
+#---------首先是对基因的过滤-------------
+CDS <- detectGenes(CDS, min_expr = 0.1)
+print(head(CDS@featureData@data))
+expressed_genes <- row.names(subset(CDS@featureData@data,
+                                    num_cells_expressed >= 5))
+length(expressed_genes)
+colnames(phenoData(CDS)@data)
 
 
-pre_cds <- new_cell_data_set(PTcells_expr_matrix,
-                         cell_metadata = p_data,
-                         gene_metadata = f_data)
-pData(pre_cds) %>% colnames()
+# step1：dispersionTable()
+
+disp_table <- dispersionTable(CDS)
+unsup_clustering_genes <- subset(disp_table, 
+                                 mean_expression >= 0.1)
+CDS <- setOrderingFilter(CDS, unsup_clustering_genes$gene_id)
+CDS
+plot_ordering_genes(CDS) 
+# 图中黑色的点就是被标记出来一会要进行聚类的基因
+CDS[expressed_genes,]
+# step2 plot pc variance explained
+plot_pc_variance_explained(CDS, return_all = F) # norm_method='log'
+
+## Trajactory step 1: choose genes that define a cells' progress that compare the infection vs noninfection
+diff_test_res <- differentialGeneTest(CDS[expressed_genes,],
+              fullModelFormulaStr = "~Condition")
+
+ordering_genes <- row.names (subset(diff_test_res, qval < 0.01))
+
+CDS <- setOrderingFilter(CDS, ordering_genes)
+plot_ordering_genes(CDS)
+
+# reduce data dimention using DDRTree 
+CDS <- reduceDimension(CDS, max_components = 2,
+    method = 'DDRTree')
+# trajectory step3: order cells along the trajectory
+CDS <- orderCells(CDS)
+
+
+
+plot_cell_trajectory(CDS, color_by = "SCT_snn_res.0.3", cell_size = 0.5)
+plot_cell_trajectory(CDS, color_by = "DataSet",cell_size=0.5)
+?plot_cell_trajectory
+# order by 
+
+
+# "State" is just Monocle's term for the segment of the tree. The function below is handy for identifying the State which contains most of the cells from time zero. We can then pass that to orderCells:
+unique(CDS@phenoData@data$SCT_snn_res.0.3)
+T0_counts <- table(CDS@phenoData@data$SCT_snn_res.0.3, CDS@phenoData@data$DataSet)[,"0DPI"]
+as.numeric(names(T0_counts)[which
+          (T0_counts == max(T0_counts))])
+table(CDS@phenoData@data$SCT_snn_res.0.3, CDS@phenoData@data$DataSet)[,"0DPI"]
+GM_state <- function(CDS){
+  if (length(unique(CDS@phenoData@data$SCT_snn_res.0.3)) > 1){
+    T0_counts <- table(CDS@phenoData@data$SCT_snn_res.0.3, CDS@phenoData@data$DataSet)[,"0DPI"]
+    return(as.numeric(names(T0_counts)[which
+          (T0_counts == max(T0_counts))]))
+  } else {
+    return (1)
+  }
+}
+GM_state(CDS)
+#CDS2 <- orderCells(CDS, root_state = 1)
+plot_cell_trajectory(CDS, color_by = "Pseudotime")
+
+
+# 
+BEAM_res <- BEAM(CDS, branch_point = 1, cores = 1)
+BEAM_res <- BEAM_res[order(BEAM_res$qval),]
+BEAM_res <- BEAM_res[,c("gene_short_name", "pval", "qval")]
+
+
+
+
+
+
+
 # normalize and preproces the data
 cds <- preprocess_cds(pre_cds) #标准化+PCA降维
 plot_pc_variance_explained(cds)

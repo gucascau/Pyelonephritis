@@ -7,10 +7,10 @@ Copyright (c) 2023 Kidney and Urology Tract Center
 Nationwide Children's Hospital
 date: "2023-08-23"
 Description: 
-#   Deconvolute the spatial spots using PIPseq single cells 
+#   Deconvolute the spatial spots using PIPseq Immune single cells 
 
 #     Note:
-#    #     We updated the single cells with neutrophil, different status of PT cells.  
+#    #     We used the sorted CD45 single cells with neutrophil subtypes, macrophage subtypes and other immune cells 
 #    #     We will do a similar integration as in the Data Integration lab, but this time we will use the SCT assay for integration. Therefore we need to run PrepSCTIntegration which will compute the sctransform residuals for all genes in both the datasets.
 #     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
 ---
@@ -18,9 +18,21 @@ Description:
 # load the library packages
 ```{r}
 # loading the library packages
+ sessionInfo()
+# # remove.packages("spatstat.explore")
+# unlink("~/.R/library/spatstat.explore", recursive = TRUE, force = TRUE)
+# remove.packages("Seurat")
+#  install.packages("Seurat")
+#  .rs.restartR()
+# update.packages(ask = FALSE)
+# install.packages("Seurat", type = "source")
+# packageVersion("spatstat.explore")
+# install.packages('Seurat')
+# # 
+# devtools::install_github("satijalab/seurat", ref = "4.1.4")
+# remotes::install_version("SeuratObject", "4.1.4", repos = c("https://satijalab.r-universe.dev", getOption("repos")))
 
-#install.packages("Seurat")
-library(Seurat)
+library("Seurat")
 #library(SeuratData)
 library(ggplot2)
 library(patchwork)
@@ -56,6 +68,29 @@ library(reshape2)
 library(SPOTlight)
 library(tidyHeatmap)
 library(ComplexHeatmap)
+#devtools::install_github('YingMa0107/CARD')
+library(CARD)
+
+# using the RCTD
+library(spacexr)
+library(Matrix)
+library(doParallel)
+source("SpatialFeaturePlotBlend.R")
+
+# Set to 2 GiB
+options(future.globals.maxSize = 2 * 1024^3) 
+# 
+# # Remove future
+# remove.packages("future")
+# 
+# # Install the `numeric_total_size` version from my fork
+# remotes::install_github("ycl6/future@numeric_total_size")
+# # Remove future
+# remove.packages("future")
+# 
+# # Install the `numeric_total_size` version from PR 755
+# remotes::install_github("futureverse/future", ref = remotes::github_pull(755))
+#library(future)
 ```
 
 # Set up the enviroment: 
@@ -66,47 +101,47 @@ library(ComplexHeatmap)
 set.seed(200000)
 
 # single cell directory:
-Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Immune_Subclusters/OutputRDS/"
+Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Datasets/SharedFromGama/ATLAS_files/"
 
 # spatial transcript directory:
 Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/PreProcess/V09052023_PreliminaryResults/"
 
 # Output directory :
-Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/"
 
 # Cell types deconvolution:
 
-Ctdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/CellTypes/"
+Ctdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/CellTypes/"
 
 # Cell types heatmap for scaled component
 
-CAbdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/CellTypesAbundance/"
+CAbdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/CellTypesAbundance/"
 
 # Cell types heatmap for cell type correlated
 
-CCordir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/CellTypesCorrelation/"
+CCordir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/CellTypesCorrelation/"
 
 # Biomarkers
-CBiomadir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/CellTypesBiomarkers/"
+CBiomadir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/CellTypesBiomarkers/"
 
 # InfectionCellTypesScatterPieDir
 
-CPiedir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/CellTypesScatterPieDir/"
+CPiedir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/CellTypesScatterPieDir/"
 
 # Concentrate on the infection area abscess and margion region
 
-InfCPiedir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/InfectionCellTypesScatterPieDir/"
+InfCPiedir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/InfectionCellTypesScatterPieDir/"
 # InfectionCellTypesScatterPieDir
 
 # Concentrate on the infection area abscess from pelvis
 
-InfPelvisdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/InfPelvisRegionDir/"
+InfPelvisdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/InfPelvisRegionDir/"
 
 # Concentrate on the Control area 
 
-Contrdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/ControlD0/"
+Contrdir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/ControlD0/"
 # Concentrate on the day 7 area
-Day7dir =  "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/Day7/"
+Day7dir =  "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/Day7/"
 
 # InfectionCellTypesScatterPieDir
 
@@ -122,14 +157,14 @@ dir.create(Day7dir, showWarnings = F)
 dir.create(InfPelvisdir, showWarnings = F)
 
 getwd()
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/")
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/")
 ```
 
 # Read the RDS objects from the spatial and single cells, briefly check the objects
 ```{r}
 #Pyelonephritis_Infection<-readRDS("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V06192024/Pyelonephritis_Infection_Deconvoluted.RDS")
 
-# Reading the RDS file
+# Reading the RDS file from the spatial
 Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS"))
 
 Idents(Pyelonephritis_Infection)<-Pyelonephritis_Infection@meta.data$Annotation
@@ -150,6 +185,7 @@ Idents(Pyelonephritis_Infection)
 DimPlot(Pyelonephritis_Infection)
 ?SpatialDimPlot
 Test<-SpatialDimPlot(Pyelonephritis_Infection)
+Test
 ggsave("Test_Spatial.pdf",plot=Test, height = 4, width = 15)
 ```
 
@@ -160,11 +196,159 @@ ggsave("Test_Spatial.pdf",plot=Test, height = 4, width = 15)
 ### First option: Using Seurat itself instead of cluster by themselves, we cluster based on the reference scRNA-seq using Seurat
 ##############################################################################################
 # with reference
-allen_reference <- readRDS(file = paste0(Scindir, "PIPSeq_PTICPCENDFIBUROIMMFinalAnn_Annotated_v07292024.rds"))
+allen_reference <- readRDS(file = paste0(Scindir, "reclustered_cells.rds"))
 
-# final annotation ImmuneSub
 allen_reference@meta.data %>% head()
-levels(as.factor(allen_reference@meta.data$ImmuneSub))
+
+Idents(allen_reference) <- allen_reference@meta.data$seurat_clusters
+DimPlot(allen_reference, label = T)
+allen_reference@meta.data <- allen_reference@meta.data %>% mutate(cell_type_raw = case_when(
+  seurat_clusters == 0 ~"Neutrophils",
+  seurat_clusters == 1 ~"Neutrophils",
+  seurat_clusters == 2 ~"Neutrophils",
+  seurat_clusters == 3 ~"T cells",
+  seurat_clusters == 4 ~"Macrophage",
+  seurat_clusters == 5 ~"Macrophage",
+  seurat_clusters == 6 ~"Macrophage",
+  seurat_clusters == 7 ~"NK cells",
+  seurat_clusters == 8 ~"B cells",
+
+  
+))
+
+# define the cluster
+
+# set up the annotation
+
+# Then I will join the layer for these dataset
+
+allen_reference<- JoinLayers(allen_reference)
+allen_reference
+```
+
+
+```{r}
+# check the expression profile of one cell 
+# testdata <- LayerData(allen_reference, layer ="data")
+# New<- JoinLayers(allen_reference, overwrite = TRUE)
+# data.input <- GetAssayData(New, assay = "RNA", slot = "data")
+# data.input[,"AAAAACTGATATCCCT_1"]
+# # neutrophil
+# allen_reference@meta.data["AAAAACTGATATCCCT_1",]
+# we also put the identity of the neutrophil and macrophage into the object
+
+Neutrophil_ref <- readRDS(file = paste0(Scindir, "Neutrophils.rds"))
+
+Neutrophil_ref <- JoinLayers(Neutrophil_ref)
+
+
+# check the neutrophil clusters
+# Neutrophil_ref@meta.data %>% head()
+# New2<- JoinLayers(Neutrophil_ref, overwrite = TRUE)
+# DimPlot(Neutrophil_ref, split.by = "orig.ident")
+# 
+# data.input2 <- GetAssayData(New2, assay = "RNA", slot = "data")
+# Neutrophil_ref@meta.data["AAAAACTGATATCCCT_1",]
+# # neutrophil
+# DimPlot(Neutrophil_ref)
+
+# add the meta data with one column:
+Neutrophil_ref @meta.data<-Neutrophil_ref @meta.data %>% dplyr::mutate(NetrophilSub = paste0("Neutrophils_",RNA_snn_res.0.3))
+
+# generate the meta data frame from Neutrophil meta data
+NeutromataAnnotation <- Neutrophil_ref@meta.data %>% dplyr::select(NetrophilSub)
+colnames(NeutromataAnnotation)
+Neutrophil_ref@meta.data%>% head()
+Idents(Neutrophil_ref) <- "NetrophilSub"
+
+DimPlot(Neutrophil_ref,label = T)
+## add the Neutrophil meta data to original object
+allen_reference<-AddMetaData(object = allen_reference, metadata = NeutromataAnnotation)
+
+Idents(allen_reference) <- allen_reference@meta.data$NetrophilSub
+
+# check the reference: 
+DimPlot(allen_reference)
+
+# add the macrophage 
+
+
+Macrophages_ref <- readRDS(file = paste0(Scindir, "Macrophages.rds"))
+Macrophages_ref
+# join Layer 
+Macrophages_ref <- JoinLayers(Macrophages_ref)
+Macrophages_ref
+Macrophages_ref @meta.data %>% head()
+
+DimPlot(Macrophages_ref, label = T)
+Macrophage_cluster_names <- c(
+  "0" = "ResMac_1",
+  "1" = "ResMac_2",
+  "2" = "MonoDerivedMac1",
+   "3" = "ResDendric",
+  "4" = "ResMac_3",
+  "5" = "MonoDerivedMac2"
+  
+  # Add more mappings as needed
+)
+
+Macrophages_ref <- RenameIdents(Macrophages_ref, Macrophage_cluster_names)
+
+#
+
+DimPlot(Macrophages_ref,label = T)
+# add the meta data with one column:
+Macrophages_ref @meta.data<-Macrophages_ref @meta.data %>% dplyr::mutate(MacrophageSub = Idents(Macrophages_ref))
+
+Macrophages_ref @meta.data %>% head()
+# generate the meta data frame from Macrophages meta data
+MacrophageMetaAnnotation <- Macrophages_ref@meta.data %>% dplyr::select(MacrophageSub)
+colnames(MacrophageMetaAnnotation)
+
+## add the Macrophages meta data to original object
+allen_reference<-AddMetaData(object = allen_reference, metadata = MacrophageMetaAnnotation)
+
+Idents(allen_reference) <- allen_reference@meta.data$MacrophageSub
+
+allen_reference @meta.data %>% head()
+allen_reference
+allen_reference<- JoinLayers(allen_reference)
+allen_reference
+# check the reference: 
+DimPlot(allen_reference)
+
+# add the meta data
+allen_reference@meta.data<- allen_reference@meta.data %>% mutate(FinalAnn= case_when(
+  !is.na(NetrophilSub) ~ NetrophilSub,
+  !is.na(MacrophageSub) ~ MacrophageSub,
+  TRUE ~cell_type_raw
+))
+# allen_reference@meta.data  %>%
+#   mutate(Ann_WithNeu = ifelse(is.na(NetrophilSub),cell_type, NetrophilSub))
+
+Idents(allen_reference) <- allen_reference@meta.data$FinalAnn
+# Update the cell type
+# allen_reference@meta.data  %>% 
+#   mutate(Ann_WithNeu = ifelse(is.na(NeutromataAnnotation), cell_type,NeutromataAnnotation)) %>% mutate(Ann_WithNeuMac = ifelse(is.na(Ann_WithNeu), cell_type,NeutromataAnnotation))
+
+DimPlot(allen_reference)
+
+# save this final object with annotation
+saveRDS(allen_reference, file = "CD45_ImmuneCell_withSubCluster.rds")
+#
+allen_reference<- readRDS("CD45_ImmuneCell_withSubCluster.rds")
+
+# In order to better understand these cells, we only selected the single cells that have well annotation
+allen_reference@meta.data %>% head()
+
+allen_reference_subimm <- subset(allen_reference, idents = c("ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","B cells", "T cells", "NK cells" ))
+
+allen_reference_subimm
+
+allen_reference_subimm <- JoinLayers(allen_reference_subimm)
+levels(as.factor(allen_reference_subimm@meta.data$FinalAnn))
+
+Allimmune<-subset(allen_reference, idents = c("ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","B cells", "T cells", "NK cells" ))
 
 # change the allen_reference name: 
 # PTS1-S2-E1 into PT-S1S2-1
@@ -181,41 +365,30 @@ levels(as.factor(allen_reference@meta.data$ImmuneSub))
 #allen_reference@meta.data <-
 #  
 
-allen_reference@meta.data <-
-  allen_reference@meta.data %>%mutate(
-    FinalAnnotation =
-      case_when(
-        ImmuneSub %in% c("PTS1-S2-E1") ~ "PT-S1S2-1",
-        #
-        ImmuneSub %in% c("PTS1-S2-E2") ~ "PT-S1S2-2",
-        #
-        ImmuneSub %in% c("PTS3-E1") ~ "PT-S3-1",
-        #
-        ImmuneSub %in% c("PTS3-E2") ~ "PT-S3-2",
-        #
-        ImmuneSub %in% c("NewPTS1-S2-E1") ~ "PT-S1S2-N1",
-        #
-        ImmuneSub %in% c("NewPTS1-S2-E2") ~ "PT-S1S2-N2",
-        #
-        ImmuneSub %in% c("NewPTS1-S2-E3") ~ "PT-S1S2-N3",
-        #
-        ImmuneSub %in% c("Degenerated_URO") ~ "DegURO",
-        # NK cell
-        ImmuneSub %in% c("infPT") ~ "InfPT",
-        # B
-        ImmuneSub %in% c("PROF_EPI") ~ "ProfPT",
-        #
-        .default = as.character(ImmuneSub)
-      )
-  )
+# allen_reference_subimm@meta.data <-
+#   allen_reference_subimm@meta.data %>%mutate(
+#     FinalAnnotation =
+#       case_when(
+#         FinalAnn %in% c("7: T Cells/NK Cells") ~ "T_Cells",
+#         #
+#         FinalAnn %in% c("19: B Cells") ~ "B_Cells",
+# 
+#         # 
+#         .default = as.character(FinalAnn)
+#       )
+#   )
 
-Idents(allen_reference) <- "FinalAnnotation"
-length(levels(Idents(allen_reference)))
+
+
+Idents(allen_reference_subimm) <- "FinalAnn"
+length(levels(Idents(allen_reference_subimm)))
 # set up the order 
-CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
+CelltypeOrder <- c("Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","B cells", "T cells","NK cells" )
 
-Idents(allen_reference)<- ordered(factor(Idents(allen_reference)),levels=CelltypeOrder)
+Idents(allen_reference_subimm)<- ordered(factor(Idents(allen_reference_subimm)),levels=CelltypeOrder)
 
+
+DimPlot(allen_reference_subimm,label = T, label.size = 2)
 # DefaultAssay(allen_reference) <-"RNA"
 # 
 # DotPlot(allen_reference, features = c("C3","Ccl3","Ccl4","Ccl5"))+ guides(color = guide_colorbar(title = 'AverExp'),
@@ -225,39 +398,57 @@ Idents(allen_reference)<- ordered(factor(Idents(allen_reference)),levels=Celltyp
 # setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024")
 # saveRDS(allen_reference, file = "PIPSeq_Final_Annotated_v08012024.rds")
 
-allen_reference@meta.data
-levels(Idents(allen_reference))
-# set up the identity with the new name:
-Idents(allen_reference)<-allen_reference@meta.data$FinalAnnotation
-levels(as.factor(allen_reference@meta.data$FinalAnnotation))
 # here we set up the normlizes the full datstet but learns noise models on 10k cells that speeds up SCTransform dramtially wiht no loss in performanace
 library(dplyr)
-allen_reference <- SCTransform(allen_reference,  verbose = FALSE) %>%
-  RunPCA(verbose = FALSE) %>%
-  RunUMAP(dims = 1:40)
 
+# I will joinalyer first,
+allen_reference_subimm
+
+allen_reference_subimm <-SCTransform(allen_reference_subimm, ncells = 15000, verbose = FALSE) %>%
+    RunPCA(verbose = FALSE) %>%
+    RunUMAP(dims = 1:30)
+#allen_reference_subimm <- JoinLayers(allen_reference_subimm)
+
+allen_reference_subimm@meta.data %>% head()
+#Layers(allen_reference_subimm)
+### integrate datasetss
+# allen_reference_subimm <- IntegrateLayers(object = allen_reference_subimm, method = CCAIntegration, normalization.method = "SCT", verbose = F)
+# ## Visualize the effect of integration on embedding
+# allen_reference_subimm <- RunUMAP(allen_reference_subimm, dims = 1:30, reduction = "integrated.dr")
+# DimPlot(allen_reference_subimm, reduction = "umap")
 ```
 
 
 ```{r}
-levels(Idents(allen_reference))
-table(Idents(allen_reference))
+levels(Idents(allen_reference_subimm))
+table(Idents(allen_reference_subimm))
 
 #Idents(allen_reference) <- str_split(allen_reference@meta.data$Annot,":",simplify = T)[,2]
 # the annotation is stored in the 'subclass' column of object metadata
-DimPlot(allen_reference,  label = TRUE)
+DimPlot(allen_reference_subimm,  label = TRUE)
 
+Layers(Pyelonephritis_Infection)
 # After subsetting, we renormalize spatial transcriptomics
 Pyelonephritis_Infection <- SCTransform(Pyelonephritis_Infection, assay = "Spatial", verbose = FALSE) %>%
   RunPCA(verbose = FALSE)
+DimPlot(Pyelonephritis_Infection,  label = TRUE)
 
-anchors <- FindTransferAnchors(reference = allen_reference, query = Pyelonephritis_Infection, normalization.method = "SCT")
+# DefaultAssay(allen_reference_subimm) <-"integrated"
+# 
+# allen_reference_subimm[["integrated"]]
+anchors <- FindTransferAnchors(reference = allen_reference_subimm, query = Pyelonephritis_Infection, normalization.method = "SCT")
+?FindTransferAnchors
+
+# there are some errors: Error: Given reference assay (SCT) has 4 reference sct models. Please provide a reference assay with a  single reference sct model.
+# Check the SCT Models Inspect the reference assay to see how many SCT models it contains:
+
 
 predictions.assay <- TransferData(anchorset = anchors, 
-                                  refdata = Idents(allen_reference),
+                                  refdata = Idents(allen_reference_subimm),
                                   prediction.assay = TRUE,
                                   weight.reduction =
                                     Pyelonephritis_Infection[["pca"]], dims = 1:20)
+
 Pyelonephritis_Infection[["predictions"]] <- predictions.assay
 DefaultAssay(Pyelonephritis_Infection) <- "predictions"
 
@@ -266,7 +457,8 @@ rownames(Pyelonephritis_Infection[["predictions"]]@data)
 
 
 # set up the order 
-CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
+CelltypeOrder <- c("Neutrophils-0", "Neutrophils-1", "Neutrophils-2", "Neutrophils-3","ResMac-1", "ResMac-2","MonoDerivedMac1", "ResDendric", "ResMac-3", "MonoDerivedMac2","B cells", "T cells","NK cells" )
+
 
 # CelltypeOrder <- c("heaPT-S1","heaPT-S2","heaPT-S3","heaPT-S4", "heaPT-S5", "DegPT", "MalaPT" , "InfiPT", "HybridPT", "CNT" ,"DTL" ,"TAL", "DCT-TAL","IC","PC" ,"URO","END","FIB", "PL","ResIMM","RecMAC","M1-M2" ,"NEU","T","B", "NK","max")
 
@@ -275,6 +467,9 @@ CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "
 # the cell type proportion of each spot
  t(Pyelonephritis_Infection[["predictions"]]@data)
  
+ Pyelonephritis_Infection
+ # save the spatial object
+ saveRDS(Pyelonephritis_Infection, file = "Pyelonephritis_Infection_ImmunePredicted.RDS")
 
 ```
 
@@ -293,6 +488,166 @@ for (i in CelltypeOrder){
   ggsave(filename = paste0(i,"_SpatialFeaturePrediction.pdf"), plot = CellTypeSpatialFeature, height = 4, width = 16)
   
 }
+```
+
+
+```{r}
+# check the distribution of novel markers
+Pyelonephritis_Infection
+# change the assay to RNA
+DefaultAssay(Pyelonephritis_Infection) <-"integrated"
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Icam1"), pt.size.factor = 1500, crop = TRUE,  images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
+  
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Eif5"), pt.size.factor = 1500, crop = TRUE,  images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
+
+ 
+#Icam1, Gbp2b,
+# Alcam, Atf3
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Cd24a"), pt.size.factor = 1500, crop = TRUE,  images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
+
+#H2-Aa
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("H2-Aa"), pt.size.factor = 1500, crop = TRUE,  images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
+
+SpatialFeaturePlot(Pyelonephritis_Infection, features = c("Lrg1"), pt.size.factor = 1500, crop = TRUE,  images = selectedslices) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
+
+SpatialFeaturePlotBlend <- function(cells_obj, column_1, column_2,
+                                    combine = TRUE)  {
+
+    # Convert decimal number to hexadecimal. Pad with 0s if only a single
+    # character following conversion.
+    as_hex <- function(num) {
+        hex_str <- as.character(as.hexmode(num))
+        if (nchar(hex_str) == 1) {
+            hex_str <- paste0("0", hex_str)
+        }
+
+        return(hex_str)
+    }
+
+    metadata_to_hexadecimal <- function(in_dat) {
+        apply(in_dat, 2,
+              function(x) {
+                  # Make minimum 0
+                  x - min(x)
+              }) %>%
+        apply(2,
+              function(x) {
+                  # Constrain to range [0, 255]
+                  round(255 * (x / max(x)))
+              }) %>%
+        apply(1,
+              function(x) {
+                  # Convert to hexadecimal codes
+                  toupper(paste0("#", as_hex(x[1]), as_hex(x[2]), "00"))
+              })
+    }
+
+    blend_plot_theme <- theme(legend.position = "none",
+                              plot.title = element_text(hjust = 0.5))
+
+    plot_list <- lapply(c(column_1, column_2),
+                        function(column) {
+                            max_color <- ifelse(column == column_1,
+                                                "#FF0000", "#00FF00")
+                            SpatialFeaturePlot(cells_obj, column_1) +
+                                scale_fill_gradient(low = "#000000",
+                                                    high = max_color) +
+                                ggtitle(column) +
+                                blend_plot_theme
+                        })
+
+    dat <- FetchData(cells_obj, c(column_1, column_2))
+    colors <- as.matrix(dat) %>% metadata_to_hexadecimal()
+
+    new_md_column <- paste0(column_1, "_vs_", column_2)
+    cells_obj[[new_md_column]] <- colors
+    names(colors) <- as.character(colors)
+
+    plot_list[[3]] <- SpatialDimPlot(cells_obj, new_md_column, cols = colors) +
+                        ggtitle(paste0(column_1, "_", column_2)) +
+                        blend_plot_theme
+
+    side_length <- 100
+    legend_grid <- expand.grid(seq(from = min(dat[, column_1]),
+                                   to = max(dat[, column_1]),
+                                   length.out = side_length),
+                               seq(from = min(dat[, column_2]),
+                                   to = max(dat[, column_2]),
+                                   length.out = side_length))
+    colnames(legend_grid) <- c(column_1, column_2)
+    legend_colors <- metadata_to_hexadecimal(legend_grid)
+    legend_grid$color <- legend_colors
+    names(legend_colors) <- legend_colors
+
+    legend <- ggplot(legend_grid,
+                     aes(x = .data[[column_1]], y = .data[[column_2]],
+                         color = color)) +
+                geom_point(shape = 15, size = 1.9) +
+                scale_color_manual(values = legend_colors) +
+                coord_cartesian(expand = FALSE) +
+                theme(legend.position = "none", aspect.ratio = 1,
+                      panel.background = element_blank())
+
+    plot_list[[4]] <- wrap_plots(ggplot() + theme_void(), legend,
+                                 ggplot() + theme_void(), ncol = 1,
+                                 heights = c(0.2, 0.6, 0.2))
+
+    if (combine == FALSE) {
+        return(plot_list)
+    } else {
+        p <- wrap_plots(plot_list, nrow = 1,
+                        widths = c(0.28, 0.28, 0.28, 0.16))
+        return(p)
+    }
+}
+
+SpatialFeaturePlotBlend(Pyelonephritis_Infection, "H2-Aa", "S100a8")
+#SpatialFeaturePlotBlend(Pyelonephritis_Infection, features = c("H2-Aa","S100a8")) 
+
+# here we only concentrate on the slide 5
+Pyelonephritis_Infection@meta.data %>% pull(orig.ident)
+
+Pdate="PyeloD7_1"
+names(Pyelonephritis_InfectionSubslides@images)
+ 
+Allimagmes= names(Pyelonephritis_Infection @images)
+
+  Pyelonephritis_InfectionSubslides <-
+    subset (Pyelonephritis_Infection, orig.ident == Pdate)
+  SelectedImageName <- "slice8"
+  SelectedImageName
+  OtherImages <- Allimagmes[Allimagmes != SelectedImageName]
+  OtherImages
+  Pyelonephritis_InfectionSubslides@images[OtherImages] = NULL
+DefaultAssay(Pyelonephritis_InfectionSubslides)< "SCT"
+
+SpatialFeaturePlot(Pyelonephritis_InfectionSubslides, features = c("H2-Aa", "S100a8"),pt.size.factor = 1500)
+?SpatialFeaturePlot
+SpatialFeaturePlotBlend(object = Pyelonephritis_InfectionSubslides, features = c("H2-Aa", "S100a8"),
+                           # top_left = "blue", bottom_right = "orange",
+                           # bottom_left = "white", top_right = "#FF0000",
+                        assay = "Spatial",pt.size.factor = 1500)
+
+SpatialFeaturePlotBlend(object = Pyelonephritis_InfectionSubslides, features = c("H2-Aa", "Lrg1"),
+                           top_left = "blue", bottom_right = "green",
+                           bottom_left = "white", top_right = "#FF0000",
+                        assay = "Spatial",pt.size.factor = 1500,alpha = 0.5)
+
+SpatialFeaturePlotBlend(object = Pyelonephritis_InfectionSubslides, features = c("Sell", "Cxcr2"),
+                           top_left = "blue", bottom_right = "yellow",
+                           bottom_left = "white", top_right = "black",
+                        assay = "Spatial",pt.size.factor = 1500,alpha = 0.5)
+
+SpatialFeaturePlotBlend(object = Pyelonephritis_InfectionSubslides, features = c("Sell", "Cxcr2"),
+                           top_left = "lightblue", bottom_right = "red",
+                           bottom_left = "white", top_right = "black",
+                        assay = "Spatial",pt.size.factor = 1500,alpha = 0.5)
+
 ```
 
 # generate the heatmap 
@@ -321,7 +676,8 @@ Pyelonephritis_Infection@meta.data
 # This is the predicted cell proportion for each spot
 t(Pyelonephritis_Infection[["predictions"]]@data)
 
-Pyelonephritis_Infection@meta.data %>% head()
+colnames(t(Pyelonephritis_Infection[["predictions"]]@data))
+t(Pyelonephritis_Infection[["predictions"]]@data)[,"NK cells"]
 # extract the orig.ident, subcluter and conditiongroup for each spot
 Pyelonephritis_Infection@meta.data
 Table1 <- Pyelonephritis_Infection@meta.data[,c("orig.ident","Annotation")]
@@ -335,6 +691,8 @@ colnames(FinalIntergratedTable)
 # The heat map figure to show the different compostion within timepoints in the cluster spots
 ###########################################################################################
 ### We combined all the dataset without group by orig.ident and measure the different composition
+CelltypeOrder <- c("Neutrophils-0", "Neutrophils-1", "Neutrophils-2", "Neutrophils-3","ResMac-1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","B cells", "T cells","NK cells" )
+
 
 # CelltypeOrder <- c("heaPT-S1","heaPT-S2","heaPT-S3","heaPT-S4", "heaPT-S5", "DegPT", "MalaPT" , "InfiPT", "HybridPT", "CNT","DTL","TAL", "DCT-TAL","IC","PC" ,"URO","END","FIB", "PL","ResIMM","RecMAC","M1-M2" ,"NEU","T","B", "NK")
 levels(Idents(Pyelonephritis_Infection))
@@ -343,85 +701,41 @@ ClusterOrder
 FinalIntergratedTable %>% group_by(Annotation)
 ClusterAllCluster_Median <-
   FinalIntergratedTable %>% group_by(Annotation) %>% summarise(
-    `PT-S1S2-1` = median(`PT-S1S2-1`),
-   `PT-S1S2-2` = median(`PT-S1S2-2`),
-    `PT-S3-1` = median(`PT-S3-1`),
-   `PT-S3-2` = median(`PT-S3-2`),
-    `PT-S1S2-N1` = median(`PT-S1S2-N1`),
-    `PT-S1S2-N2` = median(`PT-S1S2-N2`),
-    `PT-S1S2-N3` = median(`PT-S1S2-N3`),
-    InfPT = median(`InfPT`),
-   `ProfPT` = median(`ProfPT`),
-    PC1 = median(`PC1`),
-    CNT = median(`CNT`),
-    DTL = median(`DTL`),
-    TAL = median(`TAL`),
-    `DCT-TAL` = median(`DCT-TAL`),
-    ICA = median(`ICA`),
-    ICB = median(`ICB`),
-    PC2 = median(`PC2`),
-    URO = median(`URO`),
-   `DegURO`=median(`DegURO`),
-   SMC=median(`SMC`),
-    END = median(`END`),
-    FIB =
-      median(`FIB`),
-    PL = median(`PL`),
-   `DegCD` = median(`DegCD`),
-
-    ResMac = median(`ResMac`),
-   MONa = median(`MONa`),
-   MONb = median(`MONa`),
-   MACa = median(`MACa`),
-   MACb = median(`MACb`),
-    NEU = median(`NEU`),
-    `T` = median(`T`),
-    B = median(`B`),
-   NK = median(`NK`),
+    `Neutrophils-0` = median(`Neutrophils-0`),
+   `Neutrophils-1` = median(`Neutrophils-1`),
+    `Neutrophils-2` = median(`Neutrophils-2`),
+   `Neutrophils-3` = median(`Neutrophils-3`),
+    `ResMac-1` = median(`ResMac-1`),
+    `ResMac-2` = median(`ResMac-2`),
+    `MonoDerivedMac1` = median(`MonoDerivedMac1`),
+    ResDendric = median(`ResDendric`),
+   `ResMac-3` = median(`ResMac-3`),
+    MonoDerivedMac2 = median(`MonoDerivedMac2`),
+    `B cells` = median(`B cells`),
+    `T cells` = median(`T cells`),
+   `NK cells` = median(`NK cells`),
     .groups = 'drop'
   ) %>% as.data.frame()
 
 write.csv(ClusterAllCluster_Median, file = "ClusterAllCluster_Median.csv")
 
-
+ClusterAllCluster_Median
 # we calculate the mean value for each cluster
 ClusterAllCluster_Mean <-
   FinalIntergratedTable %>% group_by(Annotation) %>% summarise(
-    `PT-S1S2-1` = mean(`PT-S1S2-1`),
-   `PT-S1S2-2` = mean(`PT-S1S2-2`),
-    `PT-S3-1` = mean(`PT-S3-1`),
-   `PT-S3-2` = mean(`PT-S3-2`),
-    `PT-S1S2-N1` = mean(`PT-S1S2-N1`),
-    `PT-S1S2-N2` = mean(`PT-S1S2-N2`),
-    `PT-S1S2-N3` = mean(`PT-S1S2-N3`),
-    InfPT = mean(`InfPT`),
-   `ProfPT` = mean(`ProfPT`),
-    PC1 = mean(`PC1`),
-    CNT = mean(`CNT`),
-    DTL = mean(`DTL`),
-    TAL = mean(`TAL`),
-    `DCT-TAL` = mean(`DCT-TAL`),
-    ICA = mean(`ICA`),
-    ICB = mean(`ICB`),
-    PC2 = mean(`PC2`),
-    `DegCD` = mean(`DegCD`),
-    URO = mean(`URO`),
-   `DegURO`=mean(`DegURO`),
-   SMC=mean(`SMC`),
-    END = mean(`END`),
-    FIB =
-      mean(`FIB`),
-    PL = mean(`PL`),
-  ResMac = mean(`ResMac`),
-   MONa = mean(`MONa`),
-   MONb = mean(`MONa`),
-   MACa = mean(`MACa`),
-   MACb = mean(`MACb`),
-
-    NEU = mean(`NEU`),
-    `T` = mean(`T`),
-    B = mean(`B`),
-   NK = mean(`NK`),
+     `Neutrophils-0` = mean(`Neutrophils-0`),
+   `Neutrophils-1` = mean(`Neutrophils-1`),
+    `Neutrophils-2` = mean(`Neutrophils-2`),
+   `Neutrophils-3` = mean(`Neutrophils-3`),
+    `ResMac-1` = mean(`ResMac-1`),
+    `ResMac-2` = mean(`ResMac-2`),
+    `MonoDerivedMac1` = mean(`MonoDerivedMac1`),
+    ResDendric = mean(`ResDendric`),
+   `ResMac-3` = mean(`ResMac-3`),
+    MonoDerivedMac2 = mean(`MonoDerivedMac2`),
+    `B cells` = mean(`B cells`),
+    `T cells` = mean(`T cells`),
+   `NK cells` = mean(`NK cells`),
     .groups = 'drop'
   ) %>% as.data.frame()
 
@@ -430,44 +744,22 @@ ClusterAllCluster_Mean <-
 write.csv(ClusterAllCluster_Mean, file = "ClusterAllCluster_mean.csv")
 
 
-### we calculate the median value for each cluster and also based on the timepoints
+### we calculate the mean value for each cluster and also based on the timepoints
 ### we used the median value to  scale the cell-type compositions within each niche. 
 ClusterTimepointGroup_Median<-FinalIntergratedTable %>% group_by(orig.ident, Annotation) %>% summarise(
-        `PT-S1S2-1` = median(`PT-S1S2-1`),
-   `PT-S1S2-2` = median(`PT-S1S2-2`),
-    `PT-S3-1` = median(`PT-S3-1`),
-   `PT-S3-2` = median(`PT-S3-2`),
-    `PT-S1S2-N1` = median(`PT-S1S2-N1`),
-    `PT-S1S2-N2` = median(`PT-S1S2-N2`),
-    `PT-S1S2-N3` = median(`PT-S1S2-N3`),
-    InfPT = median(`InfPT`),
-   `ProfPT` = median(`ProfPT`),
-    PC1 = median(`PC1`),
-    CNT = median(`CNT`),
-    DTL = median(`DTL`),
-    TAL = median(`TAL`),
-    `DCT-TAL` = median(`DCT-TAL`),
-    ICA = median(`ICA`),
-    ICB = median(`ICB`),
-    PC2 = median(`PC2`),
-    URO = median(`URO`),
-   `DegURO`=median(`DegURO`),
-   SMC=median(`SMC`),
-    END = median(`END`),
-    FIB =
-      median(`FIB`),
-    PL = median(`PL`),
-     ResMac = median(`ResMac`),
-     MONa = median(`MONa`),
-   MONb = median(`MONa`),
-   MACa = median(`MACa`),
-   MACb = median(`MACb`),
-   
-   `DegCD` = median(`DegCD`),
-    NEU = median(`NEU`),
-    `T` = median(`T`),
-    B = median(`B`),
-   NK = median(`NK`),
+     `Neutrophils-0` = median(`Neutrophils-0`),
+   `Neutrophils-1` = median(`Neutrophils-1`),
+    `Neutrophils-2` = median(`Neutrophils-2`),
+   `Neutrophils-3` = median(`Neutrophils-3`),
+    `ResMac-1` = median(`ResMac-1`),
+    `ResMac-2` = median(`ResMac-2`),
+    `MonoDerivedMac1` = median(`MonoDerivedMac1`),
+    ResDendric = median(`ResDendric`),
+   `ResMac-3` = median(`ResMac-3`),
+    MonoDerivedMac2 = median(`MonoDerivedMac2`),
+    `B cells` = median(`B cells`),
+    `T cells` = median(`T cells`),
+   `NK cells` = median(`NK cells`),
     .groups = 'drop'
   ) %>% as.data.frame()
 write.csv(ClusterTimepointGroup_Median, file = "ClusterTimepointGroup_Median.csv")
@@ -1320,7 +1612,7 @@ Idents(Pyelonephritis_InfectionSubslidesD7)
 # we generate pie plot for day7 under infection regions for the pelvis abscess regions
 ```{r}
 
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/InfMadullaRegionDir/")
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/InfMadullaRegionDir/")
 DefaultAssay(Pyelonephritis_Infection)<-"Spatial"
 Pyelonephritis_InfectionSubslidesD7 <-
     subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")

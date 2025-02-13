@@ -21,6 +21,8 @@ Description:
 
 #install.packages("Seurat")
 library(Seurat)
+#remotes::install_github("mojaveazure/seurat-disk")
+library(SeuratDisk)
 #library(SeuratData)
 library(ggplot2)
 library(patchwork)
@@ -52,10 +54,16 @@ library(RColorBrewer)
 library(L1pack)
 library(reshape)
 library(reshape2)
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("SPOTlight")
+# install.packages("tidyHeatmap")
+# BiocManager::install("ComplexHeatmap")
 
 library(SPOTlight)
 library(tidyHeatmap)
 library(ComplexHeatmap)
+library(reticulate)
 ```
 
 # Set up the enviroment: 
@@ -153,6 +161,19 @@ Test<-SpatialDimPlot(Pyelonephritis_Infection)
 ggsave("Test_Spatial.pdf",plot=Test, height = 4, width = 15)
 ```
 
+# transfer the spatial object into AnnData format
+# Ref: https://mojaveazure.github.io/seurat-disk/articles/convert-anndata.html
+```{r}
+# we refer the conversion h5seurat and annDat
+# https://mojaveazure.github.io/seurat-disk/articles/convert-anndata.html
+# save seurat object as h5seruat file
+SaveH5Seurat(Pyelonephritis_Infection, filename = "Pyelonephritis_Infection.h5Seurat")
+
+Convert("Pyelonephritis_Infection.h5Seurat", dest = "h5ad")
+
+```
+
+
 ```{r}
 # integration with the scRNA-seq reference.
 
@@ -215,6 +236,15 @@ length(levels(Idents(allen_reference)))
 CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
 
 Idents(allen_reference)<- ordered(factor(Idents(allen_reference)),levels=CelltypeOrder)
+# save the reference of single cells
+saveRDS(allen_reference, file = "PIPSeq_Final_UsedForScanpy.RDS")
+
+# save into h5seurat
+SaveH5Seurat(allen_reference, filename = "PIPSeq_Final_UsedForScanpy.h5Seurat")
+
+getwd()
+# transfer into h5ad
+Convert("PIPSeq_Final_UsedForScanpy.h5Seurat", dest = "h5ad")
 
 # DefaultAssay(allen_reference) <-"RNA"
 # 
