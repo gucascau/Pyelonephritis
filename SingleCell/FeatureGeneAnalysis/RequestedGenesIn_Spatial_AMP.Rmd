@@ -178,6 +178,9 @@ Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Res
 # spatial transcript directory:
 Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
 
+# single cell with CD45 positive cells
+CD45indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/"
+
 # Output of each pathways and 
 Interestedpathwaysdir = "/Users/XXW004/Documents/Projects/BrianBecknell/UrinePyelonephritis/Results/Result_v0715_newsets/InterestedGOTerms/"
 # read the single cell
@@ -194,6 +197,7 @@ SingleCellDimPlot<-DimPlot(SingleCellObj, label = T)
   )
 # read the spatial 
 SpatialObj <- readRDS(file = paste0(Spindir,"Pyelonephritis_Infection_Deconvoluted.RDS"))
+SpatialObj
 DefaultAssay(SpatialObj) <- "SCT"
 # generate the gene list
 # ?SpatialFeaturePlot
@@ -203,6 +207,72 @@ DefaultAssay(SpatialObj) <- "SCT"
 # # generate the single cell figure for each gene within each pathway
 # AllGOterms<-RequestedGOenrichments$Description
 # # generate the GO terms that are interested
+
+#
+```
+
+# Briefly Go through the features of the Single cell and Spatial datasets
+```{r}
+
+#
+
+CD45_ImmuneCellObj<- readRDS(paste0(CD45indir, "CD45_ImmuneCell_withSubCluster.rds"))
+
+
+# In order to better understand these cells, we only selected the single cells that have well annotation
+CD45_ImmuneCellObj@meta.data %>% head()
+
+CD45_ImmuneCellObj_subimm <- subset(CD45_ImmuneCellObj, idents = c("ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","B cells", "T cells", "NK cells" ))
+
+CD45_ImmuneCellObj_subimm
+
+CD45_ImmuneCellObj_subimm <- JoinLayers(CD45_ImmuneCellObj_subimm)
+levels(as.factor(CD45_ImmuneCellObj_subimm@meta.data$FinalAnn))
+
+Allimmune<-subset(CD45_ImmuneCellObj, idents = c("ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","B cells", "T cells", "NK cells" ))
+
+# change the CD45_ImmuneCellObj name: 
+# PTS1-S2-E1 into PT-S1S2-1
+# PTS1-S2-E1 into PT-S1S2-2
+# PTS3-E1 into PT-S3-1
+# PTS3-E2 into PT-S3-2
+#NewPTS1-S2-E1 into PT-S1S2-N3
+#NewPTS1-S2-E2 into PT-S1S2-N2
+#NewPTS1-S2-E3 into PT-S1S2-N2
+#Degenerated-URO into DegURO
+#infPT into InfPT
+#PROF-EPI into ProfPT
+#
+#CD45_ImmuneCellObj@meta.data <-
+#  
+
+# CD45_ImmuneCellObj_subimm@meta.data <-
+#   CD45_ImmuneCellObj_subimm@meta.data %>%mutate(
+#     FinalAnnotation =
+#       case_when(
+#         FinalAnn %in% c("7: T Cells/NK Cells") ~ "T_Cells",
+#         #
+#         FinalAnn %in% c("19: B Cells") ~ "B_Cells",
+# 
+#         # 
+#         .default = as.character(FinalAnn)
+#       )
+#   )
+
+
+
+Idents(CD45_ImmuneCellObj_subimm) <- "FinalAnn"
+length(levels(Idents(CD45_ImmuneCellObj_subimm)))
+# set up the order 
+CelltypeOrder <- c("Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","B cells", "T cells","NK cells" )
+
+Idents(CD45_ImmuneCellObj_subimm)<- ordered(factor(Idents(CD45_ImmuneCellObj_subimm)),levels=CelltypeOrder)
+
+
+DimPlot(CD45_ImmuneCellObj_subimm,label = T, label.size = 2)
+# DefaultAssay(CD45_ImmuneCellObj) <-"RNA"
+# 
+
 ```
 
 # generate the Distribution of requested genes 

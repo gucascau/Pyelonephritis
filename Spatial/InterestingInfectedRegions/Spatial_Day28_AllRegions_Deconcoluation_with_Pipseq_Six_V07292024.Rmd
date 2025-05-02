@@ -72,6 +72,7 @@ library(circlize)
 library(monocle3)
 #install.packages("magick")
 library(magick)
+#BiocManager::install("progeny")
 library(progeny)
 library(pheatmap)
 library(clusterProfiler)
@@ -198,7 +199,7 @@ DimPlot(Pyelonephritis_Infection)
 
 ```
 # ############################## 
-# only concentrate on day 5
+# only concentrate on day 28
 # Overall Regions
 # ############################## 
 ```{r}
@@ -237,13 +238,14 @@ cluster_averages<-AverageExpression(Pyelonephritis_InfectionSubslidesD28, group.
 # generate the gene expression profiles from each niches
 NichesExp<- cluster_averages$SCT
 
-write.csv(NichesExp, file = "Day5_niches_geneExpr.csv")
+write.csv(NichesExp, file = "Day28_niches_geneExpr.csv")
 # we only select the niches the selected niches
 Idents(Pyelonephritis_InfectionSubslidesD28)
 Pyelonephritis_InfectionSubslidesD28Infected<- subset (Pyelonephritis_InfectionSubslidesD28, idents = c("N12","N13","N14","N15","N16","N17"))
 
-InfectedRegionsSpatialDimPlot<-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD28Infected,pt.size.factor = 1500)
+InfectedRegionsSpatialDimPlot<-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD28Infected,pt.size.factor = 1000, crop=FALSE)
 InfectedRegionsSpatialDimPlot
+?SpatialDimPlot
 ggsave("Pyelonephritis_InfectionSubslidesD28Infected_SpatialDimplot.pdf", plot = InfectedRegionsSpatialDimPlot, height = 4, width = 4)
 # we define the overall regions
 
@@ -254,7 +256,7 @@ ggsave("Pyelonephritis_InfectionSubslidesD28Infected_SpatialDimplot.pdf", plot =
 InfectedCorMedRegionD7Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD28,label = TRUE, pt.size.factor =1600)
  ?SpatialDimPlot
 InfectedCorMedRegionD7Spatial
-ggsave("Spatial_infectedPelivis_day7_SpatialDimplot.pdf",
+ggsave("Spatial_infectedPelivis_day28_SpatialDimplot.pdf",
       plot = InfectedCorMedRegionD7Spatial,
       height = 8,
       width = 8 )

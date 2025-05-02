@@ -203,7 +203,7 @@ ordered(Idents(PTcells), levels=rev(levels(Idents(PTcells))))
 ```{r}
 # we only select the control:
 PTcellControls  <- subset(PTcells, subset= (DataSet == "0DPI"))
-PTcellControls@meta.data %>% head()
+PTcells@meta.data %>% head()
 DimPlot(PTcellControls)
 
 S1_S3_Markers<- c("Lrp2","Aqp1","Slc34a1","Ggt1","Atp1a1","Atp1b1","Slc5a2","Slc5a12","Slc22a8","Slc4a4","Slc13a3","Slc13a2","Slc22a6","Slc13a1","Slc22a2","Cubn","Slc22a30","Slc7a12","Slc22a7","Slc7a13","Aqp7")
@@ -222,188 +222,64 @@ S1_S3MarkerDotPlotControl
 ggsave("S1_S3MarkerDotPlotControl_v0226.pdf",plot = S1_S3MarkerDotPlotControl, height = 3.5, width = 6)
 
 # Final Injury markers:
-FinalInjuryMarkers<- c("Havcr1","Lcn2","Clu","Vcam1","Slc5a2","Agt", "Spp1","Fth1", "Dab2","Fn1","C3","Hsp90aa1", "Hsp90ab1","Hif1a","Gpx3","Hmox1","Nfkbia")
+FinalInjuryMarkers<- c("Havcr1","Lcn2","Clu","Nrg1","Slc5a2","Agt", "Spp1", "Fn1","C3","Dab2","Vcam1","Kcnip4","Smad1","Sema5a","Dcdc2a","Ypel2","Hsp90aa1", "Hsp90ab1","Hspd1","Hif1a","Hmox1","Defb1","Lyz2","Nfkbia","Il1b","Ccl2")
 FinalInjuryMarkersDotPlot <-DotPlot(PTcells, features =FinalInjuryMarkers,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
          size = guide_legend(title = "PercExp")) +  RotatedAxis()  
 
-ggsave("FinalInjuryMarkersDotPlotControl_v0226.pdf",plot = FinalInjuryMarkersDotPlot, height = 4, width = 6)
-
+ggsave("FinalInjuryMarkersDotPlotControl_v0226.pdf",plot = FinalInjuryMarkersDotPlot, height = 4, width = 7)
+FinalInjuryMarkersDotPlot
 # Reduced PT markers
 c(Lrp2,Aqp1, Slc34a1 )
 
-```
-
-
-# check the markers
-```{r}
-# the healthy cells
-HealthMarkers<- c("Slc22a30", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
-
-DotPlot(PTcells, features =  HealthMarkers, col.min = -0.5) +RotatedAxis()
-
-CyclingMarker <- "Mki67"
-DotPlot(PTcells, features =  CyclingMarker, col.min = -0.5) +RotatedAxis()
-
-EarlyInjuryMarkers <- c("Cdh13", "Cdh6", "Havcr1")
-DotPlot(PTcells, features =  EarlyInjuryMarkers, col.min = -0.5) +RotatedAxis()
-LateInjuryMarkers <-c( "Ccl2", "Gm17268", "Cald1")
-DotPlot(PTcells, features =  LateInjuryMarkers, col.min = -0.5) +RotatedAxis()
-
-ReparingMarkers <- "Top2a"
-
-DotPlot(PTcells, features =  ReparingMarkers, col.min = -0.5) +RotatedAxis()
-
-FailedFepairMarkers <- c("Ypel2","Kcnip4")
-
-DotPlot(PTcells, features =  FailedFepairMarkers, col.min = -0.5) +RotatedAxis()
 # 
-MaladptiveMarkers <- c("Vcam1", "Havcr1",  "Icam1", "Prom1","Cxcl2","Ccl3","Myc")
+MetabolicMarkers<-c("Slc22a6", "Slc22a8", "Slc6a19", "Slc22a12", "Slc13a3", "Slc9a3", "Slc1a1","Ldha","Ldhd")
 
-DotPlot(PTcells, features =  MaladptiveMarkers, col.min = -0.5) +RotatedAxis()
-
-# Combined 
-#"Lrp2","Slc34a1","Slc13a1"
-KidneyStatuesMarkers<- c( "Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
-
- DotPlot(PTcells, features =KidneyStatuesMarkers,dot.min = 0.005, col.min = -6,
-        col.max = 2, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+MetabolicMarkersDotPlot <-DotPlot(PTcells, features =MetabolicMarkers,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
          size = guide_legend(title = "PercExp")) +  RotatedAxis()  
 
-# "Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", 
-KidneyStatuesTypeMarkers<- c("Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1")
- DotPlot(PTcells, features =  KidneyStatuesTypeMarkers) +RotatedAxis()
- 
- KidneyStatuesTypeMarkers2<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1","Nfkbia")
-  DotPlot(PTcells, features =  KidneyStatuesTypeMarkers2) +RotatedAxis()
+ggsave("MetabolicMarkersDotPlotControl_v0226.pdf",plot = MetabolicMarkersDotPlot, height = 4, width = 5)
 
- #, cluster 5: Fn1, Havcr1, Cst3, Igfbp7, S100a8, Il1b, Slc7a13 : Profibrotic PT
- # cluster 1: Spp1, Prom1, Kcnip4, Col27a1,Top2a,Nfkbia: Cycling PT
- # cluster 8: Cdh13, Hsp90aa1,Inmt, Mki67 : Proliferating PT
- 
- # cluster 1: ASpp1, Prom1, Kcnipp4: Progenitor PT
- 
- # cluster 0: Aldob
-```
+# EMT regulation marker
+EMTMarker <- c("Tgfb1", "Notch1", "Wnt1", "Wnt3a","Hes1", "Ctnnb1","Shh","Gli1","Gli2", "Itgb1", "Itga5","Apoe","Spp1","Krt17","Acta2")
 
-
-# For the injury markers 
-```{r}
-InjuryMarkers<- c("Havcr1","Lcn2","Dab2","Clu","Vcam1","Slc5a2","Agt", "Spp1","Fth1")
-
-
-TubularInjuryMarkerDotPlot <-DotPlot(PTcells, features =InjuryMarkers,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+EMTMarkerDotPlot <-DotPlot(PTcells, features =EMTMarker,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
          size = guide_legend(title = "PercExp")) +  RotatedAxis()  
-
-ggsave("TubularInjuryMarkerDotPlotControl_v0226.pdf",plot = TubularInjuryMarkerDotPlot, height = 3.5, width = 6)
-
-Inflammation_ImmuneResponseMarker <- c("C3","Vcam1","Il18","Tnfa","Il6","Cxcl1","Ccl2","Nlrp3")
-TubularInjuryMarkerDotPlot <-DotPlot(PTcells, features =Inflammation_ImmuneResponseMarker,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp")) +  RotatedAxis()  
-
-ggsave("Inflammation_ImmuneResponseDotPlotControl_v0226.pdf",plot = TubularInjuryMarkerDotPlot, height = 3.5, width = 6)
-
-Fibrosis_CKDMarkers<- c("Col1a","Col3a1","Fn1","Tgfb1","Pdgfb","Acta2","Dab2","Mmp2","Mmp9")
-
-
-Fibrosis_CKDMarkersDotPlot <-DotPlot(PTcells, features =Fibrosis_CKDMarkers,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp")) +  RotatedAxis()  
-
-ggsave("Fibrosis_CKDMarkersDotPlotControl_v0226.pdf",plot = Fibrosis_CKDMarkersDotPlot, height = 3.5, width = 6)
-
-
-
-
-
-
-PrerepairMarkers<- c("Hsp90aa1", "Hsp90ab1",  "Dab2")
-DotPlot(PTcells, features =PrerepairMarkers,dot.min = 0.005, col.min = -6,
-        col.max = 2, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp")) +  RotatedAxis() 
-
-CellProliferation<- c("Top2a", "Mki67", "Lmnb1")
-DotPlot(PTcells, features =CellProliferation,dot.min = 0.005, col.min = -6,
-        col.max = 2, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp")) +  RotatedAxis() 
-
-```
-
-
-# the biomarkers for the 
-```{r}
-CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13","Slc4a11","Slc3a1","Ren1","Slc12a1","Umod","Klk1")
-
-CandidateMarkersDotPlot<-  DotPlot(PTcells, features =  CandidateMarkers, col.min = -2) +RotatedAxis()
-
-ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
-
-
-# 
-
-
-```
-
-
-# biomarker from other cell types
-```{r}
-# Cfh: Parietal epithelial cells
-Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
-                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
-
-                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
-                      "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
-                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
-                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
-                     #"Enox1","Thsd4", #Macula densa
-                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
-                    "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
-                    "Krt5","Upk1b","Krt14", # Urothelium
-                    "Cdh5","Igfbp3","Pecam1", # Endothelium
-                    "Col3a1","Fbn1","Lum","Col1a1", # Fibroblast
-                    "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
-                    "S100a8","S100a9","Il1b", # Neutrophil
-                    "C1qa","C1qb","Aif1", # Macrophage
-                    "Cxcr6","Cd247","Cd3e", # T cells
-                    "Igkc","Cd79a","Cd79b", # B cells
-                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
-)
-
-OtherMarkerGenesDotPlots<- DotPlot(PTcells, features =  Finalcelltypemarkers, col.min = -0.5) +RotatedAxis()
-ggsave(filename = "OtherMarkerGenesExpression_ClusterAnnotate.pdf", plot = OtherMarkerGenesDotPlots, width = 15, height = 8)
-
+EMTMarkerDotPlot
 ```
 
 # #####################################
 ## generate the Trajectories of PT cells using monocle2, instead of monocle3
 # #####################################
-# 2.2 Prepared cds the object
+# 2.2 Prepared cds the object we only select the S3 cells
 ```{r}
 # transfer Seurat object to cellDataset object
 
 # build cds object
 # set up the pathway
-setwd(PyseudotimeDir)
+Pyseudotime_S3_Dir<- paste0(PyseudotimeDir, "Pyseudotime_S3/")
+setwd(Pyseudotime_S3_Dir)
+PT_S3cells <- subset(PTcells, subset= (seurat_clusters %in% c(5,6) ))
 
 # the expression
-PTcells_expr_matrix = LayerData(PTcells, layer  = "counts")
+PT_S3cells_expr_matrix = LayerData(PT_S3cells, layer  = "counts")
 
 # check expression matrix:
 
 # Cell meta annotation -- phenotype
-p_data <- PTcells@meta.data 
+p_data <- PT_S3cells@meta.data 
 head(p_data)
-rownames(PTcells_expr_matrix)
+rownames(PT_S3cells_expr_matrix)
 # Gene meta annotation
-f_data<- data.frame(gene_short_name = rownames(PTcells_expr_matrix), row.names = rownames(PTcells_expr_matrix))
+f_data<- data.frame(gene_short_name = rownames(PT_S3cells_expr_matrix), row.names = rownames(PT_S3cells_expr_matrix))
 f_data
 # UMIs or read ounts are better modele with the negative biomial.
 pd <- new("AnnotatedDataFrame", data = p_data)
 fd <- new("AnnotatedDataFrame", data = f_data)
-PTcells_expr_matrix
+PT_S3cells_expr_matrix
 
-CDS <- monocle::newCellDataSet(as.matrix(PTcells_expr_matrix), 
+CDS <- monocle::newCellDataSet(as.matrix(PT_S3cells_expr_matrix), 
                        phenoData = pd, 
                        featureData = fd,
-                       lowerDetectionLimit = 0.1,
                        expressionFamily=negbinomial.size())
 CDS
 CDS <- estimateSizeFactors(CDS)
@@ -415,7 +291,7 @@ CDS <- estimateDispersions(CDS)
 CDS <- detectGenes(CDS, min_expr = 0.1)
 print(head(CDS@featureData@data))
 expressed_genes <- row.names(subset(CDS@featureData@data,
-                                    num_cells_expressed >= 10))
+                                    num_cells_expressed >= 5))
 length(expressed_genes)
 colnames(phenoData(CDS)@data)
 
@@ -433,49 +309,23 @@ CDS[expressed_genes,]
 # step2 plot pc variance explained
 plot_pc_variance_explained(CDS, return_all = F) # norm_method='log'
 
-
-
-## Trajactory step 1: choose genes that define a cells' progress that compare the infection vs noninfection within the infected timepoints
-# First, we must decide which genes we will use to define a cell's progress through myogenesis. We ultimately want a set of genes that increase (or decrease) in expression as a function of progress through the process we're studying.
-
-#Ideally, we'd like to use as little prior knowledge of the biology of the system under study as possible. We'd like to discover the important ordering genes from the data, rather than relying on literature and textbooks, because that might introduce bias in the ordering. We'll start with one of the simpler ways to do this, but we generally recommend a somewhat more sophisticated approach called "dpFeature".
-
-# One effective way to isolate a set of ordering genes is to simply compare the cells collected at the beginning of the process to those at the end and find the differentially expressed genes, as described above. The command below will find all genes that are differentially expressed in response to the switch from growth medium to differentiation medium:
-
-# here we will detect the genes based on the series of timepoints 
+## Trajactory step 1: choose genes that define a cells' progress that compare the infection vs noninfection
 diff_test_res <- differentialGeneTest(CDS[expressed_genes,],
-              fullModelFormulaStr = "~DataSet")
-diff_test_res%>% arrange(qval) %>% head()
-nrow(diff_test_res)
-diff_test_res 
-# these will order the gene from our choose from control to infection
+              fullModelFormulaStr = "~Condition")
+
 ordering_genes <- row.names (subset(diff_test_res, qval < 0.01))
 
-length(ordering_genes)
-# we also select the genes with high dispersion across cells
-dis_table<- dispersionTable(CDS)
-
-ordering_genes_2 <- subset(dis_table,
-                  mean_expression >= 0.05 & dispersion_empirical >= 0.05 * dispersion_fit)$gene_id
-length(ordering_genes_2)
-Final_ordering_genes<- intersect(ordering_genes,ordering_genes_2 )
-write.csv(Final_ordering_genes, file = "Final_ordering_genes.csv")
-
-length(Final_ordering_genes)
-CDS <- setOrderingFilter(CDS, Final_ordering_genes)
+CDS <- setOrderingFilter(CDS, ordering_genes)
 plot_ordering_genes(CDS)
 
 # reduce data dimention using DDRTree 
 CDS <- reduceDimension(CDS, max_components = 2,
     method = 'DDRTree')
 # trajectory step3: order cells along the trajectory
-CDS <- monocle::orderCells(CDS)
+CDS <- orderCells(CDS)
 
 
- 
-??GM_state
-#install.packages("igraph")
-
+pdf()
 plot_cell_trajectory(CDS, color_by = "SCT_snn_res.0.3", cell_size = 0.5)
 plot_cell_trajectory(CDS, color_by = "DataSet",cell_size=0.5)
 ?plot_cell_trajectory
@@ -539,7 +389,7 @@ plot_cells(cds, reduction_method="UMAP",
            color_cells_by="SCT_snn_res.0.3")
 dev.off()
 # UMAP by Seurat
-seurat_umap <- Embeddings(PTcells, reduction = "umap")[colnames(cds),]
+seurat_umap <- Embeddings(PT_S3cells, reduction = "umap")[colnames(cds),]
 cds@int_colData$reducedDims$UMAP <- seurat_umap
 head(cds@int_colData$reducedDims$UMAP)
 plot_cells(cds, reduction_method="UMAP", 
@@ -594,12 +444,12 @@ get_earliest_principal_node <- function(cds, time_bin="0DPI"){
 cds <- order_cells(cds, root_pr_nodes=get_earliest_principal_node(cds))
 
 
-PTCells_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime", 
+PT_S3cells_pseudotime <-plot_cells(cds, color_cells_by = "pseudotime", 
            label_cell_groups = FALSE, 
            label_leaves = TRUE,  
            label_branch_points = FALSE,graph_label_size=1.5)
-PTCells_pseudotime
-ggsave(filename = "PTCells_pseudotime_MonocaCluster_V02122025.pdf", plot = PTCells_pseudotime, width = 4, height = 3)
+PT_S3cells_pseudotime
+ggsave(filename = "PT_S3cells_pseudotime_MonocaCluster_V02122025.pdf", plot = PT_S3cells_pseudotime, width = 4, height = 3)
 
 
 
@@ -651,7 +501,7 @@ ggsave(filename = "PT_pseudotime_Havcr1Track.pdf", plot = Havcr1Track, width = 5
 Prom1Track <- plot_genes_in_pseudotime(cds["Prom1",],min_expr=0.5 )
 ggsave(filename = "PT_pseudotime_Prom1Track.pdf", plot = Prom1Track, width = 5, height = 3)
 
-FeaturePlot(PTcells, features = "Havcr1")
+FeaturePlot(PT_S3cells, features = "Havcr1")
 
 ```
 
@@ -726,12 +576,12 @@ cds["Havcr1",] %>% head()
 plot_genes_in_pseudotime(cds[c("Havcr1"),] , 
                          min_expr=0.5)
 
-DotPlot(PTcells, features =diff_pseudo_gene ) +RotatedAxis()
+DotPlot(PT_S3cells, features =diff_pseudo_gene ) +RotatedAxis()
 
-DotPlot(PTcells, features =c("Spp1","Havcr1","Itgb1","Top2a",
+DotPlot(PT_S3cells, features =c("Spp1","Havcr1","Itgb1","Top2a",
                              "Prom1","Pdgfb","Defb1","Fn1","Col6a1"), col.min = -0.5 ) +RotatedAxis()
 
-FeaturePlot(PTcells, features = c("Lcn2","Defb1","Egf","Havcr1"))
+FeaturePlot(PT_S3cells, features = c("Lcn2","Defb1","Egf","Havcr1"))
 # the following no longer have 
 
 Track_genes

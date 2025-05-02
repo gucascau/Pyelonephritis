@@ -834,6 +834,7 @@ for (Pdate in Condition) {
 setwd(Outdir)
 saveRDS(file = "Pyelonephritis_Infection_Deconvoluted_v07292024.RDS", object = Pyelonephritis_Infection)
 
+Pyelonephritis_Infection <- readRDS("Pyelonephritis_Infection_Deconvoluted_v07292024.RDS")
 #Pyelonephritis_Infection <- readRDS( file = "Pyelonephritis_Infection_Deconvoluted.RDS")
 Allimagmes= names(Pyelonephritis_Infection @images)
 
@@ -843,13 +844,12 @@ Allimagmes= names(Pyelonephritis_Infection @images)
 
 # Generate the biomarkers within timepoints
 ```{r}
-
 setwd(CBiomadir)
 # generate the Dotplot for the biomarkers
 Pyelonephritis_Infection
 DefaultAssay(Pyelonephritis_Infection) <-"SCT"
 
-SpatialFeaturePlot(Pyelonephritis_Infection, features = "Lrp2", pt.size.factor = 1.6, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+SpatialFeaturePlot(Pyelonephritis_Infection, features = "Lrp2", pt.size.factor = 1600, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
   
 Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
                       "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
@@ -878,11 +878,61 @@ ggsave("SpatialAllMarkersDotPlot.pdf", plot = SpatialAllMarkersDotPlot, height =
 #Pyelonephritis_InfectionSubslidesD0
 
 for (i in Finalcelltypemarkers){
-   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1.6, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1600, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
   
   ggsave(filename = paste0(i,"_SpatialFeaturePrediction_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
   
 }
+```
+
+# for PT cells with the injury markers in spatial
+```{r}
+# S1, S2, S3 markers 
+PTCBiomadir<- paste0(BioMarkerDir,"PTs/")
+dir.create(PTCBiomadir)
+setwd(PTCBiomadir)
+
+PTS1_S3_Biomadir<- paste0(PTCBiomadir,"PTS1_S3/")
+dir.create(PTS1_S3_Biomadir)
+setwd(PTS1_S3_Biomadir)
+S1_S3_Markers<- c("Lrp2","Aqp1","Slc34a1","Ggt1","Atp1a1","Atp1b1","Slc5a2","Slc5a12","Slc22a8","Slc4a4","Slc13a3","Slc13a2","Slc22a6","Slc13a1","Slc22a2","Cubn","Slc7a12","Slc22a7","Slc7a13","Aqp7")
+for (j in S1_S3_Markers){
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = j, pt.size.factor = 1600, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+  
+  ggsave(filename = paste0(j,"_SpatialFeaturePrediction_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
+  
+}
+PTInjury_Biomadir<- paste0(PTCBiomadir,"PTInjury/")
+dir.create(PTInjury_Biomadir)
+setwd(PTInjury_Biomadir)
+PTInjury_Biomadir
+# Final Injury markers:
+FinalInjuryMarkers<- c("Havcr1","Lcn2","Clu","Nrg1","Slc5a2","Agt", "Spp1", "Fn1","C3","Dab2","Vcam1","Kcnip4","Smad1","Sema5a","Dcdc2a","Ypel2", "Hspd1","Hif1a","Hmox1","Defb1","Lyz2","Nfkbia","Il1b","Ccl2")
+for (n in FinalInjuryMarkers){
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features = n, pt.size.factor = 1600, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+  
+  ggsave(filename = paste0(n,"_SpatialFeaturePrediction_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
+  
+}
+PTMetabolic_Biomadir<- paste0(PTCBiomadir,"PTMetabolic/")
+dir.create(PTMetabolic_Biomadir)
+setwd(PTMetabolic_Biomadir)
+
+# 
+MetabolicMarkers<-c("Slc22a6", "Slc22a8", "Slc6a19", "Slc22a12", "Slc13a3", "Slc9a3", "Slc1a1","Ldhd")
+for (m in MetabolicMarkers){
+   CellTypeMarkerSpatialFeature<- SpatialFeaturePlot(Pyelonephritis_Infection, features =m, pt.size.factor = 1600, crop = TRUE) & ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,10))
+  
+  ggsave(filename = paste0(m,"_SpatialFeaturePrediction_Splits.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 25)
+  
+}
+
+# EMT regulation marker
+EMTMarker <- c("Tgfb1", "Notch1", "Wnt1", "Wnt3a","Hes1", "Ctnnb1","Shh","Gli1","Gli2", "Itgb1", "Itga5","Apoe","Spp1","Krt17","Acta2")
+
+EMTMarkerDotPlot <-DotPlot(PTcells, features =EMTMarker,dot.min = 0.005, cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) +  RotatedAxis()  
+EMTMarkerDotPlot
 
 ```
 

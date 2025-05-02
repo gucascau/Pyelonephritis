@@ -94,8 +94,10 @@ library(circlize)
 library(monocle3)
 #install.packages("magick")
 library(magick)
+#BiocManager::install("MAST")
+library(MAST)
 #K means with 6 groups
-
+library("scCustomize")
 ```
 
 
@@ -204,8 +206,8 @@ levels(ICPCcellsFinal)
 
 ICPCcellsFinal@meta.data <- ICPCcellsFinal@meta.data %>%   mutate(ICPCAnnot = 
            case_when(SCT_snn_res.0.3 %in% c("0") ~ "DegCD", # PC markers: Aqp2, Hsd11b2, scnn1g
-                     SCT_snn_res.0.3 %in% c("1") ~ "PC1", # Seems to be an combined CDs that affected by infection
-                     SCT_snn_res.0.3 %in% c("2") ~ "PC2", # Seems to be an combined CDs that affected by infection
+                     SCT_snn_res.0.3 %in% c("1") ~ "PC", # Seems to be an combined CDs that affected by infection
+                     SCT_snn_res.0.3 %in% c("2") ~ "PC", # Seems to be an combined CDs that affected by infection
                      SCT_snn_res.0.3 %in% c("3") ~ "ICA", # Seems to be an combined CDs that affected by infection
                      SCT_snn_res.0.3 %in% c("4") ~ "DegCD", # Intercalted Cell A markers: Slc4a1, Aqp6
                      SCT_snn_res.0.3 %in% c("5") ~ "ICB", # Intercalated Cell B markers: Slc26A4, SpinkB
@@ -220,7 +222,7 @@ table(ICPCcellsFinal@meta.data$ICPCAnnot,ICPCcellsFinal@meta.data$DataSet)
 table(scrna@meta.data$DataSet)
 table(scrna )
 # Reorder the levels:
-Idents(ICPCcellsFinal)<-ordered(factor(Idents(ICPCcellsFinal)),levels=c("ICA","ICB","PC1","PC2","DegCD"))
+Idents(ICPCcellsFinal)<-ordered(factor(Idents(ICPCcellsFinal)),levels=c("ICA","ICB","PC","DegCD"))
 
 FinalMarkersWithAnn <- c("Atp6v1g3","Aqp6","Slc4a1","Slc26a7","Kit","Slc26a4","Spink8","Hmx2","Aqp2","Hsd11b2","Scnn1g","Syt7")
 
@@ -249,7 +251,11 @@ for (i in FinalMarkersWithAnn){
 
 ICPCcellsFinalMarkerHeatmapWithAnno<- DoHeatmap(ICPCcellsFinal, features = FinalMarkersWithAnn)
 ggsave(filename = "ICPCcellsFinalMarkerHeatmapWithAnno_V02132025.pdf", plot = ICPCcellsFinalMarkerHeatmapWithAnno, width = 5, height =6)
+# save into degenrated CD
 
+saveRDS(ICPCcellsFinal, "ICPCcells_DegCD_v02142025.RDS")
+
+ICPCcellsFinal <- readRDS("ICPCcells_DegCD_v02142025.RDS")
 ```
 
 
@@ -265,9 +271,117 @@ AllKidneymarkers <- c("Atp6v1g3","Slc26a4","Hmx2","Spink8","Slc26a7","Aqp6","Slc
 "Lrp2","Slc12a3","Umod","Fhl2","Pecam1","Ptprc","Syt7")
 
 #ICPCmarkers <- c("Atp6v1g3","Slc26a4","Hmx2","Spink8","Slc26a7","Aqp6","Slc4a1","Kit","Aqp2","Hsd11b2","Scnn1g")
-CollectingDuctMarkersDotPlot2 <- DotPlot(ICPCcells, features = AllKidneymarkers)
+CollectingDuctMarkersDotPlot2 <- DotPlot(ICPCcellsFinal, features = AllKidneymarkers)
 CollectingDuctMarkersDotPlot2
 ggsave(filename = "WithMarkerSelected_AllMarkersDotPlot_V02132025.pdf", plot = CollectingDuctMarkersDotPlot, height = 5, width = 12)
+```
+
+# check the marker expression during the infection
+```{r}
+ICPCcellsFinal@meta.data<-ICPCcellsFinal@meta.data %>% mutate(ICPCInfection = paste0(ICPCAnnot,"_", DataSet))
+
+ICPCInfectedClusterOrdered <- c("ICA_0DPI","ICA_3DPI", "ICA_7DPI", "ICA_28DPI", "ICB_0DPI", "ICB_3DPI","ICB_7DPI", "ICB_28DPI",  "PC_0DPI","PC_3DPI", "PC_7DPI", "PC_28DPI","DegCD_0DPI","DegCD_3DPI", "DegCD_7DPI", "DegCD_28DPI")
+levels(as.factor(ICPCcellsFinal@meta.data$ICPCInfection))
+Idents(ICPCcellsFinal) <- ICPCcellsFinal@meta.data$ICPCInfection
+Idents(ICPCcellsFinal)<-ordered(factor(Idents(ICPCcellsFinal)),levels=ICPCInfectedClusterOrdered)
+
+CollectingDuctMarkersDotPlot2Split <- DotPlot(ICPCcellsFinal, features = ICPCmarkers) + guides(color = guide_colorbar(title = 'AverExp'),
+             size = guide_legend(title = "PercExp"))  + RotatedAxis()  +coord_fixed()
+
+ggsave(filename = "CollectingDuctMarkersDotPlot2Split_V02132025.pdf", plot = CollectingDuctMarkersDotPlot2Split, height = 10, width = 6)
+# 
+
+FinalAKICKD_Inflammation_Fibrosis_Markers<- c("Nfkb1","Rela", "Tnf","Tnfrsf1a","Tnfrsf1b", "Il6","Il1b", "Nlrp3","Ccl6","Ccl2","Cxcl10","Cxcl12","Tgfb1","Smad3","Ccn2","Col3a1","Fn1","Acta2","Timp1","Timp2","Mmp2","Mmp7","Cybb","Ripk3","Ripk1","Mlkl")
+
+
+FinalInflammation_Fibrosis_markersDotPlot <-
+  DotPlot(
+    ICPCcellsFinal,
+    features = FinalAKICKD_Inflammation_Fibrosis_Markers,
+    cols = "RdBu"
+  ) + guides(color = guide_colorbar(title = 'AverExp'),
+             size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+  # theme(legend.text = element_text(size = 12),
+  #       legend.title = element_text(size = 8))
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+FinalAKICKD_markersDotPlot
+ggsave("FinalInflammation_Fibrosis_markers_IC_DotPlot.pdf", plot =FinalInflammation_Fibrosis_markersDotPlot, height = 5, width = 8 )
+nfkb_pathway <- c("Nfkb1", "Nfkb2", "Rel", "Relb", "Ikbkb", "Ikbkg", "Chuk", "Traf6", "Myd88", "Il1b", "Tnfa") # Master regulator of cytokine production and immune activation
+nfkb_pathway_markersDotPlot <-
+  DotPlot(
+    ICPCcellsFinal,
+    features = nfkb_pathway,
+    cols = "RdBu"
+  ) + guides(color = guide_colorbar(title = 'AverExp'),
+             size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+ggsave("nfkb_pathway_markersDotPlot_markers_IC_DotPlot.pdf", plot =nfkb_pathway_markersDotPlot, height = 6, width = 6 )
+amp_genes <- c("Lcn2", "Defb1", "Defb4",  "Umod","Ctsb","S100a8", "S100a9", "Slpi", "Reg3g", "Nos2")
+amp_genes <- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4","Umod", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
+amp_genes_markersDotPlot <-
+  DotPlot(
+    ICPCcellsFinal,
+    features = amp_genes,
+    cols = "RdBu"
+  ) + guides(color = guide_colorbar(title = 'AverExp'),
+             size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+ggsave("amp_genes_markersDotPlot_markers_IC_DotPlot.pdf", plot =amp_genes_markersDotPlot, height = 6, width = 10 )
+
+RenalInjuryMarkers<-c ("Havcr1","Vcam1","C3","Lcn2","Vim","Cst3","Umod","Igfbp7","Il18", "S100a8","S100a9")
+RenalInjury_genes_markersDotPlot <-
+  DotPlot(
+    ICPCcellsFinal,
+    features = RenalInjuryMarkers,
+    cols = "RdBu"
+  ) + guides(color = guide_colorbar(title = 'AverExp'),
+             size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+ggsave("RenalInjury_markersDotPlot_markers_IC_DotPlot.pdf", plot =RenalInjury_genes_markersDotPlot, height = 6, width = 6 )
+
+#NovelBiomarkers<- c("Ccl7","Arg1","Mmp8")
+# Generate the feature Plots
+for (j in FinalAKICKD_Inflammation_Fibrosis_Markers) {
+#for (j in NovelBiomarkers) {  
+    # Generate DimPlot or SpatialDimPlot based on user's choice
+    # Function to generate DimPlot plot
+    #  j="Calr"
+    
+    # we use this details to escape the figures that did not show up in spatial
+    skip_to_next <- FALSE
+    
+    # Note that print(b) fails since b doesn't exist
+    
+    tryCatch(
+      print(Pyelonephritis_Infection@assays$SCT@data[j, ]),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    # get the maxium and minvalue of the gene
+    Maxvalue <- ceiling(max(Pyelonephritis_Infection@assays$SCT@data[j, ]))
+    Minvalue <- floor(min(Pyelonephritis_Infection@assays$SCT@data[j, ]))
+    GenesInGOtermMouseSpatialFeature <-
+      SpatialFeaturePlot(
+        Pyelonephritis_Infection,
+        features = j,
+        pt.size.factor = 1600,
+        crop = TRUE
+      ) &
+      ggplot2::scale_fill_gradientn(colours = myPalette(4),
+                                    limits = c(Minvalue, Maxvalue))
+    
+    # save the figure into the folder
+    ggsave(
+      filename = paste0(AKIMarker, "/", "Spatial_", j, "_In_AKI_CKD_Inf_Fib_ROS.pdf"),
+      plot = GenesInGOtermMouseSpatialFeature,
+      height = 3,
+      width = 15
+    )
+  
+  }
+
 ```
 
 
@@ -280,6 +394,7 @@ AllClustermarkers <- FindAllMarkers(ICPCcellsFinal,
 #AllClustermarkers
 write.csv(AllClustermarkers, file = "ClusterSpecificGenes.csv")
 
+AllClustermarkers <- read.csv("ClusterSpecificGenes.csv")
 # check the GO enrichments of CD
 AllClustermarkers %>% filter(cluster == "ICA") %>%filter(p_val_adj <=0.05) %>% nrow()
 #AllClustermarkers %>% filter(cluster == "ICA") %>% nrow()
@@ -304,19 +419,20 @@ ggsave(filename = "ICPCTop10MarkersDotPlot.pdf", plot = ICPCTop5MarkersDotPlot, 
 ICPCTop5MarkersDohetmap <- DoHeatmap(ICPCcellsFinal, features =  unique(ICPCTop5List))
 
 ggsave(filename = "ICPCTop5MarkersDoheatmap.pdf", plot = ICPCTop5MarkersDohetmap, width = 5, height =5)
-
+ICPCTop5MarkersDohetmap
 ```
 
 
 # For AMP genes
 ```{r}
 #c('Rnase4', 'Rnase6', 'Mbd1', 'Mbd2', 'Umod', 'Ltf', 'Camp')
+AMPdir<- paste0()
 DefaultAssay(ICPCcellsFinal) <-"RNA"
 AMPCandidates<- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4","Umod", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
 
 AMPCandidatesDotPlot<-DotPlot(ICPCcellsFinal, features = AMPCandidates)+guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp")) + RotatedAxis() 
-ggsave(filename = "AMPCandidatesDotPlot_V02132025.pdf", plot = AMPCandidatesDotPlot, width = 7, height =4)
+         size = guide_legend(title = "PercExp")) + RotatedAxis() + coord_flip()
+ggsave(filename = "AMPCandidatesDotPlot_V02132025.pdf", plot = AMPCandidatesDotPlot, width = 8, height =6)
 
 ICPCcellsFinal@meta.data%>% head()
 
@@ -329,12 +445,62 @@ FeaturePlot(ICPCcellsFinal, features =  "Rnase4", order=T)
 
 # identify the gene list that expressed 
 AMPCandidatesExp<- c("Camp","Defb1","Reg3g","S100a8","S100a9","Ltf","Lcn2")
-
-for (i in AMPCandidatesExp){
+ICPCcellsFinal@assays$SCT@data["Defb1",]
+for (i in AMPCandidates){
 # 
-  FeaturePlots<-FeaturePlot(ICPCcellsFinal, features =  i, order = T) +RotatedAxis()
-  ggsave(paste0(Outdir,"/Biomarkers/AMPs/", i, "_Feature_AMP_Markers_Annoatation_V02132025.pdf"), plot =FeaturePlots, height =4, width =5)
+  # FeaturePlots<-FeaturePlot(ICPCcellsFinal, features =  i, order = T) +RotatedAxis()
+  # ggsave(paste0(Outdir,"/Biomarkers/AMPs/", i, "_Feature_AMP_Markers_Annoatation_V02132025.pdf"), plot =FeaturePlots, height =4, width =5)
+  
+
+    #SingleCellObj @meta.data %>% head()
+    #FeaturePlot(object = SingleCellObj, features = j,split.by = "DataSet")
+     # generate the distribution from the single cells
+    skip_to_next_sc <-FALSE
+    tryCatch(
+      print(ICPCcellsFinal@assays$SCT@data[i, ]),
+      error = function(e) {
+        skip_to_next_sc <<- TRUE
+      }
+    )
+    
+    if (skip_to_next_sc) {
+      next
+    }
+    
+      # use other figure to genreate the feature plot
+    ScMaxvalue <- ceiling(max(ICPCcellsFinal@assays$SCT@data[i, ]))
+    ScMinvalue <- floor(min(ICPCcellsFinal@assays$SCT@data[i, ]))
+    GenesInGOtermMouseSingleCellFeatureDate <-
+      # FeaturePlot(object = SingleCellObj,
+      #             features = j,
+      #             split.by = "DataSet")
+     FeaturePlot_scCustom(seurat_object = ICPCcellsFinal, features = i,split.by = "DataSet",
+colors_use = viridis_plasma_dark_high, na_color = "lightgray")
+    # save the figure into the folder
+    ggsave(
+      filename = paste0(AMPdir, "/", "AMP_Markers_Annoatation_Date_", i, ".pdf"),
+      plot = GenesInGOtermMouseSingleCellFeatureDate,
+      height = 3,
+      width = 12
+    )
+     GenesInGOtermMouseSingleCellFeature <-
+      # FeaturePlot(object = SingleCellObj,
+      #             features = j, cols.use = c("gray","red")) # +  scale_color_viridis_c(limits = c(ScMinvalue, ScMaxvalue))
+     
+     FeaturePlot_scCustom(seurat_object = ICPCcellsFinal, features = i,
+colors_use = viridis_plasma_dark_high, na_color = "lightgray")
+
+         ggsave(
+      filename = paste0(AMPdir, "/", "SingleCell_AMP_",i, ".pdf"),
+      plot = GenesInGOtermMouseSingleCellFeature,
+      height = 3,
+      width = 4
+    )
+  
+  
 }
+
+# we then check the expression profile for the infected date
 
 ```
 
@@ -466,10 +632,13 @@ summarized_progeny_scores_df
 ICPCCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
 ICPCCellForHeatmap
 # generate the heatmap for ImmuneCells
-pdf(file="ICPCCells_Progeny_ForHeatmap_V02132025.pdf",height = 5, width = 6)
+#pdf(file="ICPCCells_Progeny_ForHeatmap_V02132025.pdf",height = 5, width = 6)
 library(pheatmap)
-progeny_hmap = pheatmap(ICPCCellForHeatmap,fontsize=12, 
-                        fontsize_row = 10, 
+pdf(file="ICPCCells_Progeny_ForHeatmap_Split_V02132025.pdf",height = 5, width = 10)
+library(pheatmap)
+ICPCCellForHeatmap2<- ICPCCellForHeatmap[,ICPCInfectedClusterOrdered]
+progeny_hmap = pheatmap(ICPCCellForHeatmap2,fontsize=12, 
+                        fontsize_row = 10, cluster_rows = F, cluster_cols = F,
                         color=myColor, breaks = progenyBreaks, 
                         #main = "PROGENy signaling", 
                         angle_col = 45,

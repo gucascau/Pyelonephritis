@@ -111,7 +111,7 @@ myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 ```{r}
 ## set directory pathway:
 
-rm(list=ls())
+#rm(list=ls())
 setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectionNiches/")
 Indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
 # Here is the Kidney different regions

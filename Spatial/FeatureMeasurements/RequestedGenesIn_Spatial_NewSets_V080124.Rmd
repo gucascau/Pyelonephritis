@@ -156,7 +156,72 @@ DefaultAssay(SpatialObj) <- "SCT"
 # generate the gene list
 ```
 
+# chagne the image background
+```{r}
+#BiocManager::install("EBImage")
+#BiocManager::install("ggimage")
+library(ggimage)
+library(EBImage) # for image manipulation
+names(SpatialObj@images)
+# Access the image
+set_spatial_background_white_all_images <- function(seurat_obj, threshold = 0.05) {
+  
+  for (img_name in names(seurat_obj@images)) {
+    message("Processing image: ", img_name)
 
+    img <- seurat_obj@images[[img_name]]@image
+    img_norm <- normalize(img)
+    
+    if (length(dim(img_norm)) == 2) {
+      img_rgb <- array(rep(img_norm, each = 3), dim = c(dim(img_norm), 3))
+    } else {
+      img_rgb <- img_norm
+    }
+    
+    background_mask <- apply(img_rgb, c(1, 2), function(x) all(x < threshold))
+    
+    img_rgb[,,1][background_mask] <- 1
+    img_rgb[,,2][background_mask] <- 1
+    img_rgb[,,3][background_mask] <- 1
+    
+    seurat_obj@images[[img_name]]@image <- img_rgb
+  }
+  
+  return(seurat_obj)
+}
+
+# Apply to all images in a single Seurat object
+SpatialObj <- set_spatial_background_white_all_images(SpatialObj)
+set_tissue_areas_light_blue <- function(seurat_obj, threshold = 0.05, color = c(0.678, 0.847, 0.902)) {
+  for (img_name in names(seurat_obj@images)) {
+    img <- seurat_obj@images[[img_name]]@image
+    img_norm <- normalize(img)
+
+    # Convert to RGB if image is grayscale
+    if (length(dim(img_norm)) == 2) {
+      img_rgb <- array(rep(img_norm, each = 3), dim = c(dim(img_norm), 3))
+    } else {
+      img_rgb <- img_norm
+    }
+
+    # Create a mask for tissue (areas that are not background)
+    tissue_mask <- apply(img_rgb, c(1, 2), function(x) any(x > threshold))
+    
+    # Set tissue areas to light blue, leave the background unchanged
+    img_rgb[tissue_mask, 1] <- color[1]
+    img_rgb[tissue_mask, 2] <- color[2]
+    img_rgb[tissue_mask, 3] <- color[3]
+
+    # Assign modified image back
+    seurat_obj@images[[img_name]]@image <- img_rgb
+  }
+  return(seurat_obj)
+}
+# Light blue tint
+SpatialObj <- set_tissue_areas_light_blue(SpatialObj)
+
+
+```
 
 
 # requested Genes
@@ -167,10 +232,14 @@ DefaultAssay(SpatialObj) <- "SCT"
 # check the ligand and receptors found in the ATLAS
 RequestedGenes<- c("C3","Ccl3","Ccl3","Ccl4","Ccl5","Ccl6","Ccl7","Ccl9","Ccrl2","Cxcl1","Cxcl10","Cxcl14","Cxcl16","Cxcl3","Cxcl5","Cxcr2")
 
+# Fig S2 for requested of tissue-specific gene expression markers (identities) for the renal urothelium (Upk3a), pelvis (Lc4a11 and Nfat5), medulla (Slc3a1 and Prlr), and cortex (Renin and Nephrin) on slides collected from infected kidney
+RequestedGenes<- c("Upk3a","Psca","Slc4a11","Nfat5","Slc3a1","Prlr","Ren1","Nphs1")
 # For receptors
 #RequestedGenes<-c("C3ar1","Ccr1","Ccr2","Ccr5")
 
-RequestedDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Cell_Cell_Communication_V08012024/Chemotacticfactors/")
+#RequestedDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Cell_Cell_Communication_V08012024/Chemotacticfactors/")
+RequestedDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/Features_ForPublications/StructuralTissueFeatures/")
+Name<- "RegionalTissueMarker"
 setwd(RequestedDir)
 # requested genes in the spatial 
 
@@ -182,8 +251,9 @@ RequestedGenesDotPlot <-
     DotPlot(SingleCellObj, features = RequestedGenes) + guides(color = guide_colorbar(title = 'AverExp'),
          size = guide_legend(title = "PercExp")) + RotatedAxis() 
 
- ggsave("Ligand_DotPlot.pdf", plot = RequestedGenesDotPlot, height = 7, width = 6)
-  
+ ggsave(paste0(Name,"_SingleCell_DotPlot.pdf"), plot = RequestedGenesDotPlot, height = 7, width = 6)
+
+SpatialColors <- colorRampPalette(colors = rev(x = brewer.pal(n = 8, name = "Spectral")))
 
 for (j in RequestedGenes) {
 
@@ -212,15 +282,21 @@ for (j in RequestedGenes) {
       SpatialFeaturePlot(
         SpatialObj,
         features = j,
-        pt.size.factor = 1500,
+        pt.size.factor = 1800,
+        alpha = c(0.8, 1),
         crop = TRUE
       ) &
-      ggplot2::scale_fill_gradientn(colours = myPalette(4),
-                                    limits = c(Minvalue, Maxvalue-0.5))
+      ggplot2::scale_fill_gradientn(colours = SpatialColors(n=60),
+                                    limits = c(Minvalue-1, Maxvalue)) 
+  #   #& theme(
+  # plot.background = element_rect(fill = "lightblue"),
+  # panel.background = element_rect(fill = "lightblue"),
+  # panel.grid = element_blank()
+#)
     
     # save the figure into the folder
     ggsave(
-      filename = paste0(RequestedDir, "/", "Spatial_", j, "_Ligand.pdf"),
+      filename = paste0(RequestedDir, "/", "Spatial_", j, "_featureplot.pdf"),
       plot = GenesInRequestedMouseSpatialFeature,
       height = 3,
       width = 15
@@ -251,7 +327,7 @@ for (j in RequestedGenes) {
 
     # save the figure into the folder
     ggsave(
-      filename = paste0(RequestedDir, "/", "SingleCell_", j, "_Ligand.pdf"),
+      filename = paste0(RequestedDir, "/", "SingleCell_", j, "_feature.pdf"),
       plot = GenesInGOtermMouseSingleCellFeature,
       height = 3,
       width = 12

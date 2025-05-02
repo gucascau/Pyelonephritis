@@ -196,7 +196,8 @@ library(Matrix)
 
 #remotes::install_version("Matrix", version = "1.5-1")
 ## using the new way:
-
+PTcells@meta.data%>% head()
+table(PTcells@meta.data$DataSet)
 gene_annotation = as.data.frame(rownames(PTcells@assays$RNA@counts))
 colnames(gene_annotation) = "gene_short_name"
 rownames(gene_annotation) = gene_annotation$gene_short_name
@@ -208,18 +209,31 @@ cds <- new_cell_data_set(
   gene_metadata = gene_annotation
   )
 
-cds <- monocle3::preprocess_cds(cds, num_dim = 5)
+cds <- monocle3::preprocess_cds(cds, num_dim = 10)
 cds@metadata
-#cds <- align_cds(cds, alignment_group = "batch")
+cds <- align_cds(cds, alignment_group = "DataSet")
 #cds
-# cds <- reduce_dimension(cds)
-# cds <- cluster_cells(cds)
-# cds <- learn_graph(cds)
-# cds <- order_cells(cds) # this step requires interactive selection for ordering the cells.
+cds <- reduce_dimension(cds,reduction_method = "UMAP" )
+?reduce_dimension
+plot_cells(cds, label_groups_by_cluster=FALSE)
+ cds <- cluster_cells(cds)
+ cds <- learn_graph(cds)
+ cds <- order_cells(cds) # this step requires interactive selection for ordering the cells.
 # 
 # 
-# cds <- as.CellDataSet(PTcells)
-# plot_cells(cds)
+ cds <- as.CellDataSet(PTcells)
+ plot_cells(cds)
+ plot_cells(cds,
+           color_cells_by = "DataSet",
+           label_groups_by_cluster=TRUE,
+           label_leaves=TRUE,
+           label_branch_points=FALSE)
+ 
+ plot_cells(cds,
+           color_cells_by = "SCT_snn_res.0.3",
+           label_groups_by_cluster=TRUE,
+           label_leaves=TRUE,
+           label_branch_points=FALSE)
 # 
 # 
 # PTcells_expr_matrix[2,3]
