@@ -97,34 +97,11 @@ library(magick)
 ```{r}
 #rm(list=ls())
 Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/OutputRDS/")
-Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Cell_Cell_Communication_V08012024/")
+Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/BioMarkers_V08072025/")
 # set up the color scale:
 myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 
 # we already generate the list and will ignore the transfer 
-# mouse_human_genes <- read.csv("http://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt",sep="\t")
-# 
-# # r
-# 
-# write.csv(mouse_human_genes,"/Users/XXW004/Documents/Projects/Databases/HumanMouseTransfer/HOM_MouseHumanSequence.rpt")
-# 
-# 
-# # save the mouse and human genes transfer
-# mouse_human_genes %>% head()
-# # separate human and mouse 
-# mouse <- split.data.frame(mouse_human_genes,mouse_human_genes$Common.Organism.Name)[[2]]
-# human <- split.data.frame(mouse_human_genes,mouse_human_genes$Common.Organism.Name)[[1]]
-# 
-# # remove some columns
-# mouse <- mouse[,c(1,4)]
-# human <- human[,c(1,4)]
-# 
-# # merge the 2 dataset  (note that the human list is longer than the mouse one)
-# mh_data <- merge.data.frame(mouse,human,by = "DB.Class.Key",all.y = TRUE) 
-# head(mh_data)
-# 
-# #write.csv(mh_data, file = "/Users/XXW004/Documents/Projects/Databases/HumanMouseTransfer/HOM_MouseHuman_Symbol.csv")
-
 # read the mouse and human homologous genes
 mh_data<- read.csv("/Users/XXW004/Documents/Projects/Databases/HumanMouseTransfer/HOM_MouseHuman_Symbol.csv")
 mh_data %>% head()
@@ -142,18 +119,23 @@ setwd(Outdir)
 # single cell directory:
 Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024/"
 
+# immune single cell directory:
+ImmScindir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07022025/"
+
 # spatial transcript directory:
-Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
+Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07022025/"
 
 # Output of each pathways and 
 Interestedpathwaysdir = "/Users/XXW004/Documents/Projects/BrianBecknell/UrinePyelonephritis/Results/Result_v0715_newsets/InterestedGOTerms/"
 # read the single cell
 SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_Final_Annotated_v08012024.rds"))
 
+# read the immune cells
+ImmuneSingleCellObj<- readRDS(file = paste0(ImmScindir,"PIPSeq_Final_CD45ImmuneCells_UsedForScanpy.RDS"))
+
 # read the spatial 
-SpatialObj <- readRDS(file = paste0(Spindir,"Pyelonephritis_Infection_Deconvoluted_v07292024.RDS"))
+SpatialObj <- readRDS(file = paste0(Spindir,"Pyelonephritis_Infection_ATLAS_RCTD_Deco_UsingEpiStroImm.rds"))
 DefaultAssay(SpatialObj) <- "SCT"
-# generate the gene list
 ```
 
 # chagne the image background
@@ -220,11 +202,84 @@ set_tissue_areas_light_blue <- function(seurat_obj, threshold = 0.05, color = c(
 # Light blue tint
 SpatialObj <- set_tissue_areas_light_blue(SpatialObj)
 
+```
+
+# Generate the DotPlot for the stromal, epithelial cell and immune cell across the spatial, single cell including the immune cells
+```{r}
+#1. The kidney immune profiling
+
+CellCategories<- c("Immune Cells")
+RequestedGenes3<- c("Ptprc", "Cd3e", "Cd4", "Cd8a", "Foxp3", "Il2ra", "Cd19", "Cd79a", "Ms4a1", "Prdm1", "Ccr2", "Cx3cr1", "Adgre1", "Mrc1", "Arg1", "Nos2",
+"Ly6g", "S100a8", "S100a9", "Elane", "Ncr1", "Gzmb", "Prf1")
+
+# 2. The kidney stromal cells
+CellCategories<- c("Stromal Cells")
+RequestedGenes2<- c("Pdgfra", "Pdgfrb", "Col1a1", "Col3a1","Dcn", "Postn", "Acta2", "Cspg4", "Rgs5", "Pecam1", "Cdh5", "Lyve1", "Prox1", "Itga8", "Cxcl12", "Myh11", "Tagln")
+# 3. The kidney epithelial cells
+CellCategories<- c("Epithelial Cells")
+RequestedGenes1 <- c(
+  "Lrp2",
+  "Slc34a1",
+  "Slc5a12",
+  # PTS1
+  "Cyp4a14",
+  # PTS2
+  "Slc7a12",
+  # PTS3
+  "Acsm1",
+  "Cubn",
+  "Havcr1",
+  "Slc12a3",
+  "Slc8a1",
+  "Calb1",
+  "Trpm6",
+  "Pvalb",
+  "Wnk1",
+  "Trpv5",
+  "Fst",
+  "Slc14a2",
+  "Slc12a1",
+  "Cldn10",
+  "Atp6v1g3",
+  "Aqp6",
+  "Slc26a4",
+  "Aqp2",
+  "Hsd11b2" ,
+  "Scnn1g",
+  "Krt5",
+  "Krt14",
+  "Upk1b"
+)
+
+length(RequestedGenes1)
+length(RequestedGenes2)
+length(RequestedGenes3)
+# Generate the DotPlots in spatial
+
+P1<-DotPlot(SpatialObj, features =  RequestedGenes1,col.min = -2, col.max = 3,cols = "Spectral") +RotatedAxis() + NoLegend()+ RotatedAxis()+  theme(axis.title.x = element_blank())
+P2<-DotPlot(SpatialObj, features =  RequestedGenes2,col.min = -2, col.max = 3,cols = "Spectral") +RotatedAxis()  + NoLegend() + RotatedAxis()  + theme(
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    #axis.ticks.y = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+P3<-DotPlot(SpatialObj, features =  RequestedGenes3,col.min = -2, col.max = 3,cols = "Spectral") +RotatedAxis()+ ylab(NULL) +guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() +theme(
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    #axis.ticks.y = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+pdf("SpatialDotPlot_BioMarkerDistribution.pdf", height = 5, width = 18)
+P1 + P2 +P3 + plot_layout(widths = c(1.4, 0.9, 1.2))
+dev.off()
 
 ```
 
 
-# requested Genes
+# requested Genes put them into the folder
 ```{r}
 # check the monocyte, macrophage, macrophage genes:
 #RequestedGenes<- c("Ly6c2","Itgm","Ccr2","C1qa","Cd68","Adgre1","Csf1r","S100a8","Ly6g")
@@ -236,8 +291,128 @@ RequestedGenes<- c("C3","Ccl3","Ccl3","Ccl4","Ccl5","Ccl6","Ccl7","Ccl9","Ccrl2"
 RequestedGenes<- c("Upk3a","Psca","Slc4a11","Nfat5","Slc3a1","Prlr","Ren1","Nphs1")
 # 
 
+### The kidney immune profiling:
+RequestedGenes<- c("Ptprc", "Cd3e", "Cd4", "Cd8a", "Foxp3", "Il2ra", "Cd19", "Cd79a", "Ms4a1", "Prdm1",
+"Ly6c2", "Ccr2", "Cx3cr1", "Adgre1", "Mrc1", "Arg1", "Nos2", "Cd11b", "Cd11c",
+"Ly6g", "S100a8", "S100a9", "Elane", "Ncr1", "Klrb1c", "Gzmb", "Prf1")
+
+RequestedGenes["PanTCell"] <- c("Cd3e", "Cd3d", "Cd3g", "Trac")
+RequestedGenes["CD4T"] <- c("Cd4")
+RequestedGenes["CD8T"] <- c("Cd8a", "Cd8b1")
+RequestedGenes["Tregs"] <-c("Cd4", "Il2ra", "Foxp3", "Ctla4", "Ikzf2")
+RequestedGenes["PanTCell"] <- c("Cd3e", "Cd3d", "Cd3g", "Trac")
+RequestedGenes["Th1"] <-c("Tbx21", "Ifng")
+RequestedGenes["Th2"] <-c("Gata3", "Il4", "Il5", "Il13")
+RequestedGenes["Th17"] <- c("Rorc", "Il17a", "Il17f")
+RequestedGenes["Tfh"] <- c("Bcl6", "Cxcr5", "Il21")
+RequestedGenes["ExhaustedT"] <- c("Pdcd1", "Lag3", "Havcr2" , "Tigit")
+RequestedGenes["Trm"] <- c("Itgae", "Cd69", "Cxcr6")
+
+
+# B cells
+RequestedGenes["PanB"] <-c("Cd19", "Ms4a1", "Cd79a", "Cd79b")
+RequestedGenes["MatureB"] <-c("Cd19", "Cd23", "Cd21")
+RequestedGenes["PlasmaCell"] <-c("Prdm1", "Xbp1", "Sdc1")
+RequestedGenes["GeminalCenterB"] <-c("Bcl6", "Aicda")
+
+# Monocyte 
+RequestedGenes["Monocyte"] <-c("Cd11b", "Ly6c2", "Ccr2", "Fcgr3")
+RequestedGenes["ResidentMacrophages"] <-c("Adgre1", "Cd11b", "Cd64", "Mertk")
+RequestedGenes["InfiltratingMacrophages"] <-c("Ly6c", "Ccr2", "Cd11b")
+RequestedGenes["M1like"] <-c("Nos2", "Il1b", "Tnf")
+RequestedGenes["M2like"] <-c("Mrc1", "Arg1", "Chil3")
+
+# neutrophil
+RequestedGenes["Neutrophil"] <-c("Ly6g", "S100a8", "S100a9", "Mpo", "Elane", "Cxcr2")
+
+# Dendritic
+RequestedGenes["cDC1"] <-c("Xcr1", "Batf3", "Clec9a", "Cd8a")
+RequestedGenes["cDC2"] <-c("Cd11b", "Irf4", "Sirpa")
+RequestedGenes["pDCs"] <-c("Siglech", "Bst2", "Tcf4")
+
+# NK cell
+RequestedGenes["NK"] <-c("Ncr1", "Klrb1c", "Gzmb", "Prf1")
+
+
+# Innate lymphoid cells
+RequestedGenes["ILC1"] <-c("Tbx21", "Ifng", "Ncr1")
+RequestedGenes["ILC2"] <-c("Gata3", "Il5", "Il13", "Rora")
+RequestedGenes["ILC3"] <-c("Rorc", "Il17a", "Il22")
+# Eosinophil
+RequestedGenes["Eosinophil"] <-c("Siglecf", "Gata1", "Prg2")
+
+# Stroma cells
+
+
+RequestedGenes<- c("Pdgfra", "Pdgfrb", "Col1a1", "Col3a1", "Col6a1", "Dcn", "Lum", "Postn", "Acta2", "Gpx3", "Tcf21", "Meis1", "Rgs5", "Cspg4", "Des", "Pecam1", "Cdh5", "Kdr", "Emcn", "Plvap", "Lyve1", "Prox1", "Pdpn", "Nr2f2", "Efnb2", "Gja5", "Itga8", "Cxcl12", "Gata3", "Myh11", "Tagln", "Cnn1", "Notch3")
+
+RequestedGenes["Fibroblast"] <-c("Pdgfra", "Col1a1", "Col3a1","Dcn", "Postn")
+RequestedGenes["Myofibroblast"] <-c("Acta2", "Postn", "Tagln")
+RequestedGenes["Pericyte"] <-c("Pdgfrb", "Rgs5", "Cspg4")
+RequestedGenes["Endothelial"] <-c("Pecam1", "Cdh5", "Kdr")
+RequestedGenes["LymphaticEC"] <-c("Lyve1", "Pdpn", "Prox1")
+RequestedGenes["vSMC"] <-c("Acta2", "Myh11", "Tagln","Cnn1")
+RequestedGenes["Mesangial"] <-c("Itga8", "Pdgfrb", "Cxcl12")
+
+
+Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
+                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+
+                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+                      "Klk1","Slc8a1","Calb1", # Connecting tubule (CNT)
+                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+                     #"Enox1","Thsd4", #Macula densa
+                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+                    "Atp6v1g3","Aqp6","Slc26a7", # Intercalated cells
+                    "Krt5","Upk1b","Krt14", # Urothelium
+                    "Cdh5","Igfbp3","Pecam1", # Endothelium
+                    "Col3a1","Fbn1","Lum","Col1a1", # Fibroblast
+                    "Ireb2","Alas2", # Plasmacytoid dentritic cells
+                    "S100a8","S100a9","Il1b", # Neutrophil
+                    "C1qa","C1qb","Aif1", # Macrophage
+                    "Cxcr6","Cd247","Cd3e", # T cells
+                    "Igkc","Cd79a","Cd79b", # B cells
+                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+)
+
+# Kidney epithelial cells
+RequestedGenes<- c("Lrp2",
+    "Slc34a1",
+    "Slc5a12",
+    # PTS1
+    "Cyp4a14",
+    # PTS2
+    "Slc7a12",
+    # PTS3
+    "Acsm1",
+    "Cubn",
+    "Havcr1",
+    "Slc12a3",
+    "Slc8a1",
+    "Calb1",
+    "Trpm6",
+    "Pvalb",
+    "Wnk1",
+    "Trpv5",
+    "Fst",
+    "Slc14a2",
+    "Slc12a1",
+    "Cldn10",
+    "Atp6v1g3",
+    "Aqp6",
+    "Slc26a4",
+    "Aqp2",
+    "Hsd11b2" ,
+    "Scnn1g",
+    "Krt5",
+    "Krt14",
+    "Upk1b")
+
+
 RequestedGenes <-
   c(
+    # Epithelial cells
     "Lrp2",
     "Slc34a1",
     "Slc5a12",
@@ -269,6 +444,8 @@ RequestedGenes <-
     "Krt5",
     "Krt14",
     "Upk1b",
+    
+ # stromal cell   
     "Col3a1",
     "Lum",
     "Fbn1",
@@ -337,6 +514,9 @@ RequestedGenes<- c( "Ptprc",
     #Tissue resident memory T cell
     "Cxcr6", # trm and inflammation T cells
     "Cd69", # Early activation
+    
+    # 
+    
     
     "Cd14",
     "Cxcr6",

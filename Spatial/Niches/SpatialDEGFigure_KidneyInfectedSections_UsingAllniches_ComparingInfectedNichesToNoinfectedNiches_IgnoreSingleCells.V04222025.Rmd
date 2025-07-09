@@ -34,7 +34,7 @@ knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = TRUE)
 ## loading the libraries
 
 ```{r libraries, cache=FALSE, warning=FALSE, error=FALSE, message=FALSE,}
-
+rm(list=ls())
 # loading libraries required for seurat
 library(Seurat)
 #library(SeuratData)
@@ -113,10 +113,10 @@ library(CellChat)
 ## set directory pathway:
 
 #rm(list=ls())
-setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyAllNiches/")
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyInfectedVsOther/")
 Indir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
 # Here is the Kidney different regions
-Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyAllNiches/")
+Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyInfectedVsOther/")
 
 # Generate the Different folders to store the results
 DEGDir <- paste0(Outdir,"DEGs/")
@@ -135,7 +135,7 @@ PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
 
 # directory for biomarkers
 
-BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+BioMarkerDir <- paste0(Outdir,"BiomarkersV2/")
 
 dir.create(DEGDir, showWarnings = FALSE)
 dir.create(ProgenyDir, showWarnings = FALSE)
@@ -158,45 +158,708 @@ colnames(Pyelonephritis_Infection)
 # define the selcted slices
 selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9")
 
-Pyelonephritis_Infection
+Pyelonephritis_Infection @meta.data $orig.ident
 # define infected niches
-Infectedniches <- c("N12","N13","N14","N15","N16","N17")
+Infectedniches <- c("N8","N10","N11","N12","N13","N14","N15","N16","N17")
 
 DimPlot(Pyelonephritis_Infection)
+
+Pyelonephritis_Infection@meta.data %>% pull(orig.ident) %>% table()
+# Infected days and non-infected data
+InfectedDate <- c("PyeloD1_2","PyeloD3_1","PyeloD5_2","PyeloD7_1", "PyeloD28_1")
+
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+GenesInGOtermMouseSpatialFeature <-
+      SpatialFeaturePlot(
+        Pyelonephritis_Infection,
+        features = "S100a8",
+        pt.size.factor = 1600,
+        crop = TRUE
+      ) 
+    
 ```
 
-# choose the subset of niches for the following analysis
-```{r}
-# Define the default assay as SCT 
-DefaultAssay(Pyelonephritis_Infection) <- "integrated"
 
-DimPlot(Pyelonephritis_Infection)
-# select the subset of spatial transcriptomics
-## we only choose the slides from PyeloD0_1, PyeloD1_2, PyeloD3_1, PyeloD5_1, PyeloD7_1, PyeloD28_1
-#SlidesSelected_Condtion<-c("PyeloD0_1", "PyeloD1_1", "PyeloD3_1", "PyeloD5_2", "PyeloD7_1", "PyeloD28_1")
-
-Idents(Pyelonephritis_Infection)
-FinalAbcessClustersObjSubSlidesInfection_subcluster<- subset(Pyelonephritis_Infection, idents = c("N12","N13","N14","N15","N16","N17"))
-# Reorder the identity levels
-
-Idents(FinalAbcessClustersObjSubSlidesInfection_subcluster)
-
-DimPlot(Pyelonephritis_Infection)
-?SpatialDimPlot
-#DefaultAssay(FinalAbcessClustersObjSubSlidesNonInfection_Subcluster) <- "SCT"
-pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_nocrop.pdf", height =12, width = 6)
-SpatialDimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster, images =selectedslices,crop = FALSE, label = FALSE,ncol = 2)
-dev.off()
-pdf("SpatialIntegrated_Pyeloneprhitis_Infected_area_dimplot.pdf", height =4, width = 5)
-DimPlot(FinalAbcessClustersObjSubSlidesInfection_subcluster,label = T)
-dev.off()
-```
-
-# Detection all the DEGs for all the regions and only show the top 10 for N13-N17
+# Detection all the DEGs for all the regions and only show the top 10 for N8, N10-N17
 ```{r}
 setwd(BioMarkerDir)
-DefaultAssay(Pyelonephritis_Infection) <- "RNA"
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+InfectedDate
+#
+Pyelonephritis_Infection@meta.data %>%  pull(group) %>% table()
+# create an meta data
+Pyelonephritis_Infection@meta.data<-
+  Pyelonephritis_Infection@meta.data %>% mutate(
+  InfectedNICH =
+    case_when(Annotation %in% Infectedniches ~ "InfectedNiches",
+              TRUE ~ "NonInfectedNiches"),
+  InfectedDate =
+    case_when(group %in% InfectedDate ~ "InfectionDays",
+              TRUE ~ "NonInfectionDays"),
+)
 
+# we detect the DEGs comparing between infected dates to non-infected date
+
+# subset dates (day 1 vs control, day 3 vs control, day 5 vs control, day 7 vs control, day 28 vs control)
+InfectedDates<-levels(Pyelonephritis_Infection$group)[2:6]
+Pyelonephritis_Infection_subDEGsList <-list()
+for (i in InfectedDates) {
+  Pyelonephritis_Infection_sub <-
+    subset(Pyelonephritis_Infection, subset = (group %in% c(i, "PyeloD0_1")))
+  Idents(Pyelonephritis_Infection_sub) <- "group"
+  # capture the DEGs from this group to the control
+  Pyelonephritis_Infection_subDEGs <-
+    FindAllMarkers(Pyelonephritis_Infection_sub,
+                   min.pct = 0.3,
+                   test.use = "MAST")
+  Pyelonephritis_Infection_subDEGsList[[i]] <-
+    Pyelonephritis_Infection_subDEGs %>% filter(cluster == i &
+                                                  p_val_adj <= 0.05 & (avg_log2FC > 1 | avg_log2FC < -1))
+}
+
+
+names(Pyelonephritis_Infection_subDEGsList)
+
+# We integrated the DEGs from the all the DEGs comparing between infected days to controls
+SpatialAcrossDpiDEGs <- unique(c(Pyelonephritis_Infection_subDEGsList$PyeloD1_2$gene,Pyelonephritis_Infection_subDEGsList$PyeloD3_1$gene,Pyelonephritis_Infection_subDEGsList$PyeloD5_2$gene,Pyelonephritis_Infection_subDEGsList$PyeloD7_1$gene, Pyelonephritis_Infection_subDEGsList$PyeloD28_1$gene))
+length(SpatialAcrossDpiDEGs)
+# we identify the DEG comparing between Infected and Noninfected niches, and group by the infected date and non infected date
+Pyelonephritis_Infection @meta.data$InfectedNICH %>% table()
+Pyelonephritis_Infection @meta.data$InfectedDate %>% table()
+Idents(Pyelonephritis_Infection) <- "InfectedNICH"
+
+# check the markers that differentially expressed between infected niches and non-infected niches
+AllCategories_Clustermarkers_infectedvsnoninfected <- FindAllMarkers(Pyelonephritis_Infection,
+            min.pct = 0.3,test.use= "MAST") 
+# save the niches markers into a file
+write.csv(AllCategories_Clustermarkers_infectedvsnoninfected, "AllCategories_Clustermarkers_MAST_infectedvsnoninfected.csv")
+ AllCategories_Clustermarkers_infectedvsnoninfected <- read.csv("AllCategories_Clustermarkers_MAST_infectedvsnoninfected.csv")
+# draw the figure for the top 40 DEGs
+Top30MarkerGeneInfected<-AllCategories_Clustermarkers_infectedvsnoninfected %>% as.data.frame() %>% group_by(cluster) %>% slice_min(order_by = p_val_adj, n=100) %>% slice_max(order_by = avg_log2FC, n=20)
+
+# get the DEGs 
+DEGsInfectedRegions<- AllCategories_Clustermarkers_infectedvsnoninfected %>% as.data.frame() %>% group_by(cluster) %>% filter(cluster == "InfectedNiches" & p_val_adj<=0.05 & (avg_log2FC >1|avg_log2FC < -1) )
+
+# InfectedhighConservedGenes <- FindConservedMarkers(Pyelonephritis_Infection, ident.1 = "InfectedNiches", grouping.var ="InfectedNiches")
+nrow(DEGsInfectedRegions)
+# we identify the highly conserved genes 
+Pyelonephritis_Infection@meta.data
+Idents(Pyelonephritis_Infection) <- "Annotation"
+DefaultAssay(Pyelonephritis_Infection)
+
+Top_InfectedrmarkersComparingAllGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = Top30MarkerGeneInfected$gene, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom") 
+
+Top_InfectedrmarkersComparingAllGenesheatmap
+ggsave("Top_InfectedrmarkersComparingAllGenesheatmap.pdf", plot =Top_InfectedrmarkersComparingAllGenesheatmap, height = 8, width = 7 )
+
+# Please note that we did not profile the DEGs using the following datasets:
+# we then find DEGs for each cluster comparing infected and non infected date
+# Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$InfectedDate
+
+# # Identify the markers that increased after the infection
+# AllCategories_Clustermarkers_infectedvsnoninfectedDate <- FindAllMarkers(Pyelonephritis_Infection,
+#             min.pct = 0.25,test.use= "MAST") 
+# # save the date markers into a file
+# write.csv(AllCategories_Clustermarkers_infectedvsnoninfectedDate, "AllCategories_Clustermarkers_infectedvsnoninfectedDate.csv")
+# AllCategories_Clustermarkers_infectedvsnoninfectedDate <- read.csv("AllCategories_Clustermarkers_infectedvsnoninfectedDate.csv")
+# # the DEGs comparing between infected dates and day 0
+# DEGsInfectedDays <- AllCategories_Clustermarkers_infectedvsnoninfectedDate %>% filter(cluster== "InfectionDays" & p_val_adj<=0.05 & (avg_log2FC >1|avg_log2FC < -1) )
+
+
+length(SpatialAcrossDpiDEGs)
+# Check the overlapping gene that differentiated after the infection, as well as enriched in the infection regions
+# draw the venn figure
+
+#install.packages("ggVennDiagram")
+library(ggVennDiagram)
+library(ggvenn)
+
+Deggene_list <- list(
+  spatialregionaldegs = DEGsInfectedRegions$gene,
+  spatialdatedegs = SpatialAcrossDpiDEGs
+)
+ggvenn(
+  Deggene_list,
+  fill_color = c("skyblue", "orange"),
+  stroke_size = 0.5,
+  set_name_size = 5
+)
+#ggVennDiagram(Deggene_list, label_alpha = 0)
+
+# Generate the overlapping genes
+FinalOverlappingGenes<- DEGsInfectedRegions %>% filter(gene %in% SpatialAcrossDpiDEGs)
+
+# Generate overlapping activated genes
+
+FinalUpregulatedGenes<- FinalOverlappingGenes %>% filter(avg_log2FC>1)
+FinalDowmregulatedGenes<- FinalOverlappingGenes %>% filter(avg_log2FC< -1)
+nrow(FinalUpregulatedGenes)
+nrow(FinalDowmregulatedGenes)
+# Draw the supplementary fig for the conserved 
+Tope15FinalUpregulatedGenes <- FinalUpregulatedGenes%>% as.data.frame() %>% group_by(cluster) %>% slice_min(order_by = p_val_adj, n=100) %>% slice_max(order_by = avg_log2FC, n=15)
+Tope15FinalUpregulatedGenes %>% head()
+Tope15FinalDownregulatedGenes <- FinalDowmregulatedGenes%>% as.data.frame() %>% group_by(cluster) %>% slice_min(order_by = p_val_adj, n=100) %>% slice_min(order_by = avg_log2FC, n=15)
+Top30FinalDEGs<- c(Tope15FinalUpregulatedGenes$gene, Tope15FinalDownregulatedGenes$gene)
+Idents(Pyelonephritis_Infection) <- "Annotation"
+
+Top30FinalDEGsGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = Top30FinalDEGs, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom")   
+
+Top30FinalDEGsGenesheatmap
+ggsave("Top30FinalDEGsGenesheatmap.pdf", plot =Top30FinalDEGsGenesheatmap, height = 8, width = 7 )
+```
+
+# Generate the GO enrichment of these conserved DEGs
+```{r}
+FinalUpregulatedGenesGO<- enrichGO(FinalUpregulatedGenes$gene, OrgDb = "org.Mm.eg.db", ont='BP',pAdjustMethod = 'BH',pvalueCutoff = 1, qvalueCutoff = 1,keyType = 'SYMBOL')
+#FinalUpregulatedGenesGO %>% head()
+FinalDownregulatedGenesGO<- enrichGO(FinalDowmregulatedGenes$gene, OrgDb = "org.Mm.eg.db", ont='BP',pAdjustMethod = 'BH',pvalueCutoff = 1, qvalueCutoff = 1,keyType = 'SYMBOL')
+
+FinalUpregulatedGenesGOSimplified<- clusterProfiler::simplify(FinalUpregulatedGenesGO)
+FinalDownregulatedGenesGOSimplified<- clusterProfiler::simplify(FinalDownregulatedGenesGO)
+
+# save into file
+write.csv(FinalUpregulatedGenesGO,"FinalUpregulatedGenesGO.csv")
+write.csv(FinalDownregulatedGenesGO,"FinalDownregulatedGenesGO.csv")
+write.csv(FinalUpregulatedGenesGOSimplified,"FinalUpregulatedGenesGOSimplified.csv")
+write.csv(FinalDownregulatedGenesGOSimplified,"FinalDownregulatedGenesGOSimplified.csv")
+
+FinalUpregulatedGenesGOSimplified
+# draw the top barplot
+barplot(FinalUpregulatedGenesGOSimplified) 
+?
+barplot(FinalDownregulatedGenesGOSimplified)
+```
+
+# read the single cell RNAseq and bulk micro-array RNA
+```{r}
+Top30FinalDEGs
+# microarray, we should use day 1 vs day 0, day 3 vs day 0 , day7 vs day 0.
+MicroDir = "/Users/XXW004/Documents/Projects/BrianBecknell/RishilTwoMice/"
+
+# read the openxlsx (contains the sheets )
+#install.packages("openxlsx")
+library(openxlsx)
+# list sheet names
+MicroSheetNames <- getSheetNames(paste0(MicroDir,"Microarray HeN and HeOuJ Kidney DEGs (all genes).xlsx"))
+MicroSheetNames
+# read specfic sheet
+MicroSheetNames[5:7]
+Microdata_list<- lapply(MicroSheetNames, function(sheet){
+  read.xlsx(paste0(MicroDir,"Microarray HeN and HeOuJ Kidney DEGs (all genes).xlsx"), sheet= sheet)
+})
+names(Microdata_list) <- MicroSheetNames
+MicroSheetNames
+MouseMicroArray1dpiDEGs<- Microdata_list$`HeOuJ - Day 1 vs Day 0`%>%  filter(adj.P.Val <=0.05 & (logFC >1 |logFC < -1)) 
+MouseMicroArray3dpiDEGs<- Microdata_list$`HeOuJ - Day 3 vs Day 0`%>%  filter(adj.P.Val <=0.05 & (logFC >1 |logFC < -1)) 
+MouseMicroArray7dpiDEGs<- Microdata_list$`HeOuJ - Day 7 vs Day 0`%>%  filter(adj.P.Val <=0.05 & (logFC >1 |logFC < -1)) 
+
+
+# we can get the final DEGs
+MouseMicroArrayDEGs <- unique(c(MouseMicroArray1dpiDEGs$mgi_symbol, MouseMicroArray3dpiDEGs$mgi_symbol, MouseMicroArray7dpiDEGs$mgi_symbol))
+MouseMicroArrayDEGs
+MouseMicroArrayPyelD7vsD0 <- read.csv("/Users/XXW004/Documents/Projects/BrianBecknell/GrantApplication/materials/HeOuJ 7 dpi vs 0 dpi.csv")
+# MouseMicroArrayDEGs<- MouseMicroArrayPyelD7vsD0 %>%  filter(adj.P.Val <=0.05 & (logFC >1 |logFC < -1)) 
+# MouseMicroArrayDEGs %>% nrow()
+MouseMicroArrayDEGs %>% filter(mgi_symbol %in% (c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13","Pf4","Ccl3","Ccl4","Ccl5","Cxcl3","Xdh","Il6","Il1b","Il23","Cxcl1","Il1rn","Tnf","Ctss")))
+FinalOverlappingGenes
+FinalOverlappingGenes %>% filter(gene %in% (c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13","Pf4","Ccl3","Ccl4","Ccl5","Cxcl3","Xdh","Il6","Il1b","Il23","Cxcl1","Il1rn","Tnf","Ctss")))
+# # single cell directory:
+# Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024/"
+# # for the total cells
+# SinglecellObj <- readRDS(paste0(Scindir,"PIPSeq_Final_Annotated_v08012024.rds"))
+# 
+# dev.off()
+# FeaturePlot(SinglecellObj, features = c("Lcn2","Vcam1","Clu"), split.by = "DataSet")
+# # Identify the DEGs comparing the infected day 7 vs uninfected date
+# SinglecellObj@meta.data %>% pull(Condition) %>% table()
+# SinglecellObj %>% head()
+#  
+# SinglecellObjSub <- subset (SinglecellObj,subset= (DataSet %in% c("0DPI", "7DPI")))
+# SinglecellObjSub2 <- subset (SinglecellObj,subset= (DataSet %in% c("3DPI", "7DPI")))
+# 
+# # we used the overall DEGs between infection and noninfection. 
+# SingleCellOverallDEGs2 <- FindMarkers(SinglecellObjSub2, ident.1 = "7DPI", ident.2 = "3DPI", group.by = "DataSet", test.use= "MAST",min.pct =0)
+# # please check the DEGs of "Napsa,"Apom", F13a1, Lmnb1, Col5a1, Vcam1, Clu, Lcn2, 
+# write.csv(SingleCellOverallDEGs2, file = "SingleCellOverallDEGs_7vs3day.csv")
+# saveRDS(SingleCellOverallDEGs2, file = "SingleCellOverallDEGs_7vs3day.rds")
+# write.csv(SingleCellOverallDEGs, file = "SingleCellOverallDEGs.csv")
+# 
+# SingleCellOverallDEGs2[c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13","Lcn2","Clu"),]
+# # to ensure the data have well normalized, I performed the normalization and scale again
+# SinglecellObjSub <- NormalizeData(SinglecellObjSub, normalization.method = "LogNormalize", scale.factor = 10000)
+# SinglecellObjSub <- FindVariableFeatures(SinglecellObjSub, selection.method = "vst", nfeatures = 2000)
+# SinglecellObjSub <- ScaleData(SinglecellObjSub, features = VariableFeatures(SinglecellObjSub))
+# 
+# 
+# CellTypes <- levels(as.factor(SinglecellObjSub$FinalAnnotation))
+# Idents(SinglecellObjSub)
+# #SinglecellObjSub %>% head()
+# SingleCellDEGsFinal<- list()
+# for (i in CellTypes) {
+#   SingleCellDEGs <-
+#     FindMarkers(
+#       SinglecellObjSub,
+#       ident.1 = "Infect",
+#       ident.2 = "Noninfect",
+#       subset.ident = i,
+#       group.by = "Condition",
+#       test.use = "MAST",
+#       min.pct = 0
+#     )
+#   ? FindMarkers
+#   SingleCellDEGsFinal[[i]] <-
+#     SingleCellDEGs %>% filter(p_val_adj <= 0.05 &
+#                                 (avg_log2FC > 1 | avg_log2FC < -1))
+#   write.csv(SingleCellDEGsFinal[[i]], file = paste0(i, "singlecell.DEGs.csv"),)
+# }
+# 
+# SingleCellDEGsFinal
+# # save them into the list
+# saveRDS(SingleCellDEGsFinal, file = "SingleCellDEGsFinal.rds")
+# 
+# # we used the overall DEGs between infection and noninfection. 
+# SingleCellOverallDEGs <- FindMarkers(SinglecellObjSub, ident.1 = "Infect", ident.2 = "Noninfect", group.by = "Condition", test.use= "MAST",min.pct =0)
+# write.csv(SingleCellOverallDEGs, file = "SingleCellOverallDEGs.csv")
+# 
+# saveRDS(SingleCellOverallDEGs, "SingleCellOverallDEGs.RDS")
+# SingleCellOverallDEGs<-readRDS("SingleCellOverallDEGs.RDS")
+# SingleCellOverallFinalDEGs <- SingleCellOverallDEGs %>%  filter(p_val_adj <= 0.05 &(avg_log2FC > 1 | avg_log2FC < -1))
+# nrow(SingleCellOverallFinalDEGs)
+#  #nrow(SingleCellDEGsFinal)
+# SingleCellOverallDEGs[c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13"),]
+# 
+# FeaturePlot(SinglecellObjSub, features = "Vcam1", split.by = "Condition")
+# SingleCellOverallFinalDEGs
+# # we initially considered to include those immune related degs
+# # # we also used the degs from immune cell differentially expressed genes
+# # # read the immune cells objects
+# # ImmuneScindir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_Immune_V12092024/"
+# # 
+# # Immune_reference <- readRDS(file = paste0(ImmuneScindir, "CD45_ImmuneCell_withSubCluster.rds"))
+# # 
+# # # we only selected day 7 vs controls
+# # Immune_referenceSub <- subset (Immune_reference,subset= (orig.ident %in% c("0DPI", "7DPI")))
+# # 
+# # # to ensure the data have well normalized, I performed the normalization and scale again
+# # Immune_referenceSub <- NormalizeData(Immune_referenceSub, normalization.method = "LogNormalize", scale.factor = 10000)
+# # Immune_referenceSub <- FindVariableFeatures(Immune_referenceSub, selection.method = "vst", nfeatures = 2000)
+# # Immune_referenceSub <- ScaleData(Immune_referenceSub, features = VariableFeatures(Immune_referenceSub))
+# # # Identify DEGs
+# # # we used the overall DEGs between infection and noninfection. 
+# # Immune_referenceSubDEGs <- FindMarkers(Immune_referenceSub, ident.1 = "7DPI", ident.2 = "0DPI", group.by = "orig.ident", test.use= "MAST",min.pct =0)
+# # write.csv(Immune_referenceSubDEGs, file = "Immune_referenceSubDEGs.csv")
+# # 
+# # saveRDS(Immune_referenceSubDEGs, "Immune_referenceSubDEGs.RDS")
+# # Immune_referenceSubDEGs<-readRDS("Immune_referenceSubDEGs.RDS")
+# # Immune_referenceSubDEGsFinalDEGs <- Immune_referenceSubDEGs %>%  filter(p_val_adj <= 0.05 &(avg_log2FC > 1 | avg_log2FC < -1))
+# # #nrow(Immune_referenceSubDEGsFinalDEGs)
+# # Immune_referenceSubDEGs[c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13"),]
+# # # For single cell, we obtain the degs in the immune cells.
+# # 
+# # # 
+
+library(ggvenn)
+# generate the Venn figure for DEGs among three datasets
+Deggene_list <- list(
+  spatialfinaldegs =FinalOverlappingGenes$gene,
+  #singlecellfinaldegs =rownames(SingleCellOverallFinalDEGs),
+  microfinaldegs =MouseMicroArrayDEGs
+)
+
+TwoDatasetsOveralapingVenn<- ggvenn(
+  Deggene_list,
+  fill_color = c("skyblue", "orange"),
+  stroke_size = 0.5,
+  set_name_size = 5,
+  show_percentage=F
+)
+?ggvenn
+ggsave("TwoDatasetsOveralapingVenn_IgnoreSinglecells.pdf",plot = TwoDatasetsOveralapingVenn, height = 3, width =3)
+# the overlapping elements
+FinalOverallapping<-  Reduce(intersect, Deggene_list)
+length(FinalOverallapping)
+write.csv(FinalOverallapping, file = "TwoDatasetFinalOverlappingGenes_IgnoreSinglecells.csv")
+
+```
+
+```{r}
+# read the secreted proteins in mouse
+# The publication was in SPD databse :
+# Chen Y, Zhang Y, Yin Y, Gao G, Li S, Jiang Y, Gu X, Luo J. SPD--a web-based secreted protein database. Nucleic Acids Res. 2005 Jan 1;33(Database issue):D169-73. doi: 10.1093/nar/gki093. PMID: 15608170; PMCID: PMC540047.
+SecretedProteinDir<- c("/Users/XXW004/Documents/Projects/Databases/SecretedProteins/")
+
+SecretedMouseProteins<- read.csv(paste0(SecretedProteinDir,"Mouse.csv"))
+SecretedMousefinalGenes<- SecretedMouseProteins$Gene %>% unique()
+length(SecretedMousefinalGenes)
+SecretedMousefinalGenes[SecretedMousefinalGenes %in% c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13")]
+#SecretedMousefinalGenes["Arg1"]
+# read the urinary proteins collected from health, AIK, transplant, bladder, Prostate cancer, Non-specific proteinuria patients (NS)
+# human urine:
+# Swensen, A.C., He, J., Fang, A.C., Ye, Y., Nicora, C.D., Shi, T., Liu, A.Y., Sigdel, T.K., Sarwal, M.M. and Qian, W.J., 2021. A comprehensive urine proteome database generated from patients with various renal conditions and prostate cancer. Frontiers in Medicine, 8, p.548212.
+
+HumanUrineProteinDir<- c("/Users/XXW004/Documents/Projects/Databases/UrinaryProteins/")
+
+HumanUrineProteins<- read.csv(paste0(HumanUrineProteinDir,"UrinaryProteins.csv"))
+HumanUrineProteins %>% nrow()
+# transfer the human urinary proteins into Mouse homologous genes
+library(biomaRt)
+
+# connect to the ensmebl database
+humanensembl <- biomaRt::useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# 
+listAttributes(humanensembl)[grep("uniprot", listAttributes(humanensembl)$name), ]
+# the list of uniprotIDs
+HumanUrineProteins %>% filter(grepl("_HUMAN",Protein) ) %>% pull(Accession) %>% unique()
+HumanUrineProteinsUniprotID<- HumanUrineProteins %>% filter(grepl("_HUMAN",Protein) ) %>% pull(Accession) %>% unique()
+length(HumanUrineProteinsUniprotID)
+# Retrieve gene symbols for the UniProt IDs
+HumanUrinegene_mapping <- getBM(
+  attributes = c("uniprotswissprot", "hgnc_symbol"),
+  filters = "uniprotswissprot",
+  values = HumanUrineProteinsUniprotID,
+  mart = humanensembl
+)
+
+HumanUrinegene_mapping  %>% nrow()
+# HumanUrinegene_mapping
+write.csv(HumanUrinegene_mapping, file = "HumanUrinegene_mapping.csv")
+#HumanUrineProteins %>% nrow()
+HumanUrinegene_mapping$hgnc_symbol %>% length()
+# the mouse and human homologous genes
+
+MouseHumanHomDir<- c("/Users/XXW004/Documents/Projects/Databases/HumanMouseTransfer/")
+# read the mouse and human homologous genes
+mh_data<- read.csv(paste0(MouseHumanHomDir,"HOM_MouseHuman_Symbol.csv"))
+
+
+MouseHomo_HumanUrinegene <- mh_data %>% filter(Symbol.y %in% HumanUrinegene_mapping$hgnc_symbol) %>% pull(Symbol.x) %>% unique()
+length(MouseHomo_HumanUrinegene)
+MouseHomo_HumanUrinegene[MouseHomo_HumanUrinegene %in% c("Vcam1","Ccl7","Mmp8","Arg1","Mmp13")]
+#SecretedMousefinalGenes
+## check the overlapping with mousehuman urine homologous, secreted genes
+CandiateDeggene_list <- list(
+  Spatialdegs =FinalOverlappingGenes$gene,
+  #spatialdatedegs = DEGsInfectedDays$gene,
+  #Singlecelldegs =rownames(SingleCellOverallFinalDEGs),
+  Microarraydegs =MouseMicroArrayDEGs,
+  Secretedgenes = SecretedMousefinalGenes,
+  Urinarygenes= MouseHomo_HumanUrinegene
+)
+
+CandiateDeggene_list$Spatialdegs
+length(CandiateDeggene_list$Spatialdegs)
+#length(CandiateDeggene_list$Singlecelldegs)
+length(CandiateDeggene_list$Microarraydegs)
+length(CandiateDeggene_list$Secretedgenes)
+length(CandiateDeggene_list$Urinarygenes)
+FourDatasetsOveralapingVenn<- ggvenn(
+  CandiateDeggene_list,
+  #fill_color = c("skyblue", "orange","gray"),
+  fill_color =c("#E69F00", "#56B4E9", "#009E73", "#F0E442"),
+  stroke_size = 0.5,
+  set_name_size = 4,
+  show_percentage=F
+)
+ggsave( "FourDatasetsOveralapingVenn.pdf", plot = FourDatasetsOveralapingVenn,height = 4, width =6)
+#BiocManager::install("UpSetR")
+#install.packages("UpSetR")
+library(UpSetR)
+# Convert to fromList format
+input_for_upset <- fromList(CandiateDeggene_list)
+names(CandiateDeggene_list)
+sapply(CandiateDeggene_list, length)
+pdf("CandidateBioMarkers_AcrossDifferentDatasets_ignoreSingleCells.pdf", height = 5, width = 10)
+upset(
+  input_for_upset,
+  set_size.show = TRUE,
+  sets = names(CandiateDeggene_list),
+  order.by = "freq",
+  keep.order = TRUE
+)
+dev.off()
+FinalOverallapping<-  Reduce(intersect, CandiateDeggene_list)
+
+
+# In Secreted ∩ Urinary ∩ DEGs but not secreted
+CandiateDeggene_listNoSecreted<- list(
+  Spatialdegs =FinalOverlappingGenes$gene,
+  #spatialdatedegs = DEGsInfectedDays$gene,
+  #Singlecelldegs =rownames(SingleCellOverallFinalDEGs),
+  Microarraydegs =MouseMicroArrayDEGs,
+  Urinarygenes= MouseHomo_HumanUrinegene
+)
+
+intersect_sud_inurine_notsecreted <- setdiff(Reduce(intersect,CandiateDeggene_listNoSecreted), SecretedMousefinalGenes)
+intersect_sud_inurine_notsecreted
+
+# 
+CandiateDeggene_listNoUrinary<- list(
+  Spatialdegs =FinalOverlappingGenes$gene,
+  #spatialdatedegs = DEGsInfectedDays$gene,
+  #Singlecelldegs =rownames(SingleCellOverallFinalDEGs),
+  Microarraydegs =MouseMicroArrayDEGs,
+  #Urinarygenes= MouseHomo_HumanUrinegene
+  Secretedgenes = SecretedMousefinalGenes
+)
+
+intersect_sud_insecreted_noturine <- setdiff(Reduce(intersect,CandiateDeggene_listNoUrinary), MouseHomo_HumanUrinegene)
+intersect_sud_insecreted_noturine
+
+
+```
+
+
+# Generate the biomarkers distribution of fold change heatmap
+```{r}
+# the fold change and significance across datasets
+## Spatial niches comparison
+
+AllCategories_Clustermarkers_infectedvsnoninfected %>% head()
+
+SpatialNichesComparison <- AllCategories_Clustermarkers_infectedvsnoninfected %>% filter(cluster == "InfectedNiches") %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialNiches") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj") 
+SpatialNichesComparison %>% head()
+## Spatial date comparision
+
+# SpatialDateComparison <- AllCategories_Clustermarkers_infectedvsnoninfectedDate %>% filter(cluster == "InfectionDays")  %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialDates") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+
+# seperate into different dates
+SpatialDateComparisonD1 <- Pyelonephritis_Infection_subDEGsList$PyeloD1_2 %>% filter(cluster == "PyeloD1_2")  %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialDay1") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+SpatialDateComparisonD3 <- Pyelonephritis_Infection_subDEGsList$PyeloD3_1 %>% filter(cluster == "PyeloD3_1")  %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialDay3") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+SpatialDateComparisonD5 <- Pyelonephritis_Infection_subDEGsList$PyeloD5_2 %>% filter(cluster == "PyeloD5_2")  %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialDay5") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+SpatialDateComparisonD7 <- Pyelonephritis_Infection_subDEGsList$PyeloD7_1 %>% filter(cluster == "PyeloD7_1")  %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialDay7") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+SpatialDateComparisonD28 <- Pyelonephritis_Infection_subDEGsList$PyeloD28_1 %>% filter(cluster == "PyeloD28_1")  %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SpatialDay28") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+
+# ## Single cell comparision
+
+ # SingleCellComparison <- SingleCellOverallDEGs %>% rownames_to_column("gene") %>% dplyr::select(gene ,avg_log2FC,p_val_adj) %>%mutate(Group = "SingleCells") %>% rename("Gene"="gene","log2FoldChange"="avg_log2FC","Padj"="p_val_adj")
+## Microarray comparison
+MicroArrayComparisonDay1 <- Microdata_list$`HeOuJ - Day 1 vs Day 0` %>% dplyr::select(mgi_symbol ,logFC,adj.P.Val) %>%mutate(Group = "MicroArray_D1") %>% rename("Gene"="mgi_symbol","log2FoldChange"="logFC","Padj"="adj.P.Val")
+
+MicroArrayComparisonDay3 <- Microdata_list$`HeOuJ - Day 3 vs Day 0` %>% dplyr::select(mgi_symbol ,logFC,adj.P.Val) %>%mutate(Group = "MicroArray_D3") %>% rename("Gene"="mgi_symbol","log2FoldChange"="logFC","Padj"="adj.P.Val")
+
+MicroArrayComparisonDay7 <- Microdata_list$`HeOuJ - Day 7 vs Day 0` %>% dplyr::select(mgi_symbol ,logFC,adj.P.Val) %>%mutate(Group = "MicroArray_D7") %>% rename("Gene"="mgi_symbol","log2FoldChange"="logFC","Padj"="adj.P.Val")
+
+#MicroArrayComparison %>% head()
+
+#FinalExpDEGs<- rbind(SpatialNichesComparison,SpatialDateComparison, MicroArrayComparison)
+
+#FinalExpDEGsOriginal<- rbind(SpatialNichesComparison,SpatialDateComparison,SingleCellComparison, MicroArrayComparison)
+FinalExpDEGsOriginal<- rbind(SpatialNichesComparison,SpatialDateComparisonD1,SpatialDateComparisonD3,SpatialDateComparisonD5,SpatialDateComparisonD7,SpatialDateComparisonD28, MicroArrayComparisonDay1,MicroArrayComparisonDay3, MicroArrayComparisonDay7 )
+FinalExpDEGsOriginal
+table(FinalExpDEGsOriginal$Group)
+
+FinalOverallapping
+# we only overlapping genes : FinalOverallapping
+# "F13a1"  "Timp1"  "Apom"   "Ccl6"   "Lyz1"   "Col5a1" "Napsa"  "Fgl2"   "Vcam1"  "Ctss"   "Lcn2"   "Clu"    "B2m"    "Lmnb1"
+BioMarkerDir
+PathwayName <- "Conserved Biomarkers"
+RequestedGenes <- FinalOverallapping
+setwd(paste0(BioMarkerDir,"ConservedMarkers/"))
+
+write.csv(RequestedGenes,file = paste0(PathwayName, ".csv"))
+PathwayName <- "Biomarkers in Secreted not Urine"
+RequestedGenes <- intersect_sud_insecreted_noturine
+setwd(paste0(BioMarkerDir,"ConservedInSecretedNotUrine/"))
+write.csv(RequestedGenes,file = paste0(PathwayName, ".csv"))
+
+PathwayName <- "Biomarkers in Urine not Secreted"
+RequestedGenes <- intersect_sud_inurine_notsecreted
+setwd(paste0(BioMarkerDir,"ConservedInUrineNotSecreted/"))
+write.csv(RequestedGenes,file = paste0(PathwayName, ".csv"))
+#setwd(paste0(BioMarkerDir,"ConservedInUrineNotSecreted/"))
+#
+#PathwayName <- "Biomarkers in Secreted not Urine"
+FinalExpDEGs<- FinalExpDEGsOriginal %>% filter(Gene %in% RequestedGenes)
+#FinalExpDEGs<- FinalExpDEGsOriginal %>% filter(Gene %in% intersect_sud_inurine_notsecreted)
+# FinalExpDEGs<- FinalExpDEGsOriginal %>% filter(Gene %in% intersect_sud_insecreted_noturine)
+RequestedGenes
+# we then generate a heatmap for the 
+
+# assign signaficance labels
+FinalExpDEGs$significance <- ifelse(FinalExpDEGs$Padj <= 0.001, "***",
+                   ifelse(FinalExpDEGs$Padj <= 0.01, "**",
+                   ifelse(FinalExpDEGs$Padj <= 0.05, "*", "")))
+#reorder the group
+levels(as.factor(FinalExpDEGs$Group))
+FinalExpDEGs$Group <- factor(FinalExpDEGs$Group, levels = c("SpatialNiches", "SpatialDay1","SpatialDay3","SpatialDay5","SpatialDay7","SpatialDay28", "MicroArray_D1","MicroArray_D3","MicroArray_D7"))  
+levels(FinalExpDEGs$Group)
+#FinalOverallappingOrdered<-c("Lcn2","Clu","Rnase6","Lyz1","S100a9","Il1r2","Tlr2","Ccl9","Ccl6","Smpdl3b","Crlf1","C3ar1","Cybb","Il1rn","Csf1r","Lgals3bp","Cd14","C3","B2m","Ly86","Vcam1","Fgl2","Hp","F10","F13a1","Apom","Cfp","Ctss","Ctsz","Mmp7","Prss8","Timp1","Igfals","Lmnb1","Anxa1","Anxa2","Apmap","Col5a1","Dcn","Emilin2","Fstl1","Flna","Itgb2","Itgb3","Lcp1","Lox","Msn","Pfn1","Tmsb4x","Arpc1b","Plek","Cltrn","Slc2a5","Tcn2","Clic1","Arhgdib","Golm1","Srgn","Aldh9a1","Cmbl","Gusb","Hgd","Napsa","Fam151a")
+
+## we can customize the genes
+RequestedGenes_sorted <- SpatialNichesComparison %>%  filter(Gene %in% RequestedGenes) %>% arrange(desc(log2FoldChange)) %>% pull(Gene)
+
+# For conserved
+RequestedGenes_sorted<- c("Il1r2", "Tlr2", "Lgals9", "Cybb", "S100a9", "Lcn2", "Ccl9", "Ccl6", "Pf4", "Il1rn", "Pdgfa", "Hp", "Plek", "Cd33", "C3ar1", "Lyz1", "Anxa1", "Csf1r", "Cd14", "Arhgdib", "C3", "B2m", "Ly86", "Unc13d", "Itgb2", "Vcam1", "Itgb3", "Nrp2", "Lcp1", "Olr1", "Mmp9", "Emilin2", "Timp1", "Mmp7", "Spp2", "Col5a1", "Adamts2", "Mmp2", "Lox", "Dcn", "Bgn", "Sparc", "Fbln5", "Ctsk", "F10", "F13a1", "F13b", "F7", "Fgl2", "Cfp", "Afm", "Slc2a5", "Slc12a3", "Folr1", "Tcn2", "Cltrn", "Cmbl", "Smpdl3b", "Hgd", "Napsa", "Sord", "Ddc", "Qsox1", "Enpp6", "Ddah1", "Prss8", "Aldh9a1", "Fah", "Ctss", "Gusb", "Ctsz", "Padi4", "Rnase6", "Apom", "Crlf1", "Igfals", "Ptprd", "Fstl1", "Egf", "Apmap", "Iqgap1", "Sh3bgrl3", "Fam151a", "Sprr2d", "Golm1", "Srgn", "Arpc1b", "Lgals3bp", "Marcks", "Flna", "Clu", "Msn", "Clic1", "Pfn1", "Tmsb4x", "Serpinf1", "Lmnb1","Anxa2")
+length(RequestedGenes)
+length(RequestedGenes_sorted)
+setdiff(RequestedGenes, RequestedGenes_sorted)
+FinalExpDEGs$Gene <- factor(FinalExpDEGs$Gene, levels = rev(RequestedGenes_sorted))
+#FinalExpDEGs$Gene <- factor(FinalExpDEGs$Gene, levels = rev(FinalOverallapping_sorted))
+levels(FinalExpDEGs$Gene)
+#intersect_sud_insecreted_noturine
+# # only ICA
+# FinalExpDEGs$Group <- factor(FinalExpDEGs$Group, levels = c("HFD_Mouse_IC", "T2DM_Mouse_ICA", "T2DM_Human_ICA"))  
+# Create heatmap using ggplot2
+RequestedGenesHeatmap<-ggplot(FinalExpDEGs, aes(x = Group, y = Gene, fill = log2FoldChange)) +
+  geom_tile(color = "white") +  # Heatmap tiles with borders
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)+
+                       #limits = c(-2, 2)) +  # Color scale
+  geom_text(aes(label = significance), color = "black", size = 2) +  # Add p-value stars
+  theme_minimal() +  # Clean theme
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotate x-axis labels
+  labs(title = PathwayName, fill = "logFC") +
+  theme(legend.key.size = unit(0.4, "cm"), legend.title = element_text(size = 8))
+RequestedGenesHeatmap
+
+ggsave(paste0(PathwayName, "_FC_HeatMap_inCollecDuct_TwoData.pdf"),plot =RequestedGenesHeatmap, height = 14, width =4.5 )
+RequestedGenesHeatmap
+
+RequestedGenesDotPlot<-ggplot(FinalExpDEGs, aes(x = Group, y = Gene)) +
+  geom_point(aes(size = -log10(Padj), color = log2FoldChange)) +  # Dot size based on logFC magnitude
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +  
+  #geom_text(aes(label = significance), vjust = -1, size = 6) +  # Add significance stars
+  theme_classic() +  # Clean theme
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotate x-axis labels
+  labs(title = PathwayName, size = "-log10(padj)", color = "LogFC")
+RequestedGenesDotPlot
+ggsave(paste0(PathwayName, "_FC_DotPlot_inCollecDuct_DKD.pdf"),plot =RequestedGenesDotPlot, height = 12, width = 4 )
+RequestedGenesDotPlot
+
+
+
+```
+
+
+# generate the spatial distribution of these conserved genes 
+```{r}
+#FinalOverallapping
+ConservedBiomarkerDir<- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyInfectedVsOther/BiomarkersV2/ConservedMarkers/")
+setwd(ConservedBiomarkerDir)
+
+ConservedInUrineNotSecretedDir<-paste0(BioMarkerDir,"ConservedInUrineNotSecreted/")
+ConservedInSecretedNotUrineDir<- paste0(BioMarkerDir,"ConservedInSecretedNotUrine/")
+setwd(paste0(BioMarkerDir,"ConservedInUrineNotSecreted/"))
+setwd(paste0(BioMarkerDir,"ConservedInSecretedNotUrine/"))
+FinalOverallappingDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = RequestedGenes_sorted,cols="RdBu") +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 12))+RotatedAxis() + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) 
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("FinalOverallappingOrderedGeneDotPlot.pdf", plot =FinalOverallappingDotPlot, height = 5, width = 20 )
+ggsave("FinalConservedInUrineNotSecretedDotPlot.pdf", plot =FinalOverallappingDotPlot, height = 5, width = 24 )
+FinalUrineSpecificDotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = intersect_sud_inurine_notsecreted,cols="RdBu") +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 12))+RotatedAxis() + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) 
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("FinalUrineSpecificDotPlot.pdf", plot =FinalUrineSpecificDotPlot, height = 5, width = 30 )
+
+intersect_sud_insecreted_noturine_top20<-intersect_sud_insecreted_noturine_sorted[1:20]
+FinalSecretedSpecificTop20DotPlot<- 
+   DotPlot(Pyelonephritis_Infection, features = intersect_sud_insecreted_noturine_top20,cols="RdBu") +
+  theme(legend.text = element_text(size = 12), legend.title = element_text(size = 12))+RotatedAxis() + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) 
+  #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
+
+ggsave("FinalSecretedSpecificTop20DotPlot.pdf", plot =FinalSecretedSpecificTop20DotPlot, height = 4, width = 6)
+
+#for (j in FinalOverallappingOrdered) {
+for (j in intersect_sud_insecreted_noturine_sorted) {
+    skip_to_next <- FALSE
+    
+    # Note that print(b) fails since b doesn't exist
+    
+    tryCatch(
+      print(Pyelonephritis_Infection@assays$SCT@data[j, ]),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    # get the maxium and minvalue of the gene
+    Maxvalue <- ceiling(max(Pyelonephritis_Infection@assays$SCT@data[j, ]))
+    Minvalue <- floor(min(Pyelonephritis_Infection@assays$SCT@data[j, ]))
+    GenesInGOtermMouseSpatialFeature <-
+      SpatialFeaturePlot(
+        Pyelonephritis_Infection,
+        features = j,
+        pt.size.factor = 1600,
+        crop = TRUE
+      ) &
+      ggplot2::scale_fill_gradientn(colours = myPalette(4),
+                                    limits = c(Minvalue, Maxvalue))
+    
+    # save the figure into the folder
+    # ggsave(
+    #   filename = paste0(ConservedBiomarkerDir, "/", "Spatial_", j, ".pdf"),
+    #   plot = GenesInGOtermMouseSpatialFeature,
+    #   height = 3,
+    #   width = 15
+    # )
+    # 
+     ggsave(
+      filename = paste0(ConservedInSecretedNotUrineDir, "/", "Spatial_", j, ".pdf"),
+      plot = GenesInGOtermMouseSpatialFeature,
+      height = 3,
+      width = 15
+    )
+    
+  
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+FindMarkers(object = Pyelonephritis_Infection,
+                        ident.1 = "InfectionDays",
+                        ident.2 = "NonInfectionDays",
+                        group.by = "InfectedDate",
+                        subset.ident = "N1",
+                        min.pct=0.1, 
+                        logfc.threshold= 0.25, 
+                        test.use= "MAST")
+
+for (i in Infectedniches){
+  markers<- FindMarkers(object = Pyelonephritis_Infection,
+                        ident.1 = "InfectionDays",
+                        ident.2 = "NonInfectionDays",
+                        group.by = "InfectedDate",
+                        subset.ident = i,
+                        min.pct=0.1, 
+                        logfc.threshold= 0.25, 
+                        test.use= "MAST")
+  # create folder for each niches
+  Nichesmarkers<- paste0(BioMarkerDir,i,"_Niches/")
+  
+  write.csv(markers, file = paste0(Nichesmarkers,i,"_markers.csv"))
+}
+```
+
+
+```{r}
+# we also restricted our analyes 
 # check the specific marker by the MAST
 #AllCategories_Clustermarkers <- FindAllMarkers(Pyelonephritis_Infection,
 #            min.pct = 0.25,test.use= "MAST") # only markers that are in 25% of cells
@@ -204,7 +867,7 @@ DefaultAssay(Pyelonephritis_Infection) <- "RNA"
 # save all biomarkers as a dataframe
 #write.csv(AllCategories_Clustermarkers, "AllCategories_Clustermarkers_MAST.csv")
 # We have already generated the data in 
-NicheseMarkerDir <-c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyAllNiches/Biomarkers/")
+NicheseMarkerDir <-c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V09062023/KidneyInfectedVsOther/Biomarkers/")
 
 # here we draw the specific biomarkers for the infected niches
 AllCategories_Clustermarkers <- read.csv(paste0(NicheseMarkerDir,"AllCategories_Clustermarkers_MAST.csv"), header = T)
@@ -213,6 +876,8 @@ AllCategories_Clustermarkers %>% head()
 Top_InfectedrmarkersComparingAll<-AllCategories_Clustermarkers %>%
                 group_by(cluster) %>% # group by cluster (cell type)
                 slice_max(avg_log2FC, n = 10) %>% filter(cluster %in% Infectedniches)
+
+
 
 Top25_InfectedrmarkersComparingAll<-AllCategories_Clustermarkers %>%
                 group_by(cluster) %>% # group by cluster (cell type)
@@ -243,7 +908,6 @@ Top25_InfectedrmarkersComparingAllGeneDotPlot<-
   theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))+RotatedAxis() 
   #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
 ggsave("Top25_InfectedrmarkersComparingAllGeneDotPlot.pdf", plot =Top25_InfectedrmarkersComparingAllGeneDotPlot, height = 18, width = 9 )
-
 
 ```
 
@@ -1566,7 +2230,7 @@ ggsave("Spatial_TFDotPlot.pdf", plot = TFDotPlot, width = 10, height = 6)
 # MarkerGenes in IC PCs
 ```{r}
 
-ICMarkerDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyAllNiches/Biomarkers/ICPCMarkers/")
+ICMarkerDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyInfectedVsOther/Biomarkers/ICPCMarkers/")
 setwd(ICMarkerDir)
 IC_PCMarkers<- c("Atp6v1g3","Aqp6","Slc4a1","Slc26a7","Kit","Slc26a4","Spink8","Hmx2","Aqp2","Hsd11b2","Scnn1g","Syt7")
 
@@ -1633,7 +2297,7 @@ for (j in IC_PCMarkers) {
 # check the cell type distribution
 
 ```{r}
-SpatialCelltypeDir<- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyAllNiches/CellTypes/")
+SpatialCelltypeDir<- c("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyInfectedVsOther/CellTypes/")
 setwd(SpatialCelltypeDir)
 Celltypes<- rownames(Pyelonephritis_Infection[["predictions"]])
 max(Pyelonephritis_Infection[["predictions"]]@data["IC",])

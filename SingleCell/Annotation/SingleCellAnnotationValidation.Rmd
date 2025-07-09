@@ -1,0 +1,282 @@
+---
+title: "SingleCell_Annotation_PIPseq"
+author: "Xin Wang"
+date: "2025-06-18"
+output: html_document
+---
+---
+title: "Single Cell Annotation Validation Using Published Datasets"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org 
+Copyright (c) 2024 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2025-06-18"
+Description: 
+#   This script is to check the biomakers expression and use different single cell datasets to validate the annotations.
+
+
+---
+
+# load the library packages
+```{r}
+# loading the library packages
+rm(list=ls())
+library(Seurat)
+#library(SeuratData)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+#install.packages("harmony")
+library(harmony)
+library(SPOTlight)
+#library(scater)
+#library(scran)
+library(SingleCellExperiment)
+
+#install.packages("SeuratDisk")
+#library(SeuratDisk)
+library(tidyverse)
+library(cowplot)
+
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+## Deconvolve
+#install.packages("L1pack")
+#install.packages("reshape")
+library(L1pack)
+library(reshape)
+library(reshape2)
+
+library(SPOTlight)
+library(tidyHeatmap)
+library(ComplexHeatmap)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+#install.packages("magick")
+library(magick)
+library(progeny)
+library(pheatmap)
+library(clusterProfiler)
+library(decoupleR)
+library(CellChat)
+library(patchwork)
+options(stringsAsFactors = FALSE)
+options(future.globals.maxSize = 891289600000) 
+
+```
+
+# Set up the enviroment: 
+```{r}
+# clear all the objects in the environments
+#rm(list=ls())
+# set seed
+set.seed(200000)
+
+# single cell directory:
+Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/FinalSingleCellObj_V08012024/"
+
+# spatial transcript directory that contain the deconvoluted file 
+# Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
+
+# The cell-cell communication output directory for day 7:
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/AnnotationValidation/"
+
+data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
+
+
+
+getwd()
+setwd(Outdir)
+```
+
+<!-- # Read the RDS objects from the spatial and single cells, briefly check the objects -->
+<!-- ```{r} -->
+<!-- # Reading the RDS file -->
+<!-- Pyelonephritis_Infection<-readRDS(file = paste0(Spindir, "PreliminaryIntegratedSpatialHarmorny_Pyelonephritis_onlySlide_QC_v0906.RDS")) -->
+
+<!-- #  -->
+<!-- Pyelonephritis_Infection -->
+
+<!-- SpatialDimPlot(Pyelonephritis_Infection) -->
+<!-- # We have two assays: Spatial and SCT -->
+<!-- Pyelonephritis_Infection[["Spatial"]][1:10,1:10] -->
+
+<!-- Pyelonephritis_Infection[["SCT"]][1:10,1:10] -->
+
+<!-- rownames(Pyelonephritis_Infection[["Spatial"]]) -->
+<!-- colnames(Pyelonephritis_Infection[["Spatial"]]) -->
+<!-- selectedslices<- c("slice1","slice3","slice4","slice7","slice8","slice9") -->
+<!-- Idents(Pyelonephritis_Infection) -->
+
+<!-- DimPlot(Pyelonephritis_Infection) -->
+<!-- ``` -->
+
+# read the final single cell object with detailed annotation
+```{r}
+#saveRDS(file = "Pyelonephritis_Infection_Deconvoluted.RDS", object = Pyelonephritis_Infection)
+# read the single cell
+SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_Final_Annotated_v08012024.rds"))
+SingleCellObj@meta.data %>% head()
+
+
+# check the dimplot
+DimPlot(SingleCellObj, split.by = "DataSet")
+dev.off()
+
+```
+
+```{r}
+
+library(SeuratData)
+library(patchwork)
+library(SeuratDisk)
+ReferenceDir<- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Datasets/Reference_Published/MKA_MouseKidney/")
+setwd(ReferenceDir)
+
+library(zellkonverter)
+ref<- readH5AD("MouseKidneyATLAS_MKA_updated.h5ad")
+#Convert("MouseKidneyATLAS_MKA_updated.h5ad", dest = "h5seurat", overwrite = TRUE)
+#reference <- LoadH5Seurat("MouseKidneyATLAS_MKA_updated.h5seurat")
+
+reference <- as.Seurat(ref, counts = "X", data = NULL)
+setwd(Outdir)
+reference@meta.data %>% head()
+# set up the identity
+Idents(reference) <- "author_cell_type"
+
+table(Idents(reference) )
+reference <- subset(reference, subset = author_cell_type != "Unknown")
+# we did not consider Unknown cells
+
+ReferenceDimplot<- DimPlot(reference, split.by = "Origin",label = T)
+ggsave("ReferenceDimplot.pdf", plot = ReferenceDimplot, height = 6, width = 25)
+
+ReferenceDimplotCombined<- DimPlot(reference, label = T,label.size = 2)
+ggsave("ReferenceDimplotCombined.pdf", plot = ReferenceDimplotCombined, height = 6, width = 8)
+
+# 1. Extract the data matrix
+raw_counts <- GetAssayData(reference, slot = "counts")
+
+# 2. Strip version numbers if present
+rownames(raw_counts) <- gsub("\\..*$", "", rownames(raw_counts))
+
+# 3. Match Ensembl IDs to gene symbols
+library(biomaRt)
+mouse <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+
+ensembl_ids <- rownames(raw_counts)
+mapping <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"),
+                 filters = "ensembl_gene_id",
+                 values = ensembl_ids,
+                 mart = mouse)
+
+mapping <- mapping[!duplicated(mapping$ensembl_gene_id), ]
+id_to_symbol <- setNames(mapping$external_gene_name, mapping$ensembl_gene_id)
+
+# 4. Subset to only those with valid gene symbols
+valid_genes <- intersect(rownames(raw_counts), names(id_to_symbol))
+raw_counts <- raw_counts[valid_genes, ]
+rownames(raw_counts) <- id_to_symbol[valid_genes]
+# Check for empty gene names
+empty_genes <- which(rownames(raw_counts) == "")
+
+# Check for duplicates
+dup_genes <- which(duplicated(rownames(raw_counts)))
+
+# Combine and remove
+bad_genes <- unique(c(empty_genes, dup_genes))
+
+if (length(bad_genes) > 0) {
+  cat("Removing", length(bad_genes), "invalid genes...\n")
+  raw_counts <- raw_counts[-bad_genes, ]
+}
+# 5. Recreate the Seurat object with updated feature names
+reference <- CreateSeuratObject(counts = raw_counts, meta.data = reference@meta.data)
+
+
+# Step 2: Normalize and find variable features if not done
+reference <- NormalizeData(reference)
+reference <- FindVariableFeatures(reference)
+
+
+rownames(reference)
+scrna<- SingleCellObj
+rownames(scrna)
+scrna <- NormalizeData(scrna)
+scrna <- FindVariableFeatures(scrna)
+#scrna <- JoinLayers(scrna)
+length(intersect(rownames(reference), rownames(scrna)))
+# us these reference to find transfer anchors
+# Step 3: Find transfer anchors
+anchors <- FindTransferAnchors(reference = reference, query = scrna, 
+                                dims = 1:30, features = VariableFeatures(object = reference))
+
+# Step 4: Transfer cell type labels (e.g., "cell_type" in reference@meta.data)
+predictions <- TransferData(anchorset = anchors, refdata = reference$author_cell_type, dims = 1:30)
+
+# Step 5: Add predicted labels to query
+scrna <- AddMetaData(scrna, metadata = predictions)
+table(scrna@meta.data $predicted.id)
+# project the query onto the referene UMAP
+
+DimPlot(scrna, group.by = "predicted.id",label = T)
+DimplotScrnaAnnote <- DimPlot(scrna,  group.by = "predicted.id",label = T,label.size = 1) 
+DimplotScrna
+DimplotScrnaAnnoteSplit <- DimPlot(scrna, group.by = "predicted.id",split.by = "DataSet", label.size = 1, label = T) 
+DimplotScrnaSplit
+?DimPlot
+ggsave(filename = "DimplotScrnaAnnote.pdf", plot = DimplotScrnaAnnote, width = 8, height = 5)
+ggsave(filename = "DimplotScrnaAnnoteSplit.pdf", plot = DimplotScrnaAnnoteSplit, width = 16, height = 5)
+# save the predicted object
+saveRDS(scrna, file = "Pyelonephritis_singlecell_doublet_harmony_ATLASpredicted_v0618.RDS")
+
+scrna <- readRDS("Pyelonephritis_singlecell_doublet_harmony_ATLASpredicted_v0618.RDS")
+
+# check the annotation
+scrna@meta.data $predicted.id
+
+
+# save the reference object
+saveRDS(reference, file = "Mouse_ATLAS_reference.rds")
+DimPlot(reference)
+# # another method:
+# library("Seurat")
+# #install.packages("anndata")
+# library("anndata")
+# print("Convert from Scanpy to Seurat...")
+# data <- read_h5ad("MouseKidneyATLAS_MKA.h5ad")
+# data <- CreateSeuratObject(counts = t(data$X), meta.data = data$obs)
+# data
+# data@meta.data %>% head()
+# reference
+```
+
+# evaluation of predicted labels and manual annatation using marker genes
+```{r}
+# generate confusinon matrix
+table(scrna@meta.data $FinalAnnotation,scrna@meta.data $predicted.id)
+# this will show how ofean each predicted label agree with the manual annoation
+conf_mat <- table(scrna@meta.data $FinalAnnotation,scrna@meta.data $predicted.id)
+
+#table(scrna@meta.data $FinalAnnotation,scrna@meta.data $predicted.id)
+conf_mat_norm <- prop.table(conf_mat, 1)  # normalize by rows (manual)
+pheatmap(conf_mat_norm, cluster_rows = FALSE, cluster_cols = FALSE)
+
+```
+
+# we rename the PC1 and PC2
+```{r}
+
+```
+
