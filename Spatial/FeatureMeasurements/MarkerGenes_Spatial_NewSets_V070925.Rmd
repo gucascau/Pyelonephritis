@@ -217,39 +217,7 @@ CellCategories<- c("Stromal Cells")
 RequestedGenes2<- c("Pdgfra", "Pdgfrb", "Col1a1", "Col3a1","Dcn", "Postn", "Acta2", "Cspg4", "Rgs5", "Pecam1", "Cdh5", "Lyve1", "Prox1", "Itga8", "Cxcl12", "Myh11", "Tagln")
 # 3. The kidney epithelial cells
 CellCategories<- c("Epithelial Cells")
-RequestedGenes1 <- c(
-  "Lrp2",
-  "Slc34a1",
-  "Slc5a12",
-  # PTS1
-  "Cyp4a14",
-  # PTS2
-  "Slc7a12",
-  # PTS3
-  "Acsm1",
-  "Cubn",
-  "Havcr1",
-  "Slc12a3",
-  "Slc8a1",
-  "Calb1",
-  "Trpm6",
-  "Pvalb",
-  "Wnk1",
-  "Trpv5",
-  "Fst",
-  "Slc14a2",
-  "Slc12a1",
-  "Cldn10",
-  "Atp6v1g3",
-  "Aqp6",
-  "Slc26a4",
-  "Aqp2",
-  "Hsd11b2" ,
-  "Scnn1g",
-  "Krt5",
-  "Krt14",
-  "Upk1b"
-)
+RequestedGenes1 <- c("Lrp2","Slc34a1","Slc5a12","Slc13a3","Slc7a12","Pdpn","Cldn1","Aqp1","Trpv5","Umod", "Slc12a1","Slc12a3", "Pvalb","Aqp2", "Aqp3", "Atp6v1b1", "Slc4a1","Slc26a4", "Slc4a9","Krt5","Upk1b","Nphs1","Wt1")
 
 length(RequestedGenes1)
 length(RequestedGenes2)
@@ -276,6 +244,199 @@ pdf("SpatialDotPlot_BioMarkerDistribution.pdf", height = 5, width = 18)
 P1 + P2 +P3 + plot_layout(widths = c(1.4, 0.9, 1.2))
 dev.off()
 
+# The overall marker expression across single cells and spatial at different timepoints
+# we set up identity to date
+SpatialObj@meta.data $group %>% table()
+
+Idents(SpatialObj) <- SpatialObj@meta.data $group
+P3<-DotPlot(SpatialObj, features =  RequestedGenes1,col.min = -2, col.max = 3,cols = "Spectral") +RotatedAxis() + NoLegend()+ RotatedAxis()+  theme(axis.title.x = element_blank())
+P4<-DotPlot(SpatialObj, features =  RequestedGenes2,col.min = -2, col.max = 3,cols = "Spectral") +RotatedAxis()  + NoLegend() + RotatedAxis()  + theme(
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    #axis.ticks.y = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+P5<-DotPlot(SpatialObj, features =  RequestedGenes3,col.min = -2, col.max = 3,cols = "Spectral") +RotatedAxis()+ ylab(NULL) +guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() +theme(
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank(),
+    #axis.ticks.y = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+pdf("SpatialDotPlot_BioMarkerDistribution_infecteddate.pdf", height = 5, width = 18)
+P3 + P4 +P5 + plot_layout(widths = c(1.4, 0.9, 1.2))
+dev.off()
+
+```
+
+# create a function to buld the spatial distribution of each genes and create folder for each types
+```{r}
+
+
+SpatialColors <- colorRampPalette(colors = rev(x = brewer.pal(n = 11, name = "Spectral")))
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+PlotSpatialAndSingleCellFeatures <-
+  function(RequestedGenes,
+           # the list contain cell types and their correpsonding genes
+           SpatialObj,
+           # spatial object
+           SingleCellObj,
+           # single cell object
+           ImmuneSingleCellObj ,
+           # immune single cell object
+           RequestedDir,
+           SpatialColors) {
+    for (i in names(RequestedGenes)) {
+      # create folder to store the categories
+      #i="PanTCell"
+      Catrequestedir <- paste0(RequestedDir, i,"/")
+      dir.create(Catrequestedir)
+      setwd(Catrequestedir)
+     base_width_spatial <- max(4, length(RequestedGenes[[i]]))        # spatial plots scale with gene count
+    base_width_singlecell <- max(4, length(RequestedGenes[[i]]))   # single cell plot width
+      # generate the dotplots for  spatial 
+      SpatialDotPltCateGenes <-
+        DotPlot(
+          SpatialObj,
+          features =  RequestedGenes[[i]],
+          col.min = -2,
+          col.max = 3,
+          cols = "Spectral"
+        ) + RotatedAxis() + ylab(NULL) + guides(color = guide_colorbar(title = 'AverExp'),
+                                                size = guide_legend(title = "PercExp")) + RotatedAxis()
+
+  ## 
+      ggsave(paste0(Catrequestedir,i,"_MarkerSpatial_DotPlot.pdf"), plot =SpatialDotPltCateGenes, height = 6, width = base_width_spatial )
+       # generate the dotplots for  single cell 
+        SinglecellDotPltCateGenes <-
+        DotPlot(
+          SingleCellObj,
+          features =  RequestedGenes[[i]],
+          col.min = -2,
+          col.max = 3,
+          cols = "Spectral"
+        ) + RotatedAxis() + ylab(NULL) + guides(color = guide_colorbar(title = 'AverExp'),
+                                                size = guide_legend(title = "PercExp")) + RotatedAxis()
+
+  
+      ggsave(paste0(Catrequestedir,i,"_MarkerSingleCell_DotPlot.pdf"), plot =SinglecellDotPltCateGenes, height = 9, width = base_width_singlecell )
+      
+      # generate the dotplots for  single cell 
+        ImmSinglecellDotPltCateGenes <-
+        DotPlot(
+          ImmuneSingleCellObj,
+          features =  RequestedGenes[[i]],
+          col.min = -2,
+          col.max = 3,
+          cols = "Spectral"
+        ) + RotatedAxis() + ylab(NULL) + guides(color = guide_colorbar(title = 'AverExp'),
+                                                size = guide_legend(title = "PercExp")) + RotatedAxis()
+
+  
+      ggsave(paste0(Catrequestedir,i,"_MarkerImmuneSingleCell_DotPlot.pdf"), plot =ImmSinglecellDotPltCateGenes, height = 4, width = base_width_singlecell )
+      
+      # create genes distribution from
+      for (j in RequestedGenes[[i]]) {
+        #---- Spatial Plot ----#
+        skip_to_next <- FALSE
+        tryCatch(
+          print(SpatialObj@assays$SCT@data[j, ]),
+          error = function(e) {
+            skip_to_next <<- TRUE
+          }
+        )
+        if (skip_to_next) {
+          next
+        }
+        Maxvalue <- ceiling(max(SpatialObj@assays$SCT@data[j, ]))
+        Minvalue <- floor(min(SpatialObj@assays$SCT@data[j, ]))
+        GenesInRequestedMouseSpatialFeature <-
+          SpatialFeaturePlot(
+            SpatialObj,
+            features = j,
+            pt.size.factor = 1500,
+            #alpha = c(0.8, 1),
+            crop = TRUE
+          ) &
+          #ggplot2::scale_fill_gradientn(colours =  SpatialColors(n = 60), limits = c(0, 0.6))
+          ggplot2::scale_fill_gradientn(colours = myPalette(4),
+                                        limits = c(Minvalue, Maxvalue))
+        ggsave(
+          filename = paste0(Catrequestedir, "/", "Spatial_", j, "_featureplot.pdf"),
+          plot = GenesInRequestedMouseSpatialFeature,
+          height = 3,
+          width = 15
+        )
+        #---- Single Cell Plot ----#
+        skip_to_next_sc <- FALSE
+        
+        tryCatch(
+          print(SingleCellObj@assays$SCT@data[j, ]),
+          error = function(e) {
+            skip_to_next_sc <<- TRUE
+          }
+        )
+        if (skip_to_next_sc) {
+          next
+        }
+        
+        ScMaxvalue <-
+          ceiling(max(SingleCellObj@assays$SCT@data[j, ]))
+        ScMinvalue <- floor(min(SingleCellObj@assays$SCT@data[j, ]))
+        
+        GenesInGOtermMouseSingleCellFeature <-
+          FeaturePlot(object = SingleCellObj,
+                      features = j,
+                      split.by = "DataSet")
+        
+        ggsave(
+          filename = paste0(Catrequestedir, "/", "SingleCell_", j, "_feature.pdf"),
+          plot = GenesInGOtermMouseSingleCellFeature,
+          height = 3,
+          width = 12
+        )
+        
+        #---- Immune Single Cell Plot ----#
+        skip_to_next_imsc <- FALSE
+        
+        tryCatch(
+          print(GetAssayData(ImmuneSingleCellObj, assay = "RNA", slot = "data")[j, ]),
+          error = function(e) {
+            skip_to_next_imsc <<- TRUE
+          }
+        )
+        
+        if (skip_to_next_imsc) {
+          next
+        }
+        ImmuneSingleCellObj
+        ScMaxvalue <-
+          ceiling(max( GetAssayData(ImmuneSingleCellObj, assay = "RNA", slot = "data")[j, ]))
+        ScMinvalue <-
+          floor(min(GetAssayData(ImmuneSingleCellObj, assay = "RNA", slot = "data")[j, ]))
+        
+        GenesInGOtermMouseImmSingleCellFeature <-
+          FeaturePlot(object = ImmuneSingleCellObj,
+                      features = j,
+                      split.by = "orig.ident")
+        
+        ggsave(
+          filename = paste0(
+            Catrequestedir,
+            "/",
+            "ImmuneSingleCell_",
+            j,
+            "_feature.pdf"
+          ),
+          plot = GenesInGOtermMouseImmSingleCellFeature,
+          height = 3,
+          width = 12
+        )
+      }
+    }
+  }
 ```
 
 
@@ -283,78 +444,126 @@ dev.off()
 ```{r}
 # check the monocyte, macrophage, macrophage genes:
 #RequestedGenes<- c("Ly6c2","Itgm","Ccr2","C1qa","Cd68","Adgre1","Csf1r","S100a8","Ly6g")
-
-# check the ligand and receptors found in the ATLAS
-RequestedGenes<- c("C3","Ccl3","Ccl3","Ccl4","Ccl5","Ccl6","Ccl7","Ccl9","Ccrl2","Cxcl1","Cxcl10","Cxcl14","Cxcl16","Cxcl3","Cxcl5","Cxcr2")
-
-# Fig S2 for requested of tissue-specific gene expression markers (identities) for the renal urothelium (Upk3a), pelvis (Lc4a11 and Nfat5), medulla (Slc3a1 and Prlr), and cortex (Renin and Nephrin) on slides collected from infected kidney
-RequestedGenes<- c("Upk3a","Psca","Slc4a11","Nfat5","Slc3a1","Prlr","Ren1","Nphs1")
 # 
+# # check the ligand and receptors found in the ATLAS
+# RequestedGenes<- c("C3","Ccl3","Ccl3","Ccl4","Ccl5","Ccl6","Ccl7","Ccl9","Ccrl2","Cxcl1","Cxcl10","Cxcl14","Cxcl16","Cxcl3","Cxcl5","Cxcr2")
+# 
+# # Fig S2 for requested of tissue-specific gene expression markers (identities) for the renal urothelium (Upk3a), pelvis (Lc4a11 and Nfat5), medulla (Slc3a1 and Prlr), and cortex (Renin and Nephrin) on slides collected from infected kidney
+# RequestedGenes<- c("Upk3a","Psca","Slc4a11","Nfat5","Slc3a1","Prlr","Ren1","Nphs1")
+# # 
 
 ### The kidney immune profiling:
-RequestedGenes<- c("Ptprc", "Cd3e", "Cd4", "Cd8a", "Foxp3", "Il2ra", "Cd19", "Cd79a", "Ms4a1", "Prdm1",
-"Ly6c2", "Ccr2", "Cx3cr1", "Adgre1", "Mrc1", "Arg1", "Nos2", "Cd11b", "Cd11c",
-"Ly6g", "S100a8", "S100a9", "Elane", "Ncr1", "Klrb1c", "Gzmb", "Prf1")
+# RequestedGenes<- c("Ptprc", "Cd3e", "Cd4", "Cd8a", "Foxp3", "Il2ra", "Cd19", "Cd79a", "Ms4a1", "Prdm1",
+# "Ly6c2", "Ccr2", "Cx3cr1", "Adgre1", "Mrc1", "Arg1", "Nos2", "Cd11b", "Cd11c",
+# "Ly6g", "S100a8", "S100a9", "Elane", "Ncr1", "Klrb1c", "Gzmb", "Prf1")
 
-RequestedGenes["PanTCell"] <- c("Cd3e", "Cd3d", "Cd3g", "Trac")
-RequestedGenes["CD4T"] <- c("Cd4")
-RequestedGenes["CD8T"] <- c("Cd8a", "Cd8b1")
-RequestedGenes["Tregs"] <-c("Cd4", "Il2ra", "Foxp3", "Ctla4", "Ikzf2")
-RequestedGenes["PanTCell"] <- c("Cd3e", "Cd3d", "Cd3g", "Trac")
-RequestedGenes["Th1"] <-c("Tbx21", "Ifng")
-RequestedGenes["Th2"] <-c("Gata3", "Il4", "Il5", "Il13")
-RequestedGenes["Th17"] <- c("Rorc", "Il17a", "Il17f")
-RequestedGenes["Tfh"] <- c("Bcl6", "Cxcr5", "Il21")
-RequestedGenes["ExhaustedT"] <- c("Pdcd1", "Lag3", "Havcr2" , "Tigit")
-RequestedGenes["Trm"] <- c("Itgae", "Cd69", "Cxcr6")
+ImmuneGenes <- list()
+ImmuneGenes[["PanTCell"]] <- c("Cd3e", "Cd3d", "Cd3g", "Trac")
+ImmuneGenes[["CD4T"]] <- c("Cd4")
+ImmuneGenes[["CD8T"]] <- c("Cd8a", "Cd8b1")
+ImmuneGenes[["Tregs"]] <-c("Cd4", "Il2ra", "Foxp3", "Ctla4", "Ikzf2")
+ImmuneGenes[["PanTCell"]] <- c("Cd3e", "Cd3d", "Cd3g", "Trac")
+ImmuneGenes[["Th1"]] <-c("Tbx21", "Ifng")
+ImmuneGenes[["Th2"]] <-c("Gata3", "Il4", "Il5", "Il13")
+ImmuneGenes[["Th17"]] <- c("Rorc", "Il17a", "Il17f")
+ImmuneGenes[["Tfh"]] <- c("Bcl6", "Cxcr5", "Il21")
+ImmuneGenes[["ExhaustedT"]] <- c("Pdcd1", "Lag3", "Havcr2" , "Tigit")
+ImmuneGenes[["Trm"]] <- c("Itgae", "Cd69", "Cxcr6")
 
 
 # B cells
-RequestedGenes["PanB"] <-c("Cd19", "Ms4a1", "Cd79a", "Cd79b")
-RequestedGenes["MatureB"] <-c("Cd19", "Cd23", "Cd21")
-RequestedGenes["PlasmaCell"] <-c("Prdm1", "Xbp1", "Sdc1")
-RequestedGenes["GeminalCenterB"] <-c("Bcl6", "Aicda")
+ImmuneGenes[["PanB"]] <-c("Cd19", "Ms4a1", "Cd79a", "Cd79b")
+ImmuneGenes[["MatureB"]] <-c("Cd19", "Cd23", "Cd21")
+ImmuneGenes[["PlasmaCell"]] <-c("Prdm1", "Xbp1", "Sdc1")
+ImmuneGenes[["GeminalCenterB"]] <-c("Bcl6", "Aicda")
 
 # Monocyte 
-RequestedGenes["Monocyte"] <-c("Cd11b", "Ly6c2", "Ccr2", "Fcgr3")
-RequestedGenes["ResidentMacrophages"] <-c("Adgre1", "Cd11b", "Cd64", "Mertk")
-RequestedGenes["InfiltratingMacrophages"] <-c("Ly6c", "Ccr2", "Cd11b")
-RequestedGenes["M1like"] <-c("Nos2", "Il1b", "Tnf")
-RequestedGenes["M2like"] <-c("Mrc1", "Arg1", "Chil3")
+ImmuneGenes[["Monocyte"]] <-c("Cd11b", "Ly6c2", "Ccr2", "Fcgr3")
+ImmuneGenes[["ResidentMacrophages"]] <-c("Adgre1", "Cd11b", "Cd64", "Mertk")
+ImmuneGenes[["InfiltratingMacrophages"]] <-c("Ly6c", "Ccr2", "Cd11b")
+ImmuneGenes[["M1like"]] <-c("Nos2", "Il1b", "Tnf")
+ImmuneGenes[["M2like"]] <-c("Mrc1", "Arg1", "Chil3")
 
 # neutrophil
-RequestedGenes["Neutrophil"] <-c("Ly6g", "S100a8", "S100a9", "Mpo", "Elane", "Cxcr2")
+ImmuneGenes[["Neutrophil"]] <-c("Ly6g", "S100a8", "S100a9", "Mpo", "Elane", "Cxcr2")
 
 # Dendritic
-RequestedGenes["cDC1"] <-c("Xcr1", "Batf3", "Clec9a", "Cd8a")
-RequestedGenes["cDC2"] <-c("Cd11b", "Irf4", "Sirpa")
-RequestedGenes["pDCs"] <-c("Siglech", "Bst2", "Tcf4")
+ImmuneGenes[["cDC1"]] <-c("Xcr1", "Batf3", "Clec9a", "Cd8a")
+ImmuneGenes[["cDC2"]] <-c("Cd11b", "Irf4", "Sirpa")
+ImmuneGenes[["pDCs"]] <-c("Siglech", "Bst2", "Tcf4")
 
 # NK cell
-RequestedGenes["NK"] <-c("Ncr1", "Klrb1c", "Gzmb", "Prf1")
+ImmuneGenes[["NK"]] <-c("Ncr1", "Klrb1c", "Gzmb", "Prf1")
 
 
 # Innate lymphoid cells
-RequestedGenes["ILC1"] <-c("Tbx21", "Ifng", "Ncr1")
-RequestedGenes["ILC2"] <-c("Gata3", "Il5", "Il13", "Rora")
-RequestedGenes["ILC3"] <-c("Rorc", "Il17a", "Il22")
+ImmuneGenes[["ILC1"]] <-c("Tbx21", "Ifng", "Ncr1")
+ImmuneGenes[["ILC2"]] <-c("Gata3", "Il5", "Il13", "Rora")
+ImmuneGenes[["ILC3"]] <-c("Rorc", "Il17a", "Il22")
 # Eosinophil
-RequestedGenes["Eosinophil"] <-c("Siglecf", "Gata1", "Prg2")
+ImmuneGenes[["Eosinophil"]] <-c("Siglecf", "Gata1", "Prg2")
+
+# create a function to generate the spatial, single cell for these immune cells
+# setup the directory
+ImmunDir<- paste0(Outdir,"ImmuneCells/")
+dir.create(ImmunDir)
+setwd(ImmunDir)
+# run the function
+PlotSpatialAndSingleCellFeatures(ImmuneGenes,SpatialObj, SingleCellObj, ImmuneSingleCellObj , ImmunDir, SpatialColors )
 
 # Stroma cells
 
 
-RequestedGenes<- c("Pdgfra", "Pdgfrb", "Col1a1", "Col3a1", "Col6a1", "Dcn", "Lum", "Postn", "Acta2", "Gpx3", "Tcf21", "Meis1", "Rgs5", "Cspg4", "Des", "Pecam1", "Cdh5", "Kdr", "Emcn", "Plvap", "Lyve1", "Prox1", "Pdpn", "Nr2f2", "Efnb2", "Gja5", "Itga8", "Cxcl12", "Gata3", "Myh11", "Tagln", "Cnn1", "Notch3")
+# RequestedGenes<- c("Pdgfra", "Pdgfrb", "Col1a1", "Col3a1", "Col6a1", "Dcn", "Lum", "Postn", "Acta2", "Gpx3", "Tcf21", "Meis1", "Rgs5", "Cspg4", "Des", "Pecam1", "Cdh5", "Kdr", "Emcn", "Plvap", "Lyve1", "Prox1", "Pdpn", "Nr2f2", "Efnb2", "Gja5", "Itga8", "Cxcl12", "Gata3", "Myh11", "Tagln", "Cnn1", "Notch3")
 
-RequestedGenes["Fibroblast"] <-c("Pdgfra", "Col1a1", "Col3a1","Dcn", "Postn")
-RequestedGenes["Myofibroblast"] <-c("Acta2", "Postn", "Tagln")
-RequestedGenes["Pericyte"] <-c("Pdgfrb", "Rgs5", "Cspg4")
-RequestedGenes["Endothelial"] <-c("Pecam1", "Cdh5", "Kdr")
-RequestedGenes["LymphaticEC"] <-c("Lyve1", "Pdpn", "Prox1")
-RequestedGenes["vSMC"] <-c("Acta2", "Myh11", "Tagln","Cnn1")
-RequestedGenes["Mesangial"] <-c("Itga8", "Pdgfrb", "Cxcl12")
+# shorten version:
+# RequestedGenes2<- c("Pdgfra", "Pdgfrb", "Col1a1", "Col3a1","Dcn", "Postn", "Acta2", "Cspg4", "Rgs5", "Pecam1", "Cdh5", "Lyve1", "Prox1", "Itga8", "Cxcl12", "Myh11", "Tagln")
+StromalGenes<- list()
+StromalGenes[["Fibroblast"]] <-c("Pdgfra", "Col1a1", "Col3a1","Dcn", "Postn")
+StromalGenes[["Myofibroblast"]] <-c("Acta2", "Postn", "Tagln")
+StromalGenes[["Pericyte"]] <-c("Pdgfrb", "Rgs5", "Cspg4")
+StromalGenes[["Endothelial"]] <-c("Pecam1", "Cdh5", "Kdr")
+StromalGenes[["LymphaticEC"]] <-c("Lyve1", "Pdpn", "Prox1")
+StromalGenes[["vSMC"]] <-c("Acta2", "Myh11", "Tagln","Cnn1")
+StromalGenes[["Mesangial"]] <-c("Itga8", "Pdgfrb", "Cxcl12")
+# setup the directory
+StromalDir<- paste0(Outdir,"StromalCells/")
+dir.create(StromalDir)
+setwd(StromalDir)
+# run the function
+PlotSpatialAndSingleCellFeatures(StromalGenes,SpatialObj, SingleCellObj, ImmuneSingleCellObj , StromalDir, SpatialColors )
 
 
+# Epithelial cells
+EpithelialGenes <-list()
+EpithelialGenes[["PanPT"]] <-c("Lrp2","Slc34a1","Slc13a3")
+EpithelialGenes[["PTS1"]] <-c("Slc5a2", "Slc34a1", "Lrp2", "Cubn", "Slc22a6", "Slc22a8", "Aqp1", "Gatm","Slc5a12")
+EpithelialGenes[["PTS2"]] <-c("Acsm3","Cyp4a14", "Slc22a13", "Abcc4", "Slc7a13", "Gstm1","Slc13a3")
+EpithelialGenes[["PTS3"]] <-c("Slc7a12", "Akr1c18", "Gsta1", "C", "Gstm1")
+EpithelialGenes[["TDL"]] <-c("Aqp1")
+EpithelialGenes[["CNT"]] <-c("Trpv5")
+EpithelialGenes[["TAL"]] <-c("Umod", "Slc12a1", "Kcnj1", "Claudin10")
+EpithelialGenes[["DCT"]] <-c("Slc12a3", "Pvalb", "Trpv5", "Calb1")
+EpithelialGenes[["PC"]] <-c("Aqp2", "Aqp3", "Aqp4",  "Scnn1a")
+EpithelialGenes[["ICA"]] <-c( "Atp6v1b1", "Slc4a1")
+EpithelialGenes[["ICB"]] <-c( "Slc26a4", "Slc4a9", "Foxi1")
+EpithelialGenes[["URO"]] <-c("Krt5","Upk1b","Krt14")
+EpithelialGenes[["POD"]] <-c("Nphs1","Nphs2","Wt1")
+EpithelialGenes[["PEC"]] <-c("Pdpn","Cldn1")
+
+FinalEpithelialGenes<- EpithelialGenes %>% unlist()
+
+EpithelialDir<- paste0(Outdir,"EpithelialGenes/")
+dir.create(EpithelialDir)
+setwd(EpithelialDir)
+# run the function
+PlotSpatialAndSingleCellFeatures(EpithelialGenes,SpatialObj, SingleCellObj, ImmuneSingleCellObj , EpithelialDir, SpatialColors )
+```
+
+
+
+
+```{r}
 Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
                       "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
 

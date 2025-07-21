@@ -1,13 +1,13 @@
 ---
-title: "Single Cell cell-cell communication comparisions"
+title: "Single Cell cell-cell communication at day 0"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
-Copyright (c) 2024 Kidney and Urology Tract Center
+Copyright (c) 2025 Kidney and Urology Tract Center
 Nationwide Children's Hospital
-date: "2024-08-23"
+date: "2025-07-14"
 Description: 
-#   This script is to profile the cell-cell communications in the single cell resolution.
+#   This script is to profile the cell-cell communications in the single cell resolution in the day 3
 
 #     Note:
 #    #     We will try to concentrate on the immune cells, especially the chemikine and cytokine, and 
@@ -27,6 +27,7 @@ Description:
 # load the library packages
 ```{r}
 # loading the library packages
+rm(list = ls())
 library(Seurat)
 #library(SeuratData)
 library(ggplot2)
@@ -83,7 +84,6 @@ options(future.globals.maxSize = 891289600000)
 
 ```
 
-
 # Set up the enviroment: 
 ```{r}
 # clear all the objects in the environments
@@ -97,8 +97,8 @@ Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Res
 # spatial transcript directory that contain the deconvoluted file 
 # Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
 
-# The cell-cell communication output directory for day 7:
-Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V07212025/ComparingDates/"
+# The cell-cell communication output directory for day 0:
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V07212025/OverallDay28/"
 
 data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
 
@@ -132,7 +132,6 @@ setwd(Outdir)
 
 # read the final single cell object with detailed annotation
 ```{r}
-#rm(list=ls())
 #saveRDS(file = "Pyelonephritis_Infection_Deconvoluted.RDS", object = Pyelonephritis_Infection)
 # read the single cell
 
@@ -140,7 +139,7 @@ setwd(Outdir)
 SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_EpithelialStromaImmMergeObjs_v07022025.rds"))
 SingleCellObj@meta.data %>% head()
 
-levels(Idents(SingleCellObj))
+Idents(SingleCellObj)
 # check the dimplot
 DefaultAssay(SingleCellObj) <- "RNA"
 SingleCellObj <- JoinLayers(SingleCellObj)
@@ -149,729 +148,29 @@ DimPlot(SingleCellObj, reduction = "umap.harmony", split.by = "FinalCombinedDate
 
 ```
 # ############################## 
-# We merge the date 0, 3, 7, 28
+# We concentrate on day 28
 # ############################## 
 ```{r}
-ptm = Sys.time()
-CellChatDay0 <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V07212025/Control/cellchat_PN_D0_final.rds")
-CellChatDay3 <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V07212025/OverallDay3/cellchat_PN_D3_final.rds")
-CellChatDay7 <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V07212025/OverallDay7/cellchat_PN_D7_final.rds")
-CellChatDay28 <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V07212025/OverallDay28/cellchat_PN_D28_final.rds")
 
-# the cell type has slightly different
-# we load the each and update the 
-
-CellChatDay0<- updateCellChat(CellChatDay0)
-CellChatDay3<- updateCellChat(CellChatDay3)
-CellChatDay7<- updateCellChat(CellChatDay7)
-CellChatDay28<- updateCellChat(CellChatDay28)
-
-#group.new0 = levels(CellChatDay0@idents)
-CellChatDay0 <- computeCommunProb(CellChatDay0)
-CellChatDay0 <- computeCommunProbPathway(CellChatDay0)
-CellChatDay0 <- aggregateNet(CellChatDay0)
-subsetCommunication(CellChatDay0, signaling = "CXCL", slot.name = "netP")
-
-levels(CellChatDay0@idents)
-levels(CellChatDay3@idents)
-levels(CellChatDay7@idents)
-levels(CellChatDay28@idents)
-### due to the four objects have different cell clusters, we must create common idents and lift the sample that is missing it.
-
-# we firstly compare all the interactions and interaction strength among timepoints
-group.new =union(union(union(levels(CellChatDay0@idents),levels(CellChatDay3@idents)),levels(CellChatDay7@idents)),levels(CellChatDay28@idents))
-object.list <- list(D0 = CellChatDay0, D3=CellChatDay3,D7 =CellChatDay7, D28=CellChatDay28)
-
-cellchat <- mergeCellChat(object.list, add.names = names(object.list), cell.prefix = TRUE)
-# global comparision: Compare the total number of interactions and interaction strength
-gg1<- compareInteractions(cellchat, show.legend = F, group = c(1,2))
-gg2<- compareInteractions(cellchat, show.legend = F, group = c(1,2), measure = "weight")
-gg1 + gg2
-par(mfrow = c(1,2), xpd=TRUE)
-netVisual_diffInteraction(cellchat, weight.scale = T)
-netVisual_diffInteraction(cellchat, weight.scale = T, measure = "weight")
-
-
-# save the interactions 
-
-
-# Compare Total Interactions:
-
-cellchat <- liftCellChat(cellchat , group.new = levels( cellchat@idents$joint) )
-
-
-Group<-levels(cellchat@meta$datasets)
-
-execution.time = Sys.time() - ptm
-print(as.numeric(execution.time, units = "secs"))
-
-# we export the merged 
-# Users can now export the merged CellChat object and the list of the two separate objects for later use
-save(object.list, file = "cellchat_object.list_PN_alldates.RData")
-save(cellchat, file = "cellchat_merged_PN_alldatesRData")
-```
-
-# Part I: Identify altered interactions and cell populations
-CellChat employs a top-down approach, i.e., starting with the big picture and then refining it in a greater detail on the signaling mechanisms, to identify signaling changes at different levels, including altered interactions, cell populations, signaling pathways and ligand-receptor pairs. First, CellChat starts with a big picture to answer the following questions:
-
-Whether the cell-cell communication is enhanced or not
-
-The interaction between which cell types is significantly changed
-
-How the major sources and targets change from one condition to another
-```{r}
-ptm = Sys.time()
-
-
-cellchat@data.signaling %>% head()
-gg1<-compareInteractions(cellchat, show.legend = T, group = Group)
-gg2<-compareInteractions(cellchat, show.legend = F, group = Group, measure = "weight")
-
-pdf("CellChat_Alldates_TotalInteractions.pdf", height =3.5, width = 7)
-gg1 + gg2
-dev.off()
-
-cellchat@data.signaling %>% ncol()
-cellchat@net$D0$LRs
-gg1 <- netVisual_heatmap(cellchat)
-gg2 <- netVisual_heatmap(cellchat, measure = "weight")
-weight.max <- getMaxWeight(object.list, attribute = c("idents","count"))
-
-pdf("CellChat_Alldates_TotalInteractions_Celltype.pdf", height =10, width = 12)
-par(mfrow = c(2,2), xpd=TRUE)
-for (i in 1:length(object.list)) {
-  netVisual_circle(object.list[[i]]@net$count, weight.scale = T, label.edge= F, edge.weight.max = weight.max[2], edge.width.max = 12, title.name = paste0("Number of interactions - ", names(object.list)[i]))
-}
-dev.off()
-
-# Identify cell populations with significant changes in sending or receiving signals
-
-num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
-weight.MinMax <- c(min(unlist(num.link)), max(unlist(num.link))) # control the dot size in the different datasets
-gg <- list()
-for (i in 1:length(object.list)) {
-  object.list[[i]] <- netAnalysis_computeCentrality(object.list[[i]])
-}
-for (i in 1:length(object.list)) {
-  gg[[i]] <- netAnalysis_signalingRole_scatter(object.list[[i]], title = names(object.list)[i], weight.MinMax = weight.MinMax)
-}
-pdf("Cell_Population_Signficantchanges_withtime.pdf", height = 7, width = 9)
-patchwork::wrap_plots(plots = gg)
-dev.off()
-# Identify the signaling changes of specific cell populations
-
-netAnalysis_signalingRole_scatter(object.list[[i]], title = names(object.list)[i], weight.MinMax = weight.MinMax)
-
-#Part II: Identify altered signaling with distinct network architecture and interaction strength
-cellchat <- computeNetSimilarityPairwise(cellchat, type = "functional")
-#> Compute signaling network similarity for datasets 1 2
-
-#reticulate::py_install(packages = 'umap-learn')
-
-cellchat <- netEmbedding(cellchat, type = "functional")
-#> Manifold learning of the signaling networks for datasets 1 2
-cellchat <- netClustering(cellchat, type = "functional")
-#> Classification learning of the signaling networks for datasets 1 2
-# Visualization in 2D-space
-netVisual_embeddingPairwise(cellchat, type = "functional", label.size = 3.5)
-
-#> 2D visualization of signaling networks from datasets 1 2
-
-#Compute and visualize the pathway distance in the learned joint manifold
-gg1 <- rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = T, do.stat = TRUE)
-
-gg1$data
-gg2 <- rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE)
-
-write.csv(file = "SimilaryNetPathway.csv", cellchat@netP$similarity$functional$matrix)
-
-# we  Get contribution (weights) per ligand–receptor pair within a pathway
-contrib <- netAnalysis_contribution(CellChatDay0, signaling = "CXCL")
-print(contrib)
-```
-
-# we need to Compute total communication probabilities per pathway manually, the ligand and receptor
-```{r}
-
-# we wrapped up all the pathways, lignand and receptor interectomes
-df <- subsetCommunication(cellchat, slot.name = "netP")  # or "net"
-dfAlldetails<- subsetCommunication(cellchat, slot.name = "net") 
-
-#
-write.csv(df$D0, file = "cellchat_ligand_receptor_D0_scores.csv")
-write.csv(df$D3, file = "cellchat_ligand_receptor_D3_scores.csv")
-write.csv(df$D7, file = "cellchat_ligand_receptor_D7_scores.csv")
-write.csv(df$D28, file = "cellchat_ligand_receptor_D28_scores.csv")
-
-write.csv(dfAlldetails$D0, file = "cellchat_ligand_receptor_D0_Details_scores.csv")
-write.csv(dfAlldetails$D3, file = "cellchat_ligand_receptor_D3_Details_scores.csv")
-write.csv(dfAlldetails$D7, file = "cellchat_ligand_receptor_D7_Details_scores.csv")
-write.csv(dfAlldetails$D28, file = "cellchat_ligand_receptor_D28_Details_scores.csv")
-
-
-# wrap up the details of these ligand and receptor
-dfAlldetails_named <- lapply(names(dfAlldetails), function(name) {
-  mat <- dfAlldetails[[name]]
-  # Add a new column with the name repeated for each row
-  cbind(date = name, mat)
-})
-dfAlldetails_named_combined <- do.call(rbind, dfAlldetails_named)
-write.csv(dfAlldetails_named_combined, file = "cellchat_ligand_receptor_alldates_Details_scores.csv")
-dfAlldetails_named_combined %>% nrow()
-# check the pathway names:
-D0_AllPathways<- dfAlldetails$D0 %>% pull(pathway_name) %>% unique()
-D3_AllPathways<- dfAlldetails$D3 %>% pull(pathway_name) %>% unique()
-D7_AllPathways<- dfAlldetails$D7 %>% pull(pathway_name) %>% unique()
-D28_AllPathways<- dfAlldetails$D28 %>% pull(pathway_name) %>% unique()
-dfAlldetails$D28 %>% pull(annotation) %>% unique()
-
-AllPathways<- c(D0_AllPathways,D3_AllPathways, D7_AllPathways, D28_AllPathways) %>% unique()
-
-
-cxcl_pairsd7 <- subsetCommunication(CellChatDay7, signaling = "CXCL", slot.name = "net")
-
-# generate a strengths during the infection for these pathways
-pathway_strengths_d0 <- df$D0 %>%
-  group_by(pathway_name) %>%
-  summarise(total_prob = sum(prob)) %>%
-  arrange(desc(total_prob)) %>% mutate(date = "D0")
-
-pathway_strengths_d3 <- df$D3 %>%
-  group_by(pathway_name) %>%
-  summarise(total_prob = sum(prob)) %>%
-  arrange(desc(total_prob)) %>% mutate(date = "D3")
-
-head(pathway_strengths_d3)
-
-pathway_strengths_d7 <- df$D7 %>%
-  group_by(pathway_name) %>%
-  summarise(total_prob = sum(prob)) %>%
-  arrange(desc(total_prob))%>% mutate(date = "D7")
-
-head(pathway_strengths_d7, n=20)
-
-pathway_strengths_d28 <- df$D28 %>%
-  group_by(pathway_name) %>%
-  summarise(total_prob = sum(prob)) %>%
-  arrange(desc(total_prob)) %>% mutate(date = "D28")
-
-# check the strength increased pathways during the infection
-Final_pathway_strengths <- rbind(pathway_strengths_d0, pathway_strengths_d3, pathway_strengths_d7, pathway_strengths_d28)
-
-Final_pathway_strengths$date <- factor(Final_pathway_strengths$date, levels = c("D0", "D3", "D7","D28"))
-
-# Define custom order for pathways if needed
-ordered_pathways_by_function <- c(
-    # 1. Cytokines / Chemokines / Inflammatory
-  "IL2", "IL10", "IFN-II", "TNF",  "CCL", "CXCL", "CX3C", "CSF", "CSF3","MIF", "SPP1", "GAS", "GALECTIN", "GRN",
-
-  # 2. Immune / Co-stimulatory / Checkpoints
-  "APP", "CD23", "CD45", "CD52", "CD86", "LAIR1", "SIRP", "BST2", "NKG2D", "PROS", "PROCR", "COMPLEMENT", "MHC-I", "CLEC","CypA",
-  # 3. Growth Factors / RTK Ligands
-  "EGF", "FGF", "PDGF", "VEGF", "NRG", "TGFb", "GDF", "BMP", "EPO", "ANGPT", "ANGPTL", "MK", "EDN", "IGFBP",
-
-  # 4. ECM / Adhesion / Structural
-  "FN1", "COLLAGEN", "LAMININ", "TENASCIN", "THBS", "ANNEXIN", "CDH", "CDH1", "CDH5", "CLDN", "ESAM", "ICAM", "JAM", 
-  "PECAM1", "VCAM", "SEMA4", "SEMA3", "SEMA7", "SELL", "SELPLG", "CEACAM", "NECTIN", "L1CAM", "NCAM", "NRXN", 
-  "THY1", "CADM", "AGRN",
-
-  # 5. Neural / Synaptic / Developmental
-  "NOTCH", "SLIT", "TAFA", "GAP", "PCDH", "NEGR", "GUCA", "EPHB",
-
-  # 6. GPCR / Adhesion GPCR
-  "ADGRE", "ADGRG", "ADGRL", "PARs",
-
-  # 7. Lipid / Metabolic / Hormonal
-  "Cholesterol", "27HC", "DHEA", "DHEAS", "DHT", "Testosterone", "ApoA", "ApoE", "Prostaglandin", "LXA4", "VISFATIN",
-
-  # 8. Neuropeptides / Neurotransmitters
-  "SerotoninDopamin", "Glutamate",
-
-  # 9. Enzymes / Protease
-  "PLAU",
-
-  # 10. Others / Tyrosine Phosphatases
-  "PTPR", "PTPRM"
-)
-ordered_pathways_by_function[duplicated(ordered_pathways_by_function)]
-setdiff( AllPathways,ordered_pathways_by_function)
-
-length(ordered_pathways_by_function)
-Final_pathway_strengths$pathway_name %>% unique() %>% length()
-
-Final_pathway_strengths$pathway_name <- factor(Final_pathway_strengths$pathway_name, levels = rev(ordered_pathways_by_function))
-
-
-# Generate a heatmap for the pathway strength
-Final_pathway_strengthsFinal<- ggplot(Final_pathway_strengths, aes(x = date, y = pathway_name, fill = log2(total_prob))) +
-  geom_tile(color = "white") +
-  scale_fill_viridis_c(name = "Total Prob", option = "D") +
-  #facet_wrap(~ category, scales = "free_y", ncol = 1) +  # separate by category
-  theme_minimal(base_size = 12) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    #strip.text = element_text(face = "bold"),
-    #panel.grid = element_blank()
-  ) +
-  labs(title = "Pathway Activity Over Time", x = "Date", y = "Pathway")
-ggsave(filename ="Final_pathway_strengthsFinal_overtime.pdf", plot = Final_pathway_strengthsFinal, height = 15, width = 5)
-
-
-## the next part is only select the ligand and receptor for chemokine and cytokine
-ChemokineCytokine<- c("IL2", "IL10", "IFN-II", "TNF",  "CCL", "CXCL", "CX3C", "CSF", "CSF3")
-ChemokinecytokineStrengthOverTime<- Final_pathway_strengths %>% filter(pathway_name %in% ChemokineCytokine)
-ChemokinecytokineStrengthOverTime
-
-
-# Generate a heatmap for the pathway strength
-ChemokinecytokineStrengthOverTimeFigure<- ggplot(ChemokinecytokineStrengthOverTime, aes(x = date, y = pathway_name, fill = log2(total_prob))) +
-  geom_tile(color = "white") +
-  scale_fill_viridis_c(name = "Total Prob", option = "D") +
-  #facet_wrap(~ category, scales = "free_y", ncol = 1) +  # separate by category
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    #strip.text = element_text(face = "bold"),
-    #panel.grid = element_blank()
-  ) +
-  labs(title = "Pathway Activity Over Time", x = "Date", y = "Cytokine Chemokine Pathway" )
-ggsave(filename ="CytokineChemokine_pathways_strengthsFinal_overtime.pdf", plot = ChemokinecytokineStrengthOverTimeFigure, height = 6, width = 5)
-
-EpithelialStromaCelltypes <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL" )
-
-ImmuneCelltypes<- c("ResMac_1", "ResMac_2","MonoDerivedMac1", "ResDendric", "ResMac_3", "MonoDerivedMac2","Neutrophils_0", "Neutrophils_1", "Neutrophils_2", "Neutrophils_3","B cells", "T cells", "NK cells" )
-
-
-dfAlldetailsChemokineCytokineD0 <- dfAlldetails$D0 %>% filter(pathway_name %in% ChemokineCytokine & source %in% EpithelialStromaCelltypes & target %in%ImmuneCelltypes ) %>% arrange(desc(prob)) %>% mutate(date = "D0")
-dfAlldetailsChemokineCytokineD3 <- dfAlldetails$D3 %>% filter(pathway_name %in% ChemokineCytokine & source %in% EpithelialStromaCelltypes & target %in%ImmuneCelltypes ) %>% arrange(desc(prob)) %>% mutate(date = "D3")
-dfAlldetailsChemokineCytokineD7 <- dfAlldetails$D7 %>% filter(pathway_name %in% ChemokineCytokine & source %in% EpithelialStromaCelltypes & target %in%ImmuneCelltypes )  %>% arrange(desc(prob)) %>% mutate(date = "D7")
-dfAlldetailsChemokineCytokineD28 <- dfAlldetails$D28 %>% filter(pathway_name %in% ChemokineCytokine & source %in% EpithelialStromaCelltypes & target %in%ImmuneCelltypes ) %>% arrange(desc(prob)) %>% mutate(date = "D28")
-# Combine the 
-
-dfAlldetailsChemokineCytokine <- rbind(dfAlldetailsChemokineCytokineD0, dfAlldetailsChemokineCytokineD3, dfAlldetailsChemokineCytokineD7, dfAlldetailsChemokineCytokineD28)
-
-write.csv(dfAlldetailsChemokineCytokine,"dfAlldetailsChemokineCytokine.csv")
-
-
-# set up the order the cell types
-dfAlldetailsChemokineCytokineF$SenderReceiverCell 
-# set up the order the date
-
-dfAlldetailsChemokineCytokineF$date <- factor(dfAlldetailsChemokineCytokineF$date, levels = c("D0", "D3", "D7","D28"))
-
-myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
-ChemokineCytokineInteractionEpiImmunFig <- ggplot(dfAlldetailsChemokineCytokineF, aes(x = SenderReceiverCell, y = interaction_name_2, fill = log2(prob))) +
-  geom_dotplot(dotsize = 0.5)+
-  #geom_tile(color = "white") +
-  ggplot2::scale_fill_gradientn(colours = myPalette(4)) +
-  facet_grid(rows = vars(date), scales = "free_y", space = "free_y") +   # separate by date
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    #strip.text = element_text(face = "bold"),
-    #panel.grid = element_blank()
-  ) +
-  labs( x = "Epithelial/Stroma to Immune", y = "Cytokine Chemokine Interaction" )
-ggsave("ChemokineCytokineInteractionEpiImmunFig.pdf", plot = ChemokineCytokineInteractionEpiImmunFig, height = 7, width = 12.5)
-
-
-
-dfAlldetailsChemokineCytokineF_Combined<- dfAlldetails_named_combined %>% mutate (SenderReceiverCell = paste0(source, " -> ", target ))
-## Generate the Dotplot for the immune cell to epithelial/stroma
-dfAlldetailsChemokineCytokineFromImmuneToEpithelialStroma<- dfAlldetailsChemokineCytokineF_Combined %>% filter(pathway_name %in% c(ChemokineCytokine)) %>%  filter( source %in% ImmuneCelltypes & target %in% EpithelialStromaCelltypes)
-ChemokineCytokineInteractionFromImmuneToEpiStro <- ggplot(dfAlldetailsChemokineCytokineFromImmuneToEpithelialStroma, aes(x = SenderReceiverCell, y = interaction_name_2, fill = log2(prob))) +
-  geom_dotplot(dotsize = 0.5)+
-  #geom_tile(color = "white") +
-  ggplot2::scale_fill_gradientn(colours = myPalette(4)) +
-  facet_grid(rows = vars(date), scales = "free_y", space = "free_y") +   # separate by date
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    #strip.text = element_text(face = "bold"),
-    #panel.grid = element_blank()
-  ) +
-  labs( x = "Immune to Epithelial/Stroma", y = "Cytokine Chemokine Interaction" )
-ggsave("ChemokineCytokineInteractionFromImmuneToEpiStro.pdf", plot = ChemokineCytokineInteractionFromImmuneToEpiStro, height = 3, width = 8)
-
-
-## Generate the Dotplot for the immune cell to immune cells
-dfAlldetailsChemokineCytokineFromImmuneToImmune<- dfAlldetailsChemokineCytokineF_Combined %>% filter(pathway_name %in% c(ChemokineCytokine)) %>%  filter( source %in% ImmuneCelltypes & target %in% ImmuneCelltypes)
-dfAlldetailsChemokineCytokineFromImmuneToImmune$date <- factor(dfAlldetailsChemokineCytokineFromImmuneToImmune$date, levels = c("D0", "D3", "D7","D28"))
-ChemokineCytokineInteractionFromImmuneToImmune <- ggplot(dfAlldetailsChemokineCytokineFromImmuneToImmune, aes(x = SenderReceiverCell, y = interaction_name_2, fill = log2(prob))) +
-  geom_dotplot(dotsize = 0.2)+
-  #geom_tile(color = "white") +
-  ggplot2::scale_fill_gradientn(colours = myPalette(4)) +
-  facet_grid(rows = vars(date), scales = "free_y", space = "free_y") +   # separate by date
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    #strip.text = element_text(face = "bold"),
-    #panel.grid = element_blank()
-  ) +
-  labs( x = "Immune to Immnue", y = "Cytokine Chemokine Interaction" )
-ggsave("ChemokineCytokineInteractionFromImmuneToImmune.pdf", plot = ChemokineCytokineInteractionFromImmuneToImmune, height = 10, width = 20)
-
-
-
-# Generate the DotPlot for the ligands in the Epithelial/Stroma cells
-
-#ChemokineCytokineLigand<- dfAlldetailsChemokineCytokineF$ligand %>% unique() %>% sort()
-#ChemokineCytokineReceptor<- dfAlldetailsChemokineCytokineF$receptor %>% unique()
-ChemokineCytokineLigand<- c("Ccl2","Ccl5","Ccl8","Cx3cl1","Cxcl1","Cxcl2", "Cxcl3" , "Cxcl5", "Cxcl12","Cxcl16","Il2","Il10", "Il34","Csf1" )
-ChemokineCytokineReceptor <- c("Ccr2", "Ccr1", "Ccr5", "Cx3cr1","Cxcr2", "Cxcr4","Cxcr6","Il2rb", "Il2rg", "Il10ra", "Il10rb", "Csf1r" )
-
-ChemokineCytokineLigandEpithelial <- dfAlldetailsChemokineCytokineF$source %>% unique()
-ChemokineCytokineReceptorEpithelial <- dfAlldetailsChemokineCytokineF$target %>% unique()
-
-
-SingleCellObj@meta.data %>% head()
-EpthelialSingleCellObj <- subset(SingleCellObj, subset= (FinalSource == "EpithelialStroma" ))
-EpthelialSingleCellSubObj <- subset(EpthelialSingleCellObj, idents = c("PT-S1S2-N3","ProfPT","InfPT","DCT-TAL","PC","DegCD","CNT","DegURO","FIB","END"))
-
-ImmuneSingleCellObj <- subset(SingleCellObj, idents = ImmuneCelltypes)
-
-Idents(EpthelialSingleCellSubObj) <- factor(Idents(EpthelialSingleCellSubObj), levels = c("PT-S1S2-N3","ProfPT","InfPT","DCT-TAL","PC","DegCD","CNT","DegURO", "FIB","END"))
-EpthelialSingleCellSubObj @meta.data %>% head()
-
-?DotPlot
-EpithelialChemokineLigandDotPlot<- DotPlot(EpthelialSingleCellSubObj, features = rev(ChemokineCytokineLigand), cols = c("lightgrey", "blue")) + 
-  coord_flip() +
-  scale_x_discrete(position = "top") +  # puts feature labels on the right
-  theme_classic() +
-  theme(
-    panel.border = element_rect(color = "black", fill = NA, size = 1),  # box border
-    axis.line = element_blank(),
-    axis.title.y = element_blank(),
-     axis.title.x = element_blank(),
-     legend.position = "bottom",
-     legend.title = element_text(size = 8),   # Legend title size
-    legend.text = element_text(size = 8),    # Legend label size
-    legend.key.size = unit(0.4, "cm"),
-    axis.text.x = element_text(angle = 60, hjust = 1, size = 8)
-  ) +guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp"))
-ggsave("EpithelialChemokineLigandDotPlot.pdf", plot = EpithelialChemokineLigandDotPlot, height = 4.5, width = 4.5)
-ImmuneChemokineReceptorDotPlot<- DotPlot(ImmuneSingleCellObj, features = rev(ChemokineCytokineReceptor), cols = c("lightgrey", "red"))+
-  coord_flip() + theme_classic() +
-  theme(
-    panel.border = element_rect(color = "black", fill = NA, size = 1),  # box border
-    axis.line = element_blank(),
-       axis.title.y = element_blank(),
-     axis.title.x = element_blank(),
-    legend.position = "bottom",
-    legend.title = element_text(size = 8),   # Legend title size
-    legend.text = element_text(size = 8),    # Legend label size
-    legend.key.size = unit(0.4, "cm"),
-    axis.text.x = element_text(angle = 60, hjust = 1, size = 8)
-  ) +guides(color = guide_colorbar(title = 'AverExp'),
-         size = guide_legend(title = "PercExp"))
-
-ggsave("ImmuneChemokineReceptorDotPlot.pdf", plot = ImmuneChemokineReceptorDotPlot, height = 4.5, width = 5)
-# another way:
-# plots <- dfAlldetailsChemokineCytokineF %>%
-#   group_split(date) %>%
-#   map(~ {
-#     ggplot(.x, aes(x = SenderReceiverCell, y = interaction_name_2, fill = log2(prob))) +
-#       geom_dotplot() +
-#       scale_fill_viridis_c(name = "Total Prob", option = "D") +
-#       theme_bw() +
-#       theme(axis.text.x = element_text(angle = 45, hjust = 1),
-#             axis.title = element_blank()) +
-#       ggtitle(unique(.x$date))
-#   })
-
-
-
-#netVisual_bubble(cellchat, sources.use = 4,  comparison = c(1, 2,3,4), angle.x = 45)
-
-# get L-R interactions of a specific pathway: CXCL
-cxcl_pairs <- subsetCommunication(cellchat, signaling = "CXCL", slot.name = "netP")
-print(cxcl_pairs)
-
-
-pathways.show <- c("CXCL") 
-par(mfrow = c(2,2), xpd=TRUE)
-for (i in 1:length(object.list)) {
-  netVisual_aggregate(object.list[[i]], signaling = pathways.show, layout = "chord", signaling.name = paste(pathways.show, names(object.list)[i]))
-}
-
-cellchat@meta %>% head()
-
-pdf("CXCL_Exp.pdf", height=18, width = 20)
-plotGeneExpression(cellchat, signaling = "CXCL", split.by = "datasets", colors.ggplot = T, type = "violin")
-dev.off()
-```
-
-```{r}
-# comparing the overall information flow of each signaling pathway or ligand receptor pair from day 3, day7, day28
-group.new.d3 = unique(union(levels(CellChatDay0@idents),levels(CellChatDay3@idents)))
-
-object.list.d3 <- list(D0 = CellChatDay0, D3 =CellChatDay3)
-object.list
-
-cellchatd3 <- mergeCellChat(object.list.d3, add.names = names(object.list.d3), cell.prefix = TRUE)
-compareInteractions(cellchatd3, show.legend = F, group = c(1,2))
-# Identify signaling groups based on their functional similarity
-cellchatd3 <- liftCellChat(cellchatd3 , group.new = levels( cellchatd3@idents$joint) )
-
-
-Groupd3<-levels(cellchatd3@meta$datasets)
-
-cellchatd3 <- computeNetSimilarityPairwise(cellchatd3, type = "functional")
-#> Compute signaling network similarity for datasets 1 2
-library(reticulate)
-library(CellChat)
-cellchatd3 <- netEmbedding(cellchatd3, type = "functional")
-#> Manifold learning of the signaling networks for datasets 1 2
-cellchatd3 <- netClustering(cellchatd3, type = "functional")
-
-#> Classification learning of the signaling networks for datasets 1 2
-# Visualization in 2D-space
-netVisual_embeddingPairwise(cellchat, type = "functional", label.size = 3.5)
-# compare the overall information flow of each signaling pathway 
-gg2 <- rankNet(cellchatd3, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE)
-
-
-# compare the day 7 to controls
-object.list.d7 <- list(D0 = CellChatDay0, D7 =CellChatDay7)
-
-cellchatd7 <- mergeCellChat(object.list.d7, add.names = names(object.list.d7), cell.prefix = TRUE)
-compareInteractions(cellchatd7, show.legend = F, group = c(1,2))
-# Identify signaling groups based on their functional similarity
-cellchatd7 <- liftCellChat(cellchatd7 , group.new = levels( cellchatd7@idents$joint) )
-
-
-Groupd7<-levels(cellchatd7@meta$datasets)
-
-cellchatd7 <- computeNetSimilarityPairwise(cellchatd7, type = "functional")
-
-
-
-#> Compute signaling network similarity for datasets 1 2
- reticulate::py_install("umap-learn")
-library(reticulate)
-library(CellChat)
-cellchatd7 <- netEmbedding(cellchatd7, type = "functional")
-#> Manifold learning of the signaling networks for datasets 1 2
-cellchatd7 <- netClustering(cellchatd7, type = "functional")
-gg7net <- netVisual_heatmap(cellchatd7)
-#> Classification learning of the signaling networks for datasets 1 2
-# Visualization in 2D-space
-netVisual_embeddingPairwise(cellchatd7, type = "functional", label.size = 3.5)
-# compare the overall information flow of each signaling pathway 
-gg7 <- rankNet(cellchatd7, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE)
-
-gg7$data
-
-object.list.d7 
-is.matrix(data)  
-
-```
-
-
-
-```{r}
-# the following will compare the interactome between day 7 and controls
-
-union(union(union(levels(CellChatDay0@idents),levels(CellChatDay3@idents)),levels(CellChatDay7@idents)),levels(CellChatDay28@idents))
-levels(CellChatDay0@idents)
-# the new group contain all the new clusters
-group.new = unique(union(levels(CellChatDay0@idents),levels(CellChatDay7@idents)))
-
-#CellChatDay0@idents<- liftCellChat(CellChatDay0@idents, group.new)
-
-
-# CellChatDay3 <- liftCellChat(CellChatDay3, group.new0)
-
-object.list <- list(D0 = CellChatDay0, D7 =CellChatDay7)
-object.list
-# merge the object
-cellchat <- mergeCellChat(object.list, add.names = names(object.list), cell.prefix = TRUE)
-# global comparision: Compare the total number of interactions and interaction strength
-gg1<- compareInteractions(cellchat, show.legend = F, group = c(1,2))
-gg2<- compareInteractions(cellchat, show.legend = F, group = c(1,2), measure = "weight")
-gg1 + gg2
-
-```
-
-
-
-# compare specific pathways or cell pairs
-```{r}
-cellchat@netP$D0$pathways
-cellchat@netP$D3$pathways
-cellchat@netP$D7$pathways
-cellchat@netP$D28$pathways
-pathways.show <- c("CCL", "CXCL")  # Example pathways
-netAnalysis_signalingRole_heatmap(cellchat, signaling = pathways.show)
-```
-
-
-# Compare the number of interactions and interaction strength among different cell populations
-```{r}
-pdf("CellChat_Alldates_netVisual_diffInteraction.pdf", height =8, width = 10)
-par(mfrow = c(1,4), xpd=TRUE)
-netVisual_diffInteraction(cellchat, weight.scale = T)
-netVisual_diffInteraction(cellchat, weight.scale = T, measure = "weight")
-dev.off()
-```
-#(B) Heatmap showing differential number of interactions or interaction strength among different cell populations across two datasets
-```{r}
-
-
-gg1 <- netVisual_heatmap(cellchat)
-#> Do heatmap based on a merged object
-gg2 <- netVisual_heatmap(cellchat, measure = "weight")
-#> Do heatmap based on a merged object
-gg1 + gg2
-```
-
-
-```{r}
-gg3 <- netVisual_heatmap(cellchat)
-
-par(mfrow = c(1,2), xpd=TRUE)
-netVisual_diffInteraction(cellchat, weight.scale = T)
-netVisual_diffInteraction(cellchat, weight.scale = T, measure = "weight")
-#netVisual_diffInteraction(cellchat, weight.scale = T)
-object.list[[1]]
-for (i in 1:length(object.list)) {
-  netVisual_circle(object.list[[i]]@net$count.merged, weight.scale = T, label.edge= T, edge.weight.max = weight.max[3], edge.width.max = 12, title.name = paste0("Number of interactions - ", names(object.list)[i]))
-}
-
-```
-
-#(C) Circle plot showing the number of interactions or interaction strength among different cell populations across multiple datasets
-```{r}
-weight.max <- getMaxWeight(object.list, attribute = c("idents","count"))
-pdf("CellChat_Alldates_netVisual_circle.pdf", height =8, width = 10)
-par(mfrow = c(1,4), xpd=TRUE)
-for (i in 1:length(object.list)) {
-  netVisual_circle(object.list[[i]]@net$count, weight.scale = T, label.edge= F, edge.weight.max = weight.max[2], edge.width.max = 12, title.name = paste0("Number of interactions - ", names(object.list)[i]))
-}
-dev.off()
-
-
-```
-
-#Compare the major sources and targets in a 2D space
-Comparing the outgoing and incoming interaction strength in a 2D space allows ready identification of the cell populations with significant changes in sending or receiving signals between different datasets.
-
-Identify cell populations with significant changes in sending or receiving signals between different datasets by following option A, and the signaling changes of specific cell populations by following option B.
-
-# (A) Identify cell populations with significant changes in sending or receiving signals
-```{r}
-num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
-num.link 
-
-weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
-gg <- list()
-pdf("CellChat_Alldates_netAnalysis_signalingRole_scatter.pdf", height =10, width = 12)
-object.list[[2]] <-netAnalysis_computeCentrality(object.list[[2]])
-tes2<-netAnalysis_signalingRole_scatter(object.list[[2]], title = names(object.list)[2],weight.MinMax =c(0,600))
-
-pdf("CellChat_Alldates_netAnalysis_signalingRole_scatter_d3.pdf", height =10, width = 12)
-tes2
-
-dev.off()
-#netAnalysis_computeCentrality(object.list[[1]])
-for (i in 1:length(object.list)) {
-  object.list[[i]]<-netAnalysis_computeCentrality(object.list[[i]])
-  gg[[i]] <- netAnalysis_signalingRole_scatter(object.list[[i]], title = names(object.list)[i],weight.MinMax =c(0,600))
-}
-#> Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
-#> Signaling role analysis on the aggregated cell-cell communication network from all signaling pathways
-patchwork::wrap_plots(plots = gg)
-dev.off()
-```
-
-
-```{r}
-# Circle plot
-pathways.show <- c("CXL") 
-weight.max <- getMaxWeight(object.list, slot.name = c("netP"), attribute = pathways.show) # control the edge weights across different datasets
-weight.max
-par(mfrow = c(1,2), xpd=TRUE)
-paste(pathways.show, names(object.list)[i])
-i=1
- netVisual_aggregate(object.list[[i]], signaling = pathways.show, layout = "circle", edge.weight.max = weight.max[1], edge.width.max = 10, signaling.name = paste(pathways.show, names(object.list)[i]))
-
-for (i in 1:length(object.list)) {
-  netVisual_aggregate(object.list[[i]], signaling = pathways.show, layout = "circle", edge.weight.max = weight.max[1], edge.width.max = 10, signaling.name = paste(pathways.show, names(object.list)[i]))
-}
-```
-
-# Part II: Identify altered signaling with distinct network architecture and interaction strength
-## Identify signaling networks with larger (or less) difference as well as signaling groups based on their functional/structure similarity
-
-```{r}
-ptm = Sys.time()
-
-cellchat <- computeNetSimilarityPairwise(cellchat, type = "functional")
-#> Compute signaling network similarity for datasets 1 2
-#
-rankSimilarity(cellchat, type = "functional")
-pdf("CellChat_Alldates_netAnalysis_rankNet.pdf", height =10, width = 12)
-gg1 <- rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE)
-gg1
-dev.off()
-
-cellchat
-netVisual_bubble(cellchat, sources.use = 4, targets.use = c(5:30),  comparison = c(1, 2,3,4), angle.x = 45)
-
-levels( cellchat@idents$joint)
-gg1 <- netVisual_bubble(cellchat, sources.use = 4, targets.use = c(5:33),  comparison = c(1, 2,3,4),  title.name = "Increased signaling in LS", angle.x = 45, remove.isolate = T)
-gg1
-
-gg2 <- netVisual_bubble(cellchat, sources.use = 4, targets.use = c(1:33),  comparison = c(1, 2,3,4), title.name = "Decreased signaling in LS", angle.x = 45, remove.isolate = T)
-gg2
-gg2 <- netVisual_bubble(cellchat, pairLR.use = pairLR.use.down, sources.use = 4, targets.use = c(5:11), comparison = c(1, 2,2,3,4),  angle.x = 90, remove.isolate = T,title.name = paste0("Down-regulated signaling in ", names(object.list)[2]))
-# library(reticulate)
-# conda_create("r-reticulate")
-# reticulate::py_install(packages ='umap-learn')
-
-cellchat <- netEmbedding(cellchat, type = "functional")
-#> Manifold learning of the signaling networks for datasets 1 2
-cellchat <- netClustering(cellchat, type = "functional")
-#> Classification learning of the signaling networks for datasets 1 2
-# Visualization in 2D-space
-netVisual_embeddingPairwise(cellchat, type = "functional", label.size = 3.5)
-#> 2D visualization of signaling networks from datasets 1 2
-```
-
-
-# we write a function of cell cell communication
-```{r}
-# the script is used to detect the cell-cell communication for the requested cell types using the selected pathways within the different comparisions
-
-
-
-
-
-```
-
-
-
-```{r}
 # we  select the all dates
-SingleCellObj$DataSet
+SingleCellObj@meta.data %>% head()
 Pyelonephritis_InfectionDay28 <- 
-    subset (SingleCellObj, subset= (DataSet == "28DPI"))
+    subset (SingleCellObj, subset= (FinalCombinedDate == "28DPI"))
 Pyelonephritis_InfectionDay28
 nrow(Pyelonephritis_InfectionDay28@meta.data)
-Pyelonephritis_InfectionDay28 %>% head()
+Pyelonephritis_InfectionDay28 %>% tail()
 ### create a cellchat object
 
-cellchat <- createCellChat(object = Pyelonephritis_InfectionDay28, group.by = "FinalAnnotation", assay = "RNA")
+
+cellchat <- createCellChat(object = Pyelonephritis_InfectionDay28, group.by = "FinalCombinedAnnation", assay = "RNA")
 
 cellchat
 # set the database#
 CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
 showDatabaseCategory(CellChatDB)
-
+CellChatDB
 # subset the expression data of signaling genes for saving computation cost
 cellchat@DB <- CellChatDB
-
 #Preprocessing the expression data for cell-cell communication analysis
 # subset the expression data of signaling genes for saving computation cost
 #cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
@@ -894,8 +193,10 @@ cellchat <- computeCommunProb(cellchat, type = "triMean")
 
 saveRDS(cellchat, file = "SingleCell_Date28_Cellchat.rds")
 
+# read the object of date 0
+cellchat <- readRDS("SingleCell_Date28_Cellchat.rds")
 # read the object
-cellchat<- readRDS("SingleCell_Date28_Cellchat.rds")
+#cellchat<- readRDS("SingleCellDay0.rds")
 # then we fileterd the cellgroup for cell cell communintion is 10
 cellchat <- filterCommunication(cellchat, min.cells = 3)
 
@@ -925,7 +226,7 @@ dev.off()
 # Due to the complicated cell-cell communication network, we can examine the signaling sent from each cell group. Here we also control the parameter edge.weight.max so that we can compare edge weights between differet networks.
 mat <- cellchat@net$weight
 nrow(mat)
-pdf("SignalingSedingFromEachCelltype_Day28.pdf", height = 40, width = 40)
+pdf("SignalingSedingFromEachCelltype_Day28.pdf", height = 25, width = 25)
 par(mfrow = c(5,7), xpd=TRUE)
 for (i in 1:nrow(mat)) {
   mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
@@ -938,14 +239,16 @@ dev.off()
 cellchat@netP$pathways
 
 # 
-pathways.show <- c("CXCL","CCL","TNF") 
+pathways.show <- c("CXCL","CCL","TNF","TGFb","IGFBP","CDH5","EGF") 
+pathways.show <- c("CXCL","CCL","IFN-II","CD45","CD52","CD86","ICAM") 
+pathways.show <- c("CXCL","CCL") 
 # Hierarchy plot
 # Here we define `vertex.receive` so that the left portion of the hierarchy plot shows signaling to fibroblast and the right portion shows signaling to immune cells 
 vertex.receiver = seq(1,4) # a numeric vector. 
 
 #cellchat@net$LRs
 pdf("Pathwayshow_Day28.pdf", height = 6, width = 6)
-netVisual_aggregate(cellchat, signaling = pathways.show,  vertex.receiver = vertex.receiver)
+netVisual_aggregate(cellchat, signaling = cellchat@netP$pathways,  vertex.receiver = vertex.receiver)
 dev.off()
 # Circle plot
 pdf("Pathwayshow_Cxcl_CCL_Day28.pdf", height = 6, width = 6)
@@ -957,13 +260,8 @@ pdf("Pathwayshow_Cxcl_CCL_Day28_Chord.pdf", height = 5, width = 5)
 netVisual_aggregate(cellchat, signaling = pathways.show, layout = "chord")
 dev.off()
 
- 
- # save the netAnalysis contritbution
-Test<- netAnalysis_contribution(cellchat, signaling = pathways.show, return.data=T)
-
-# save the netAnalysis contribution for Cytokine and Chemokine
-write.csv(Test$LR.contribution, file = "Chemokine_Cytokine_Cell_Contribution_date28.csv")
-
+Test<-netAnalysis_contribution(cellchat, signaling = pathways.show,return.data=T)
+ Test$LR.contribution
 # Compute the contribution of each ligand-receptor pair to the overall signaling pathway and visualize cell-cell communication mediated by a single ligand-receptor pair
 # generate the ligand receptor pairs
 pdf("Pathwayshow_Cxcl_CCL_Day28_netAnalysis_contribution.pdf", height = 5, width = 4)
@@ -974,12 +272,12 @@ pairLR.CXCL$interaction_name
 
 # generate the potential interactions
 for (i in pairLR.CXCL$interaction_name){
-  pdf(paste0(i,"PairedPathwayshow_Chord_Day28.pdf"), height = 4, width = 4)
+  pdf(paste0(i,"PairedPathwayshow_Chord_Day28.pdf"), height = 6, width = 7)
   netVisual_individual(cellchat, signaling = pathways.show, pairLR.use = i, layout = "chord")
   dev.off()
 }
 
-LR.show <- i # show one ligand-receptor pair
+LR.show <- "CXCL2_CXCR2" # show one ligand-receptor pair
 LR.show
 # Hierarchy plot
 vertex.receiver = seq(1,4) # a numeric vector
@@ -999,8 +297,20 @@ pdf("PairedPathwayshow_CCL_CXCL_DotPlots_Day28.pdf", height = 5, width = 10)
 netVisual_bubble(cellchat, signaling = c("CCL","CXCL"), remove.isolate = FALSE)
 dev.off()
 # visulaize cell-cell communication mediated by ligand and receptors
-
+# save the aggregated cell-cell communication
+saveRDS(cellchat, file = "cellchat_PN_D28_final.rds")
+cellchat
 ```
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1050,9 +360,9 @@ cellChatDay0 <- computeCommunProb(cellChatDay0, type = "triMean")
 
 #### day 7
 # we select each dates and perform the cellchat
-seurat.obj.day7 <- subset (SingleCellObj, subset= (DataSet == "7DPI"))
+seurat.obj.Day28 <- subset (SingleCellObj, subset= (DataSet == "7DPI"))
 
-cellChatDay7 <- createCellChat(object = seurat.obj.day7, group.by = "DataSet", assay = "RNA")
+cellChatDay28 <- createCellChat(object = seurat.obj.Day28, group.by = "DataSet", assay = "RNA")
 
 
 # set the database#
@@ -1060,17 +370,17 @@ CellChatDB <- CellChatDB.mouse # use CellChatDB.mouse if running on mouse data
 showDatabaseCategory(CellChatDB)
 
 # subset the expression data of signaling genes for saving computation cost
-cellChatDay7@DB <- CellChatDB
+cellChatDay28@DB <- CellChatDB
 
 #Preprocessing the expression data for cell-cell communication analysis
 # subset the expression data of signaling genes for saving computation cost
 #cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
-cellChatDay7 <- subsetData(cellChatDay7) # This step is necessary even if using the whole database
+cellChatDay28 <- subsetData(cellChatDay28) # This step is necessary even if using the whole database
 
 #future::plan("multisession", workers = 4) # do parallel
 
-cellChatDay7 <- identifyOverExpressedGenes(cellChatDay7)
-cellChatDay7 <- identifyOverExpressedInteractions(cellChatDay7)
+cellChatDay28 <- identifyOverExpressedGenes(cellChatDay28)
+cellChatDay28 <- identifyOverExpressedInteractions(cellChatDay28)
 #> The number of highly variable ligand-receptor pairs used for signaling inference is 692
 
 #execution.time = Sys.time() - ptm
@@ -1078,14 +388,14 @@ cellChatDay7 <- identifyOverExpressedInteractions(cellChatDay7)
 
 #### Part II: Inference of cell-cell communication network
 ptm = Sys.time()
-cellChatDay7 <- computeCommunProb(cellChatDay7, type = "triMean")
+cellChatDay28 <- computeCommunProb(cellChatDay28, type = "triMean")
 
 
 
 
 
 
-object.list <- list(NL = cellChatDay0, LS = cellChatDay7)
+object.list <- list(NL = cellChatDay0, LS = cellChatDay28)
 cellchat <- mergeCellChat(object.list, add.names = names(object.list))
 
 ```
@@ -2410,7 +1720,7 @@ for (i in Finalcelltypemarkers){
 # Generate the Day 7
 # scatter pie plot for different cell types at day 7
 ```{r}
-setwd(Day7dir)
+setwd(Day28dir)
 
 Pyelonephritis_Infection$orig.ident
 Pyelonephritis_InfectionDay28 <-
@@ -2445,9 +1755,9 @@ InfectedMat_D7CellTypeNozero <- InfectedMat_D7CellType[,colSums(InfectedMat_D7Ce
 InfectedMat_D7CellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_D7CellTypeNozero)
 InfectedMat_D7CellTypeInteractions<- plotInteractions(InfectedMat_D7CellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 
-ggsave("SpatialScatterPieDay7_CorrelationMatrix.pdf", plot =InfectedMat_D7CellTypeCorrelationMatrix, height = 6, width = 6 )
+ggsave("SpatialScatterPieDay28_CorrelationMatrix.pdf", plot =InfectedMat_D7CellTypeCorrelationMatrix, height = 6, width = 6 )
 
-ggsave("SpatialScatterPieDay7_HeatmapColocalization.pdf", plot =InfectedMat_D7CellTypeInteractions, height = 6, width = 6 )
+ggsave("SpatialScatterPieDay28_HeatmapColocalization.pdf", plot =InfectedMat_D7CellTypeInteractions, height = 6, width = 6 )
 # scatterpie plot
 # scatterpie plot
 # 
@@ -2501,7 +1811,7 @@ colnames(Pyelonephritis_InfectionDay28)
 str(Pyelonephritis_InfectionDay28)
 #SPOTlight:::. extract_image(Pyelonephritis_Infection )
 #rownames(Pyelonephritis_Infection)
-SpatialScatterPieDay7 <-plotSpatialScatterpie(
+SpatialScatterPieDay28 <-plotSpatialScatterpie(
   x= Pyelonephritis_InfectionDay28,
   y= InfectedMat_D7CellType,
   cell_types = colnames(InfectedMat_D7CellType),
@@ -2512,12 +1822,12 @@ SpatialScatterPieDay7 <-plotSpatialScatterpie(
         values = pal,
         breaks = names(pal)) +coord_sf(xlim = c(100, 500), ylim = c(100, 500))
 
-ggsave("SpatialScatterPieDay7.pdf",plot = SpatialScatterPieDay7, height = 4,width = 5)
+ggsave("SpatialScatterPieDay28.pdf",plot = SpatialScatterPieDay28, height = 4,width = 5)
 # colnames(DeconvolutedMatrix)
 # ncol(Pyelonephritis_Infection)
 # nrow(DeconvolutedMatrix)
 InfectedMat_D7CellType
-pdf(file = "SpatialScatterPieDay7_CellTypeNetwork.pdf", height = 8,width = 8)
+pdf(file = "SpatialScatterPieDay28_CellTypeNetwork.pdf", height = 8,width = 8)
 plotInteractions(InfectedMat_D7CellType, "network")
 dev.off()
 
@@ -2556,7 +1866,7 @@ for (i in Finalcelltypemarkers){
    #&
        #   ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(0,1))
   
-  ggsave(filename = paste0(i,"_SpatialFeaturePrediction_day7.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 5)
+  ggsave(filename = paste0(i,"_SpatialFeaturePrediction_Day28.pdf"), plot = CellTypeMarkerSpatialFeature, height = 5, width = 5)
   
 }
 
@@ -2574,7 +1884,7 @@ pdf(paste0(Pdate,"_MeanProp_tidyHeatmap.pdf"),height = 5, width = 6)
 
 ```
 
-# we generate pie plot for day7
+# we generate pie plot for Day28
 ```{r}
 # set up the day 7
 setwd(InfCPiedir)
@@ -2693,7 +2003,7 @@ Idents(Pyelonephritis_InfectionDay28)
 
 # #######
 # For interesting infection regions : for the abscess of the CorMed
-# we generate pie plot for day7 under infection regions for the CorMed abscess regions
+# we generate pie plot for Day28 under infection regions for the CorMed abscess regions
 ```{r}
 setwd(InfCorMeddir)
 Pyelonephritis_Infection$orig.ident
@@ -2721,7 +2031,7 @@ Pyelonephritis_InfectionDay28 <- subset (Pyelonephritis_InfectionDay28, slice8_i
 Pyelonephritis_InfectionDay28 <- subset (Pyelonephritis_InfectionDay28, idents = c("N13","N14","N15","N16","N17"))
 InfectedCorMedRegionD1Spatial <-SpatialDimPlot(Pyelonephritis_InfectionDay28,crop = TRUE, label = FALSE)
 InfectedCorMedRegionD1Spatial
-ggsave("Spatial_infected_day7_SpatialDimplot.pdf",
+ggsave("Spatial_infected_Day28_SpatialDimplot.pdf",
       plot = InfectedCorMedRegionD1Spatial,
       height = 3,
       width = 4.5 )
@@ -2733,7 +2043,7 @@ FinalIntergratedTableAbcess<- merge(Pyelonephritis_InfectionDay28@meta.data[,c("
 col_fun <- circlize::colorRamp2(c(0, 0.01, 1), c("white", "blue", "red"))
 
 # generate the mean value for each column
-pdf(file = "Spatial_infected_day7_FinalIntergratedTableAbcessHeatmap.pdf", height = 4, width = 4)
+pdf(file = "Spatial_infected_Day28_FinalIntergratedTableAbcessHeatmap.pdf", height = 4, width = 4)
 FinalIntergratedTableAbcessForHeatmap <-FinalIntergratedTableAbcess %>% dplyr::select(-c("Row.names",'orig.ident',"max")) %>% group_by(Annotation) %>% summarise_all("mean") %>% remove_rownames %>% column_to_rownames(var="Annotation") %>% as.matrix()
 
 FinalIntergratedTableAbcessHeatmap<-FinalIntergratedTableAbcessForHeatmap[,colSums(FinalIntergratedTableAbcessForHeatmap)>0] %>% Heatmap(show_row_dend=T, show_column_dend = F,column_names_rot = 45,name = "Mean",col= col_fun, border = T)  
@@ -2807,14 +2117,14 @@ InfectedCorMedRegionD1SpatialPie<- plotSpatialScatterpie(
         breaks = names(pal)) +
   coord_sf(xlim = c(150, 300), ylim = c(300, 450))
 ?plotSpatialScatterpie
-ggsave("Spatial_infected_day7_SpatialCellType_Scatterpie.pdf",
+ggsave("Spatial_infected_Day28_SpatialCellType_Scatterpie.pdf",
       plot = InfectedCorMedRegionD1SpatialPie,
       height = 3,
       width = 4.5 )
 
 # correlation
 InfectedCorMedRegionD1SpatialPieCorrelationMatrix <- plotCorrelationMatrix(Pyelonephritis_InfectionDay28CellTypeMatrixNoMax)
-ggsave("Spatial_infected_day7_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.pdf",
+ggsave("Spatial_infected_Day28_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.pdf",
       plot = InfectedCorMedRegionD1SpatialPieCorrelationMatrix,
       height = 4.5,
       width = 4.5 )
@@ -2822,7 +2132,7 @@ ggsave("Spatial_infected_day7_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.
 Pyelonephritis_InfectionDay28CellTypeMatrixNoMaxLarger<- Pyelonephritis_InfectionDay28CellTypeMatrixNoMax[,colSums(Pyelonephritis_InfectionDay28CellTypeMatrixNoMax[])>0]
 InfectedPevRegionD1Interactions<- plotInteractions(Pyelonephritis_InfectionDay28CellTypeMatrixNoMaxLarger, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 ?plotInteractions
-ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
+ggsave("Spatial_infected_Day28_InfectedPevRegionD1Interactions.pdf",
       plot = InfectedPevRegionD1Interactions,
       height = 4.5,
       width = 4.5 )
@@ -2838,7 +2148,7 @@ ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
 
 
 
-# we generate pie plot for day7 under infection regions for the CorMed abscess regions
+# we generate pie plot for Day28 under infection regions for the CorMed abscess regions
 ```{r}
 setwd(InfCPiedir)
 Pyelonephritis_Infection$orig.ident
@@ -2866,7 +2176,7 @@ Pyelonephritis_InfectionDay28 <- subset (Pyelonephritis_InfectionDay28, (slice8_
 Pyelonephritis_InfectionDay28 <- subset (Pyelonephritis_InfectionDay28, idents = c("N8","N10","N11","N12","N15"))
 InfectedCorMedRegionD1Spatial <-SpatialDimPlot(Pyelonephritis_InfectionDay28,label = TRUE)
 InfectedCorMedRegionD1Spatial
-ggsave("Spatial_infected_day7_SpatialDimplot.pdf",
+ggsave("Spatial_infected_Day28_SpatialDimplot.pdf",
       plot = InfectedCorMedRegionD1Spatial,
       height = 3,
       width = 4.5 )
@@ -2905,7 +2215,7 @@ FinalIntergratedTableAbcess<- merge(Pyelonephritis_InfectionDay28@meta.data[,c("
 col_fun <- circlize::colorRamp2(c(0, 0.01, 1), c("white", "blue", "red"))
 
 # generate the mean value for each column
-pdf(file = "Spatial_infected_day7_FinalIntergratedTableAbcessHeatmap.pdf", height = 4, width = 4)
+pdf(file = "Spatial_infected_Day28_FinalIntergratedTableAbcessHeatmap.pdf", height = 4, width = 4)
 FinalIntergratedTableAbcessForHeatmap <-FinalIntergratedTableAbcess %>% dplyr::select(-c("Row.names",'orig.ident',"max")) %>% group_by(Annotation) %>% summarise_all("mean") %>% remove_rownames %>% column_to_rownames(var="Annotation") %>% as.matrix()
 
 FinalIntergratedTableAbcessHeatmap<-FinalIntergratedTableAbcessForHeatmap[,colSums(FinalIntergratedTableAbcessForHeatmap)>0] %>% Heatmap(show_row_dend=T, show_column_dend = F,column_names_rot = 45,name = "Mean",col= col_fun, border = T)  
@@ -2981,14 +2291,14 @@ InfectedCorMedRegionD1SpatialPie<- plotSpatialScatterpie(
         breaks = names(pal)) +
   coord_sf(xlim = c(150, 300), ylim = c(300, 450))
 ?plotSpatialScatterpie
-ggsave("Spatial_infected_day7_SpatialCellType_Scatterpie.pdf",
+ggsave("Spatial_infected_Day28_SpatialCellType_Scatterpie.pdf",
       plot = InfectedCorMedRegionD1SpatialPie,
       height = 3,
       width = 4.5 )
 
 # correlation
 InfectedCorMedRegionD1SpatialPieCorrelationMatrix <- plotCorrelationMatrix(Pyelonephritis_InfectionDay28CellTypeMatrixNoMax)
-ggsave("Spatial_infected_day7_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.pdf",
+ggsave("Spatial_infected_Day28_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.pdf",
       plot = InfectedCorMedRegionD1SpatialPieCorrelationMatrix,
       height = 4.5,
       width = 4.5 )
@@ -2996,7 +2306,7 @@ ggsave("Spatial_infected_day7_InfectedCorMedRegionD1SpatialPieCorrelationMatrix.
 Pyelonephritis_InfectionDay28CellTypeMatrixNoMaxLarger<- Pyelonephritis_InfectionDay28CellTypeMatrixNoMax[,colSums(Pyelonephritis_InfectionDay28CellTypeMatrixNoMax[])>0]
 InfectedPevRegionD1Interactions<- plotInteractions(Pyelonephritis_InfectionDay28CellTypeMatrixNoMaxLarger, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 ?plotInteractions
-ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
+ggsave("Spatial_infected_Day28_InfectedPevRegionD1Interactions.pdf",
       plot = InfectedPevRegionD1Interactions,
       height = 4.5,
       width = 4.5 )

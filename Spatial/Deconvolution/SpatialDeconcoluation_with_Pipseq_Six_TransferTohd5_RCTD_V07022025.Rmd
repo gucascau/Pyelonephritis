@@ -356,17 +356,80 @@ Convert("PIPSeq_Final_CD45ImmuneCells_UsedForScanpy.h5Seurat", assay = DefaultAs
 ```{r}
 Layers(CD45_ImmuneCellObj_subimm[["RNA"]])
 Layers(EpithelialStromaObjs[["RNA"]])
-merged_obj <- merge(EpithelialStromaObjs, y = CD45_ImmuneCellObj_subimm, project = "MergedProject")
-merged_obj <- SCTransform(merged_obj, vars.to.regress = "percent.mt", verbose = FALSE)
-merged_obj <- RunPCA(merged_obj)
-merged_obj <- RunUMAP(merged_obj, dims = 1:50)
-?RunPCA
-DimPlot(merged_obj, label = T)
-merged_obj@meta.data %>% head()
-Idents(merged_obj)
-merged_obj @meta.data<- merged_obj @meta.data %>% mutate(FinalCombinedAnnation= Idents(merged_obj))
-merged_obj @meta.data
 
+table(EpithelialStromaObjs @meta.data$DataSet)
+
+# update the CD45 Dataset
+
+table(CD45_ImmuneCellObj_subimm @meta.data $ orig.ident)
+CD45_ImmuneCellObj_subimm @meta.data %>% mutate(DataSet = orig.ident)
+
+merged_obj <- merge(EpithelialStromaObjs, y = CD45_ImmuneCellObj_subimm, project = "MergedProject")
+
+table(Idents(merged_obj))
+# set up the identity
+merged_obj @meta.data<- merged_obj @meta.data %>% mutate(FinalCombinedAnnation= Idents(merged_obj))
+ # set up the dateset
+merged_obj @meta.data<- merged_obj @meta.data %>% mutate(FinalCombinedDate= case_when(is.na(DataSet) ~ orig.ident,
+                                                                                      TRUE ~ DataSet))
+merged_obj @meta.data<- merged_obj @meta.data %>% mutate(FinalSource= case_when(is.na(DataSet) ~ "Immune",
+                                                                                      TRUE ~ "EpithelialStroma")) 
+
+merged_obj <- NormalizeData(merged_obj)
+merged_obj <- FindVariableFeatures(merged_obj)
+merged_obj <- ScaleData(merged_obj)
+merged_obj <- RunPCA(merged_obj)
+
+merged_obj <- FindNeighbors(merged_obj, dims = 1:50, reduction = "pca")
+merged_obj <- FindClusters(merged_obj, resolution = 2, cluster.name = "unintegrated_clusters")
+merged_obj <- RunUMAP(merged_obj, dims = 1:50, reduction = "pca", reduction.name = "umap.unintegrated")
+
+merged_obj <- IntegrateLayers(
+  object = merged_obj, method = HarmonyIntegration,
+  orig.reduction = "pca", new.reduction = "harmony",
+  verbose = FALSE
+)
+
+merged_obj <- FindNeighbors(merged_obj, reduction = "harmony", dims = 1:50)
+merged_obj <- FindClusters(merged_obj, resolution = 2, cluster.name = "harmony_clusters")
+merged_obj <- RunUMAP(merged_obj, reduction = "harmony", dims = 1:50, reduction.name = "umap.harmony")
+merged_obj@meta.data %>% head()
+
+Idents(merged_obj) <- merged_obj@meta.data$FinalCombinedAnnation
+DimPlot(merged_obj, reduction = "umap.harmony",label = T)
+
+p1 <- DimPlot(
+  merged_obj,
+  reduction = "umap.harmony",
+  group.by = c("FinalSource", "FinalCombinedAnnation", "harmony_clusters"),
+  combine = FALSE, label.size = 2
+)
+
+# merged_obj <- RunHarmony(merged_obj, 
+# 				group.by.vars = c("FinalSource"), 
+# 				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+# merged_obj <- RunUMAP(merged_obj, dims = 1:50, verbose = TRUE, reduction = "harmony")
+# merged_obj <- FindNeighbors(merged_obj, dims = 1:50,  verbose = TRUE, reduction = "harmony")
+# 
+# merged_obj<- FindClusters(merged_obj,  verbose = TRUE, resolution = 0.5)
+DimPlot(merged_obj, label = T)
+
+DefaultAssay(merged_obj) <- "SCT"
+GetAssayData(merged_obj, assay = "SCT", layer = "scale.data")
+
+# Check if data exists
+data_matrix <- GetAssayData(merged_obj, assay = "SCT")
+nrow(data_matrix)
+ncol(data_matrix)
+data_matrix_RNA <-GetAssayData(merged_obj, assay = "RNA",layer = "scale.data")
+nrow(data_matrix_RNA)
+ncol(data_matrix_RNA)
+DefaultAssay(merged_obj) <- "RNA"
+merged_obj <- JoinLayers(merged_obj)
+merged_obj
+#DefaultLayer(merged_obj[["SCT"]])
+
+saveRDS(merged_obj, file = "PIPSeq_EpithelialStromaImmMergeObjs_v07022025.rds")
 # save the object into scanpy
 # save into h5seurat
 SaveH5Seurat(merged_obj, filename = "PIPSeq_EpithelialStromaImmMergeObjs_v07022025.h5Seurat", overwrite = T)
@@ -443,11 +506,15 @@ rctd_out <-
   spacexr::run.RCTD(RCTD = rctd_obj, 
                     doublet_mode = "full") # default is "doublet" which fits at most two cell types per pixel, full is any number
 
+
 # normalize the cell type proportions to sum to 1
 norm_weights <- 
   spacexr::normalize_weights(weights = rctd_out@results$weights)
 
 head(norm_weights)
+
+# save the object of rctd
+saveRDS(rctd_out, file = "rctd_out_UsingEpiStroImm.rds")
 
 # add the deconvolution weights to the visium meta data 
 Pyelonephritis_Infection <- 
@@ -649,6 +716,12 @@ c("Cxcr2", "Ly6g", "")
 # Neutrophil
 
 ```
+
+
+
+
+
+
 
 
 ```{r}
