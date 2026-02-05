@@ -1,0 +1,2960 @@
+---
+title: "PipseqLymphoidcellsSubcluster_V0822"
+author: "Xin Wang"
+date: "2025-11-13"
+description: This script is to analyze the lymphoid cdells, including T, NK, B, ILC cell Analysis
+We have the preclustered immune cells object that have annotated with NK cell, B cell, and T cells
+  - 1. Selection of lymphoid cells, 
+  - 2. Basical statistics of different cell types
+  - 2. Annotation of subclusters using the candidate markers
+  - 3. Psudotime of Tcell
+  - 4. Progeny analyses
+  - 5. Functional enrichment
+output: html_document
+---
+# Loading the packages
+```{r}
+# check the session information
+sessionInfo()
+library(dplyr)
+library(Seurat)
+library(patchwork)
+
+#install.packages('devtools') #assuming it is not already installed
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+library(devtools)
+#install_github('andreacirilloac/updateR')
+# install.packages("sctransform")
+# install.packages("ggthemes")
+# loading the libarary
+library(updateR)
+
+library("sctransform")
+library("ggthemes")
+library(Seurat)
+
+# BiocManager::install("limma")
+# BiocManager::install("ComplexHeatmap")
+# BiocManager::install("biomaRt")
+# BiocManager::install("methrix")BiocManager::install("org.Hs.eg.db")
+# devtools::install_github("saeyslab/nichenetr")
+library(limma)
+library(nichenetr)
+library(tidyverse)
+library(dplyr)
+
+library(biomaRt)
+library("data.table")
+
+
+library(umap)
+library(patchwork)
+library(cowplot)
+library(installr)
+
+#install.packages("Matrix", repos = "http://cran.r-project.org")
+### we used discre color palettes from ggsci
+
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+
+#options(buildtools.check = function(action) TRUE )
+#devtools::install_url('https://cran.r-project.org/src/contrib/Archive/Matrix.utils/Matrix.utils_0.9.7.tar.gz')
+#devtools::install_github('cole-trapnell-lab/monocle3')
+#library(monocle3)
+
+library(harmony)
+library(Seurat)
+#library(SeuratData)
+library(tidyverse)
+
+#library(BPCells)
+library(ggplot2)
+library("devtools")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+#library(tibble)
+#library(future)
+library(here)
+library(patchwork)
+library(future)
+library(monocle3)
+#devtools::install_dev("remotes")
+#remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+#remotes::install_github(repo ='chris-mcginnis-ucsf/DoubletFinder' )
+#install.packages("DoubletFinder")
+library(DoubletFinder)
+library(future.callr)
+library(ComplexHeatmap)
+
+library(RColorBrewer)
+library(circlize)
+library(monocle3)
+#install.packages("magick")
+library(magick)
+#K means with 6 groups
+library(RColorBrewer)
+#install.packages("scales")
+library(scales)
+
+```
+## Step 2: Set up the workspace environment:
+```{r}
+rm(list=ls())
+Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/")
+Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/")
+
+DEGDir <- paste0(Outdir,"DEGs/")
+# directory for Progeny
+ProgenyDir <- paste0(Outdir,"Progeny/")
+# directory for GO enrichments
+GOenrichDir <- paste0(Outdir,"GOenrich/")
+# directory for Transcript Factors
+TFDir <-  paste0(Outdir,"TranscriptFactors/")
+# directory for KEGG
+KEGGDir <-  paste0(Outdir,"KEGG/")
+# directory for CellCommunication
+CellCommDir <-  paste0(Outdir,"CellCommunication/")
+# directory for pyseudotime
+PyseudotimeDir <-  paste0(Outdir,"Pyseudotime/")
+
+# directory for biomarkers
+BioMarkerDir <- paste0(Outdir,"Biomarkers/")
+
+# create these folders
+dir.create(DEGDir, showWarnings = FALSE)
+dir.create(ProgenyDir, showWarnings = FALSE)
+dir.create(GOenrichDir, showWarnings = FALSE)
+dir.create(TFDir, showWarnings = FALSE)
+dir.create(KEGGDir, showWarnings = FALSE)
+dir.create(CellCommDir, showWarnings = FALSE)
+dir.create(BioMarkerDir, showWarnings = FALSE)
+dir.create(PyseudotimeDir, showWarnings = FALSE)
+setwd(Outdir)
+# setting up the seed 
+set.seed(10000)
+```
+
+# ######################################################################################
+# 1. Generate the subcluster of Lymphoid cells, including the T cell, B cell and NK cells
+# ######################################################################################
+
+# 1.1. Select the Lymphoid cells, including the T cell, B cell and NK cells, we applied the SCTtransform, RunPCA, RunUMAP, FindNeighbors and FindClusters.
+```{r}
+setwd(Outdir)
+# Read the preclustered immune cells object
+Indir <-
+  "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/SortedImmune_Clusters/"
+scrna <- readRDS(file = paste0(Indir, "reclustered_cells_2.rds"))
+scrna@meta.data %>% head()
+Idents(scrna) = "RNA_snn_res.0.3"
+
+DimPlot(scrna, split.by = "orig.ident", label = T)
+DimPlot(scrna, label = T)
+# We only collect the PT cells
+#CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+levels(Idents(scrna))
+
+#Lymphoidcells <- subset(scrna, subset = Raw_cell_type == "MAC"  )
+Lymphoidcells <-
+  subset(scrna, subset = RNA_snn_res.0.3 %in% c(3, 7, 8))
+Lymphoidcells <- JoinLayers(Lymphoidcells)
+# We then recluster the PT cells
+# recluster the cells
+Lymphoidcells <- SCTransform(Lymphoidcells, verbose = TRUE)
+Lymphoidcells <- RunPCA(Lymphoidcells, npcs = 25, verbose = TRUE)
+
+# Run harmony for the PT cells
+Lymphoidcells <- RunHarmony(
+  Lymphoidcells,
+  group.by.vars = c("orig.ident"),
+  reduction = "pca",
+  assay.use = "SCT",
+  reduction.save = "harmony"
+)
+Lymphoidcells <-
+  RunUMAP(
+    Lymphoidcells,
+    dims = 1:25,
+    verbose = TRUE,
+    reduction = "harmony"
+  )
+Lymphoidcells <-
+  FindNeighbors(
+    Lymphoidcells,
+    dims = 1:25,
+    verbose = TRUE,
+    reduction = "harmony"
+  )
+
+Lymphoidcells <-
+  FindClusters(Lymphoidcells,  verbose = TRUE, resolution = 1)
+# I want to see the layer of Lymphoidcells
+DefaultAssay(Lymphoidcells) <- "RNA"
+#Lymphoidcells <- JoinLayers(Lymphoidcells)
+# Lymphoidcells <- IntegrateLayers(
+#   object = Lymphoidcells, method = HarmonyIntegration,
+#   orig.reduction = "pca", new.reduction = "harmony",
+#   verbose = FALSE
+# )
+LymphoidcellsDim <- DimPlot(Lymphoidcells, label = T)
+LymphoidcellsDim
+ggsave(
+  filename = "LymphoidcellsDim.pdf",
+  plot = LymphoidcellsDim,
+  width = 4.5,
+  height = 4
+)
+
+LymphoidcellsDimSplit <-
+  DimPlot(Lymphoidcells, split.by = "orig.ident", label = T)
+LymphoidcellsDimSplit
+ggsave(
+  filename = "LymphoidcellsDimSplit.pdf",
+  plot = LymphoidcellsDimSplit,
+  width = 10,
+  height = 3
+)
+
+Idents(Lymphoidcells)
+saveRDS(Lymphoidcells, file = "Lymphoidcells.rds")
+Lymphoidcells <- readRDS("Lymphoidcells.rds")
+
+```
+
+# 1.2 Attention: we only select the T cell, NK cells, B cells for the further analyses
+# Note: the cluster 2, 7, 10, 14, 15 revealed the strong features of the mono-macrophage feature or epithelial doublet (Aqp2)
+```{r}
+Idents(Lymphoidcells)
+Lymphoidcells@meta.data %>% head()
+LymphoidcellsF <-
+  subset(Lymphoidcells, subset = SCT_snn_res.1 %in% c(0, 1, 3, 4, 5, 6, 8, 9, 11, 12, 13, 16))
+DimPlot(LymphoidcellsF, label = T)
+# Typical mouse lymphoid markers (use combinations, not a single gene):
+# T cells / αβ T: Cd3e, Trac, Trbc1/2, Cd4, Cd8a, Cd8b1
+# γδ T: Trdc, Trgc1/2
+# B cells: Cd19, Ms4a1 (CD20), Cd79a, Ighm, Igha
+# NK cells / innate cytotoxic: Ncr1 (NKp46), Klrb1c (NK1.1), Klrk1
+# ILCs (incl. ILC2/3): Il7r (CD127), Gata3, Rorc, Il1rl1 (ST2 for ILC2)
+# NKT / innate-like: Zbtb16 (PLZF), Klrk1, Cd3e with invariant TCR usage
+# markers
+lymph_markers <-
+  c(
+    "Cd3e",
+    "Cd4",
+    "Cd8a",
+    "Cd8b1",
+    "Trac",
+    "Trdc",
+    "Trgc1",
+    "Cd19",
+    "Ms4a1",
+    "Cd79a",
+    "Ncr1",
+    "Nkg7",
+    "Klrb1c",
+    "Klrk1",
+    "Il7r"
+  )
+# Find cells expressing Any markers (raw counts in RNA assay)
+expr <-
+  GetAssayData(LymphoidcellsF, assay = "RNA", slot = "data")  # log-normalized
+cells_with_any <-
+  colSums(expr[intersect(rownames(expr), lymph_markers),] > 0) > 0
+LymphoidcellsUpdated <-
+  subset(LymphoidcellsF, cells = colnames(LymphoidcellsF)[cells_with_any])
+
+
+# LymphoidcellsF <- subset(LymphoidcellsF, subset = Cd3e > 0.1 | Ms4a1 > 0.1|Cd19>0.1 | Nkg7 > 0.1 |Ncr1>0.1 |Il7r>0.1 |Tnfrsf17 >0.1  )
+DimPlot(LymphoidcellsUpdated, label = T)
+DimPlot(LymphoidcellsUpdated, label = T, split.by = "orig.ident")
+
+DotPlot(LymphoidcellsUpdated, features = lymph_markers)
+DotPlot(LymphoidcellsUpdated, features = kidneycellsMarkers) + RotatedAxis()
+LymphoidcellsUpdated <-
+  SCTransform(LymphoidcellsUpdated, verbose = TRUE)
+LymphoidcellsUpdated <-
+  RunPCA(LymphoidcellsUpdated, npcs = 15, verbose = TRUE)
+
+# Run harmony for the PT cells
+LymphoidcellsUpdated <- RunHarmony(
+  LymphoidcellsUpdated,
+  group.by.vars = c("orig.ident"),
+  reduction = "pca",
+  assay.use = "SCT",
+  reduction.save = "harmony"
+)
+LymphoidcellsUpdated <-
+  RunUMAP(
+    LymphoidcellsUpdated,
+    dims = 1:15,
+    verbose = TRUE,
+    reduction = "harmony"
+  )
+LymphoidcellsUpdated <-
+  FindNeighbors(
+    LymphoidcellsUpdated,
+    dims = 1:15,
+    verbose = TRUE,
+    reduction = "harmony"
+  )
+LymphoidcellsUpdated <-
+  FindClusters(LymphoidcellsUpdated,
+               verbose = TRUE,
+               resolution = 1)
+
+DimPlot(LymphoidcellsUpdated, label = T)
+LymphoidcellsDimUpdated <- DimPlot(LymphoidcellsUpdated, label = T)
+
+ggsave(
+  filename = "LymphoidcellsDimUpdated.pdf",
+  plot = LymphoidcellsDimUpdated,
+  width = 4.5,
+  height = 4
+)
+
+LymphoidcellsDimSplitUpdated <-
+  DimPlot(LymphoidcellsUpdated, split.by = "orig.ident", label = T)
+LymphoidcellsDimSplitUpdated
+ggsave(
+  filename = "LymphoidcellsDimSplit_Updated.pdf",
+  plot = LymphoidcellsDimSplitUpdated,
+  width = 10,
+  height = 3
+)
+
+```
+
+# 1.3 We noticed Th17 and Treg are enriched in different region of cluster 10
+# To further check the Th17 and Treg, we subset the cluster
+```{r}
+FinalBiomarkerDir <-
+  c(
+    "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/Biomarkers/UpdatedBiomarkers_V2/"
+  )
+setwd(
+  "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/Biomarkers/UpdatedBiomarkers_V2/"
+)
+# we can seperate the Th17 and Treg
+LymphoidcellsUpdated@meta.data %>% head()
+sub <-
+  subset(LymphoidcellsUpdated, subset = SCT_snn_res.1 %in% c(10))
+sub <- FindVariableFeatures(sub)
+sub <- ScaleData(sub)
+sub <- RunPCA(sub, npcs = 5)
+sub <- RunUMAP(sub, dims = 1:5)
+sub <- FindNeighbors(sub, dims = 1:5)
+sub <-
+  FindClusters(sub, resolution = 0.4)  # adjust resolution if needed
+
+DimPlot(sub, label = T)
+table(Idents(sub))
+DotPlot(sub, features = c("Cd4", "Ifng", "Il2", "Il17f", "Il17a", "Foxp3"))
+FeaturePlot(sub, features = c("Cd4", "Ifng", "Il2", "Il17f", "Il17a", "Foxp3"))
+
+# add the subcluster into the meta data
+Idents(sub) <- "seurat_clusters"
+sub$subcluster <- Idents(sub)
+LymphoidcellsUpdated$subcluster <- NA
+LymphoidcellsUpdated$subcluster[match(colnames(sub), colnames(LymphoidcellsUpdated))] <-
+  sub$subcluster
+
+LymphoidcellsUpdated$combined_cluster <- ifelse(
+  is.na(LymphoidcellsUpdated$subcluster),
+  as.character(LymphoidcellsUpdated$SCT_snn_res.1),
+  paste0(
+    LymphoidcellsUpdated$SCT_snn_res.1,
+    "_sub",
+    LymphoidcellsUpdated$subcluster
+  )
+)
+
+LymphoidcellsUpdated@meta.data %>% head()
+Idents(LymphoidcellsUpdated) <-
+  LymphoidcellsUpdated$combined_cluster
+
+# we noticed that cluster 6 mainly enriched with high mitochondrial and rRNA genes.
+# Due to the low quality of cluster 6, we need to remove these clusters
+LymphoidcellsUpdated@meta.data$SCT_snn_res.1
+LymphoidcellsUpdatedF <-
+  subset(LymphoidcellsUpdated, subset = SCT_snn_res.1 %in% c(0:5, 7:12))
+# annotate the clusters
+LymphoidcellsUpdatedF@meta.data %>% head()
+LymphoidcellsUpdatedF@meta.data <-
+  LymphoidcellsUpdatedF@meta.data %>%   mutate(
+    FinalLymphoidCellAnnot =
+      case_when(
+        combined_cluster %in% c("0") ~ "Th1",
+        combined_cluster %in% c("1") ~ "B cells",
+        combined_cluster %in% c("2") ~ "T-RCM",
+        # Tissue-recirculating central memory T cells
+        combined_cluster %in% c("3") ~ "cNK cells",
+        #NK cells (Cytotoxic)
+        combined_cluster %in% c("4") ~ "gamma-delta T-17 cells",
+        combined_cluster %in% c("5") ~ "Cd8",
+        #combined_cluster %in% c("6") ~ "LQ Cells",
+        combined_cluster %in% c("7") ~ "iNK cells",
+        #NK cell (Immature/developing)
+        combined_cluster %in% c("8") ~ "gamma-delta T-17 cells",
+        combined_cluster %in% c("9") ~ "B cells",
+        combined_cluster %in% c("10_sub1") ~ "Th17",
+        combined_cluster %in% c("10_sub2") ~ "Treg",
+        combined_cluster %in% c("11") ~ "gamma-delta T-17 cells",
+        combined_cluster %in% c("12") ~ "ILC-like cells"
+      )
+  )
+
+Idents(LymphoidcellsUpdatedF) <- "FinalLymphoidCellAnnot"
+
+# set up the levels
+AnnotationLevels <-
+  c(
+    "T-RCM",
+    "Cd8",
+    "Th1",
+    "Treg",
+    "Th17",
+    "gamma-delta T-17 cells",
+    "ILC-like cells",
+    "iNK cells",
+    "cNK cells",
+    "B cells"
+  )
+
+Idents(LymphoidcellsUpdatedF) <-
+  ordered (factor(Idents(LymphoidcellsUpdatedF)), levels = AnnotationLevels)
+
+LymphoidcellsDimUpdatedAnn <-
+  DimPlot(LymphoidcellsUpdatedF,
+          label = T,
+          label.size = 3)
+
+ggsave(
+  filename = "LymphoidcellsDimUpdatedAnn.pdf",
+  plot = LymphoidcellsDimUpdatedAnn,
+  width = 9,
+  height = 5
+)
+
+LymphoidcellsDimUpdatedAnnNoLabel <-
+  DimPlot(LymphoidcellsUpdatedF, label = F)
+
+ggsave(
+  filename = "LymphoidcellsDimUpdatedAnn_Nolabel.pdf",
+  plot = LymphoidcellsDimUpdatedAnnNoLabel,
+  width = 9,
+  height = 5
+)
+
+LymphoidcellsDimSplitUpdatedAnn <-
+  DimPlot(LymphoidcellsUpdatedF, split.by = "orig.ident", label = T)
+LymphoidcellsDimSplitUpdatedAnn
+ggsave(
+  filename = "LymphoidcellsDimSplit_UpdatedAnn.pdf",
+  plot = LymphoidcellsDimSplitUpdatedAnn,
+  width = 15,
+  height = 4
+)
+
+FinalLymphoidBiomarkers <-
+  c(
+    "Cd3e",
+    "Sell",
+    "Ccr7",
+    "Tcf7",
+    "Cd8a",
+    "Cd8b1",
+    "Cd4",
+    "Ifng",
+    "Tbx21",
+    "Foxp3",
+    "Il17f",
+    "Il17a",
+    "Rorc",
+    "Trdc",
+    "Trgc1",
+    "Il7r",
+    "Il1rl1",
+    "Ncr1",
+    "Klrb1c",
+    "Klrk1",
+    "Gzmb",
+    "Prf1",
+    "Cd7",
+    "Xcl1",
+    "Cd79a",
+    "Cd19",
+    "Ms4a1"
+  )
+
+DimPlot(LymphoidcellsUpdatedF, label = T)
+
+mycols <- brewer_pal(palette = "RdBu")(10)
+p <-
+  DotPlot(
+    LymphoidcellsUpdatedF,
+    features = FinalLymphoidBiomarkers,
+    col.min = -1,
+    col.max = 2
+  )  + guides(color = guide_colorbar(title = 'AverExp'),
+              size = guide_legend(title = "PercExp"))  + RotatedAxis()
+
+#KidneyCellTypeDotPlot<-DotPlot(LymphoidcellsUpdated, features = kidneycellsMarkers)+RotatedAxis()
+ggsave(
+  paste0(FinalBiomarkerDir, "LymphoidCellMarkers_DotPlot.pdf"),
+  plot = p,
+  height = 6,
+  width = 14
+)
+LymphoidCellMarkers_DotPlotOtherColor <- DotPlot(
+  LymphoidcellsUpdatedF,
+  features = FinalLymphoidBiomarkers,
+  cols = "RdBu",
+  col.min = -2,
+  col.max = 2
+) +
+  guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) +
+  RotatedAxis()
+ggsave(
+  paste0(
+    FinalBiomarkerDir,
+    "LymphoidCellMarkers_DotPlotOtherColor.pdf"
+  ),
+  plot = LymphoidCellMarkers_DotPlotOtherColor,
+  height = 5,
+  width = 12
+)
+#saveRDS(LymphoidcellsUpdatedF,"LymphoidcellsUpdated_WithAnn_Nocls6.rds")
+
+LymphoidcellsUpdatedF <-
+  readRDS("LymphoidcellsUpdated_WithAnn_Nocls6.rds")
+DimPlot(LymphoidcellsUpdatedF)
+
+LymphoidcellsUpdatedF@meta.data %>% head()
+```
+
+# ######################################################################################
+# 2. Calcuate the number of cell types in different infected date
+# ######################################################################################
+# 
+```{r}
+message(">>> Calcuate the number of cell types in different infected date ...")
+FinalLymphoidCellNumbers <-
+  LymphoidcellsUpdatedF@meta.data %>% dplyr::select(orig.ident, FinalLymphoidCellAnnot) %>% table() %>% as.data.frame()
+factor(FinalLymphoidCellNumbers$orig.ident)
+# set up the level of orig.ident
+FinalLymphoidCellNumbers$orig.ident <-
+  ordered (
+    factor(FinalLymphoidCellNumbers$orig.ident),
+    levels = c("0DPI", "3DPI", "7DPI", "28DPI")
+  )
+
+# set up the levels of FinalLymphoidCellAnnot
+FinalLymphoidCellNumbers$FinalLymphoidCellAnnot <-
+  ordered (factor(FinalLymphoidCellNumbers$FinalLymphoidCellAnnot),
+           levels = AnnotationLevels)
+
+# draw the plot of cell number under differnt infected time.
+LymphoidCellNumberFigure <-
+  ggplot(data = FinalLymphoidCellNumbers, aes(x = FinalLymphoidCellAnnot, y = Freq, fill =
+                                                orig.ident)) + geom_bar(stat = "identity", position = position_dodge()) +  labs(x = "Cell Type", y = "Frequency", fill = "Timepoint") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  "LymphoidCellNumberFigure.pdf",
+  plot = LymphoidCellNumberFigure,
+  height = 3.5,
+  width = 6
+)
+
+# generate the proportion of these cells in the immune cells
+scrna@meta.data$orig.ident %>% table()
+FinalLymphoidCellNumbers %>% head()
+FinalLymphoidCellProportion <-
+  FinalLymphoidCellNumbers %>% mutate(
+    Proprotion = case_when (
+      orig.ident == "0DPI" ~ Freq / 566,
+      orig.ident == "3DPI" ~ Freq / 1618,
+      orig.ident == "7DPI" ~ Freq / 2660,
+      orig.ident == "28DPI" ~ Freq / 11902,
+    )
+  )
+
+LymphoidCellProportionFigure <-
+  ggplot(data = FinalLymphoidCellProportion,
+         aes(x = FinalLymphoidCellAnnot, y = Proprotion, fill = orig.ident)) +
+  geom_bar(stat = "identity", position = position_dodge()) +  labs(x = "Cell Type", y = "Frequency", fill = "Timepoint") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  "LymphoidCellProportionFigure.pdf",
+  plot = LymphoidCellProportionFigure,
+  height = 3.5,
+  width = 6
+)
+
+# we generated the stacked barplot figure that show the number of each cell type during the infection
+LymphoidCellProportionFigureStack <-
+  ggplot(data = FinalLymphoidCellProportion, aes(x = orig.ident  , y = Freq, fill =
+                                                   FinalLymphoidCellAnnot)) + geom_bar(stat = "identity", position = "stack") +  labs(x = "Cell Type", y = "Frequency", fill = "Timepoint") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  "LymphoidCellProportionFigure_stack.pdf",
+  plot = LymphoidCellProportionFigureStack,
+  height = 3.5,
+  width = 6
+)
+
+```
+
+# ######################################################################################
+# 3. Generate the biomarker feature plots and seperate into different folder
+# ######################################################################################
+# 3.1 We put all the candidate biomarker and checked their expression features
+```{r}
+message(">>> check the biomarkers from different kidney cells ...")
+LymphoidCellTypeDir <-
+  c(
+    "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/Biomarkers/UpdatedBiomarkers_V2/"
+  )
+# We generate the final cell types and biomarkers
+TNKcellMarkers <- list()
+TNKcellMarkers[["Tissue-recirculating central memory T cells"]] <-
+  c("Cd3e",
+    "Cd4",
+    "Cd8a",
+    "Cd8b1",
+    "Ccr7",
+    "Il7r",
+    "Tcf7",
+    "Sell",
+    "S1pr1",
+    "Foxo1")
+TNKcellMarkers[["Effector CD4 T cells, effector Th1-type"]] <-
+  c(
+    "Cd3e",
+    "Cd4",
+    "Cd8a",
+    "Cd8b1",
+    "Ifng",
+    "Cxcr3",
+    "Tbx21",
+    "Stat4",
+    "Foxp3",
+    "Il2ra",
+    "Ctla4",
+    # T reg
+    "Cxcr5",
+    "Bcl6",
+    "Il21",
+    #Tfh
+    "Gata3",
+    "Il4",
+    #Th2
+    "Il17a",
+    "Rorc",
+    # Th17
+    "Il22",
+    "Ccr5",
+    "Cd44",
+    "Tnfrsf4",
+    "Cd6",
+    "Cd5"
+  )
+
+TNKcellMarkers[["IL-17–producing γδ T cells"]] <-
+  c("Cd3e",
+    "Cd8a",
+    "Cd8b1",
+    "Cd4",
+    "Il17a",
+    "Rorc",
+    "Scart1",
+    "Trdc",
+    "Trgc1")
+
+TNKcellMarkers[["NK cell (Cytotoxic)"]] <-
+  c("Cd3e", "Klrk1", "Ncr1", "Nkg7", "Gzmb", "Prf1")
+TNKcellMarkers[["NK cell (Immature-developing)"]] <-
+  c("Cd3e", "Klrk1", "Ncr1", "Nkg7", "Gzmb", "Prf1", "Cd7", "Xcl1")
+
+
+TNKcellMarkers[["Activated or metabolically active T cells"]] <-
+  c("Cd3e", "Cd4", "Cd8a", "Dock10", "Arhgap15", "Pde4b", "Tnfaip3")
+TNKcellMarkers[["Activated ILC2-like cells"]] <-
+  c(
+    "Cd3e",
+    "Cd4",
+    "Gata3",
+    "Il2ra",
+    "Il7r",
+    "Fosb",
+    "Il1rl1",
+    "Klrg1",
+    "Il5",
+    "Il13",
+    "Areg",
+    "Rora",
+    "Arg1",
+    "Il4"
+  )
+
+TNKcellMarkers[["Progenitor exhausted T cells"]] <-
+  c("Cd3e", "Cd4", "Cd8a", "Pdcd1", "Pbk", "Ccna2", "Ube2c")
+TNKcellMarkers[["Progenitor-exhausted DN T cells"]] <-
+  c("Cd3e",
+    "Cd4",
+    "Cd8a",
+    "Park7",
+    "Tsc22d3",
+    "mt-Cytb",
+    "mt-Nd1",
+    "mt-Co1")
+
+TNKcellMarkers[["Monocyte, Macrophage"]] <-
+  c(
+    "Cd68",
+    "Ly6c2",
+    "Ccr2",
+    "Itgam",
+    "Csf1r",
+    "Adgre1",
+    "C1qa",
+    "S100a8",
+    "S100a9",
+    "Ly6g",
+    "Cd3g"
+  )
+
+TNKcellMarkers[["HelperLymphoidcells"]] <-
+  c(
+    "Cd3e",
+    "Cd4",
+    "Cd8a",
+    "Cd8b1",
+    "Ifng",
+    "Cxcr3",
+    "Tbx21",
+    "Stat4",
+    "Foxp3",
+    "Il2ra",
+    "Ctla4",
+    # T reg
+    "Cxcr5",
+    "Bcl6",
+    "Il21",
+    #Tfh
+    "Gata3",
+    "Il4",
+    #Th2
+    "Il17a",
+    "Rorc",
+    # Th17
+    "Il22",
+    # Th22
+    
+    "Ccr5",
+    "Cd44",
+    "Tnfrsf4",
+    "Cd6",
+    "Cd5"
+  )
+#TNKcellMarkers[["Progenitor-exhausted DN T cells"]] <- c("Cd3e","Cd4","Cd8a","Park7","Tsc22d3","mt-Cytb", "mt-Nd1", "mt-Co1")
+
+TNKcellMarkers[["ILCs"]] <-
+  c(
+    "Cd3e",
+    "Cd4",
+    "Cd8a",
+    "Cd19",
+    "Cd79",
+    "Ms4a1",
+    "Itgam",
+    "Adgre1",
+    "Itgax",
+    "H2-Ab1",
+    "Ly6g",
+    "Ly76",
+    "Fce1a",
+    "Cd117",
+    "Il7r",
+    "Thy1",
+    "Id2",
+    "Tcf7",
+    "Tox",
+    "Fosb",
+    "Il1rl1",
+    "Id2",
+    "Zbtb16"
+  )
+### Lin- markers T cells, B cells, Myeloid/monocytes, Dendritic cells, Granulocyte/neutrophil, mast cells/Basophils
+# ILCs should have:
+# → High Il7r (CD127), Id2, Tcf7, Tox
+# → Low/absent Cd3e, Cd19, Cd11b, Cd11c, Ly6g, etc.
+# Cell Type	Commonly Excluded Markers (Genes / Proteins)
+# T cells	CD3E, CD4, CD8A
+# B cells	CD19, MS4A1 (CD20)
+# NK cells	CD94 (KLRD1) (optional — sometimes included)
+# Myeloid	CD14, CD16 (FCGR3A), CD11C (ITGAX)
+# Dendritic / pDCs	CD123 (IL3RA), BDCA2 (CLEC4C)
+# Erythroid / Others	CD34, CD94, TCRαβ, TCRγδ
+
+ImmuneDiffType[["Cd4"]] <-
+  c("Cd3e", "Cd4", "Cd27", "Ptprc", "Il7r", "Il2ra") # CD4 Naive cells: Cd4+, CD27+, CD45RA+, CD127+, CD25-, CD45RO-
+
+
+TNKcellMarkers[["Cd8"]] <-
+  c("Cd8a", "Cd28", "Sell", "Ccr7") # CD8 Naive T cells: Cd8+, CD27+, CD28+, CD45RA+, CD62L+, CCR7+, CD45RO-
+TNKcellMarkers[["Th1"]] <-
+  c("Cd4",
+    'Ifng',
+    'Tnf',
+    'Stat1',
+    'Stat4',
+    'Tbx21',
+    'Il12a',
+    'Il2',
+    'Lta')
+TNKcellMarkers[["Th2"]] <-
+  c("Cd4",
+    'Il4',
+    'Gata3',
+    'Il2',
+    'Il10',
+    'Il13',
+    'Il25',
+    'Stat5a',
+    'Irf4',
+    'Stat6',
+    'Il5')
+TNKcellMarkers[["Th17"]] <-
+  c(
+    "Cd4",
+    'Il17a',
+    'Il17f',
+    'Rorc',
+    'Tgfb1',
+    'Il6',
+    'Stat3',
+    'Il23a',
+    'Irf4',
+    'Maf',
+    'Il21',
+    'Il22'
+  )
+TNKcellMarkers[["Treg"]] <-
+  c("Cd4", 'Foxp3', "Il2ra", 'Tgfb1', 'Il10',  'Stat5a', 'Il2')
+TNKcellMarkers[["Th9"]] <-
+  c("Cd4", 'Il9', "Spi1", 'Stat6', 'Irf4', 'Tgfb1', 'Il4',  'Il10')
+TNKcellMarkers[["Th22"]] <- c("Cd4", "Il22", 'Il23a', 'Il6', 'Ahr')
+
+TNKcellMarkers[["Activated_Tcell"]] = c("Cd3e", "Cd69", "Il2ra", "Cd44")
+TNKcellMarkers[["Cytotoxic_Tcell"]] = c("Cd3e", "Gzmb", "Prf1", "Ifng")
+TNKcellMarkers[["Naive_CD8"]] = c("Cd3e", "Cd8a", "Sell", "Ccr7", "Il7r")
+TNKcellMarkers[["Naive_CD4"]] = c("Cd3e", "Cd4", "Sell", "Ccr7", "Il7r")
+TNKcellMarkers[["CentralMemory_CD4"]] = c("Cd3e", "Cd4", "Cd44", "Sell", "Ccr7", "Il7r")
+TNKcellMarkers[["EffectorMemory_CD4"]] = c("Cd3e", "Cd4", "Cd44", "Ccr7", "Il7r")
+TNKcellMarkers[["CentralMemory_CD8"]] = c("Cd3e", "Cd8a", "Cd44", "Sell", "Ccr7")
+TNKcellMarkers[["EffectorMemory_CD8"]] = c("Cd3e", "Cd8a", "Cd44", "Ccr7")
+TNKcellMarkers[["Progenitor_Exhausted"]] = c("Cd3e", "Tcf7", "Cxcr5", "Slamf6", "Id3", "Bcl6", "Pdcd1")
+TNKcellMarkers[["Terminally_exhausted"]] = c( "Cd3e","Pdcd1",  "Havcr2", "Entpd1","Tox","Prdm1","Eomes", "Cxcr6","Lag3","Tigit","Cd244")
+
+TNKcellMarkers[["Bcells"]] <-
+  c(
+    'Jchain',
+    'Pax5',
+    'Ms4a1',
+    'Cd19',
+    'Ighd',
+    'Cd27',
+    'Cd24a',
+    'Ptprc',
+    'Cd38',
+    'Cd79a',
+    'Ssr1',
+    'Fkbp11',
+    'Sec11c',
+    'Derl3',
+    'Prdx4',
+    'Cd79b',
+    'Vpreb3',
+    'Sdc1'
+  )
+DefaultAssay(LymphoidcellsUpdatedF)
+names(TNKcellMarkers)
+for (i in 1:length(TNKcellMarkers)) {
+  # cell type name
+  #i=12
+  ImmuneCellType <- names(TNKcellMarkers[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(LymphoidCellTypeDir,
+                              ImmuneCellType, "/")
+  dir.create(ImmuneCellTypeDir, showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  
+  # generate the dotplots
+  CellTypeDotPlot <-
+    DotPlot(LymphoidcellsUpdatedF,
+            features = TNKcellMarkers[[ImmuneCellType]],
+            cols = "RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+                                     size = guide_legend(title = "PercExp"))  + RotatedAxis()
+  ggsave(
+    paste0(ImmuneCellTypeDir, ImmuneCellType, "_DotPlot.pdf"),
+    plot = CellTypeDotPlot,
+    height = 6,
+    width = 9
+  )
+  # generate each feature
+  #TNKcellMarkers[[ImmuneCellType]]
+  for (j in TNKcellMarkers[[ImmuneCellType]]) {
+    # j ="Il4"
+    # we use this details to escape the figures that did not show up in spatial
+    skip_to_next <- FALSE
+    
+    # Note that print(b) fails since b doesn't exist
+    # LayerData(Lymphoidcells, assay = "RNA", layer = "data")[j,]
+    tryCatch(
+      print(
+        LayerData(
+          LymphoidcellsUpdatedF,
+          assay = "RNA",
+          layer = "data"
+        )[j,]
+      ),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    
+    FeaturePlots <-
+      FeaturePlot(LymphoidcellsUpdatedF,
+                  features =  j,
+                  split.by = "orig.ident") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 12
+    )
+    FeaturePlotsCombined <-
+      FeaturePlot(LymphoidcellsUpdatedF, features =  j) + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation_combined.pdf"
+      ),
+      plot = FeaturePlotsCombined,
+      height = 4,
+      width = 6
+    )
+  }
+  
+}
+
+```
+
+
+
+# 3.2 check the biomarkers of immune cells across different clusters
+```{r}
+message(">>> ... check the biomarkers from different immune cells")
+# T cells and others
+# https://www.biocompare.com/Editorial-Articles/597618-A-Guide-to-Naive-T-Cell-Markers/
+# https://www.cellsignal.com/pathways/immune-cell-markers-mouse
+# Reference: Spatiotemporal dynamics of macrophage heterogeneity and a potential function of Trem2hi macrophages in infarcted hearts
+# Put the marker gene into a list
+DefaultAssay(LymphoidcellsUpdated) <- "RNA"
+
+ImmuneDiffType <- list()
+
+ImmuneDiffType[["Cd4"]]<- c("Cd3e","Cd4","Cd27","Ptprc","Il7r","Il2ra") # CD4 Naive cells: Cd4+, CD27+, CD45RA+, CD127+, CD25-, CD45RO-
+
+
+ImmuneDiffType[["Cd8"]] <- c( "Cd8a","Cd28","Sell","Ccr7" ) # CD8 Naive T cells: Cd8+, CD27+, CD28+, CD45RA+, CD62L+, CCR7+, CD45RO-
+ImmuneDiffType[["Th1"]] <-c("Cd4",'Ifng','Tnf', 'Stat1', 'Stat4', 'Tbx21', 'Il12a', 'Il2', 'Lta')
+ImmuneDiffType[["Th2"]] <-c("Cd4",'Il4', 'Gata3','Il2', 'Il10','Il13', 'Il25', 'Stat5a','Irf4','Stat6',  'Il5')
+ImmuneDiffType[["Th17"]] <-c("Cd4",'Il17a', 'Il17f','Rorc','Tgfb1', 'Il6',  'Stat3',  'Il23a', 'Irf4', 'Maf', 'Il21', 'Il22')
+ImmuneDiffType[["Treg"]] <-c("Cd4",'Foxp3',"Il2ra",'Tgfb1', 'Il10',  'Stat5a', 'Il2')
+ImmuneDiffType[["Th9"]] <-c("Cd4",'Il9',"Spi1",'Stat6', 'Irf4', 'Tgfb1', 'Il4',  'Il10')
+ImmuneDiffType[["Th22"]]<-c("Cd4","Il22", 'Il23a', 'Il6', 'Ahr')
+
+ImmuneDiffType[["Activated_Tcell"]] = c("Cd3e","Cd69", "Il2ra", "Cd44")
+ImmuneDiffType[["Cytotoxic_Tcell"]] = c("Cd3e","Gzmb", "Prf1", "Ifng")
+ImmuneDiffType[["Naive_CD8"]] = c("Cd3e","Cd8a", "Sell", "Ccr7", "Il7r")
+ImmuneDiffType[["Naive_CD4"]] = c("Cd3e","Cd4", "Sell", "Ccr7", "Il7r")
+ImmuneDiffType[["CentralMemory_CD4"]] = c("Cd3e","Cd4", "Cd44", "Sell", "Ccr7", "Il7r")
+ImmuneDiffType[["EffectorMemory_CD4"]] = c("Cd3e","Cd4", "Cd44", "Ccr7", "Il7r")
+ImmuneDiffType[["CentralMemory_CD8"]] = c("Cd3e","Cd8a", "Cd44", "Sell", "Ccr7")
+ImmuneDiffType[["EffectorMemory_CD8"]] = c("Cd3e","Cd8a", "Cd44", "Ccr7") 
+ImmuneDiffType[["Progenitor_Exhausted"]] = c("Cd3e","Tcf7","Cxcr5","Slamf6","Id3","Bcl6","Pdcd1") 
+ImmuneDiffType[["Terminally_exhausted"]] = c("Cd3e","Pdcd1","Havcr2","Entpd1","Tox","Prdm1","Eomes", "Cxcr6","Lag3","Tigit","Cd244") 
+
+
+ImmuneDiffType[["Innate"]]<-c('Tlr4', 'Tlr5', 'Tlr11', 'Il6', 'Cxcr1', 'Cxcr2', 'Il1a', 'Il1b', 'Ccl5', 'Tnf', 'Ifng', 'Ccl2')
+ImmuneDiffType[["AMP"]]<-c('Rnase4', 'Rnase6', 'Mbd1', 'Mbd2', 'Umod', 'Ltf', 'Camp')
+ImmuneDiffType[["Bcells"]] <-c('Jchain', 'Pax5', 'Ms4a1', 'Cd19', 'Ighd', 'Cd27', 'Cd24a', 'Ptprc',  'Cd38', 'Cd79a', 'Ssr1', 'Fkbp11', 'Sec11c', 'Derl3', 'Prdx4', 'Cd79b', 'Vpreb3', 'Sdc1')
+ImmuneDiffType[["Bcellsp"]]<-c("Cd19", "Jchain", "Pax5", "Ms4a1", "Ighd", "Cd79a", "Cd79b", "Ptprc", "H2-Ab1")
+ImmuneDiffType[["neutrophil"]] <-c('Fut4', 'Fcgr3','Cxcr2', 'Mpo', 'Elane', 'Lyz1', 'S100a8', 'S100a9',  'Chil1', 'Anxa3', 'Cxcl1', 'Tgm3', 'Mmp9',  'Bpi',  'Ltf', "Gca", 'Camp', 'Ngp', "Chil3", 'Ly6g',"Csf3r")
+ImmuneDiffType[["neutros"]] <-c("Itgam", "Csf1r", "Ly6g")
+ImmuneDiffType[["monocytes_macrophages"]] <-c('Itgam', 'Csf1r', 'Adgre1', 'Cd68', 'H2-Ab1', 'Cx3cr1')
+ImmuneDiffType[["DC"]]<-c("Itgax", 'H2-Ab1', 'Bst2',"Fscn1","Cacnb3","Flt3")
+ImmuneDiffType[["NKcells"]]<-c('Nkg7', 'Klrk1', "Ncr1","Cd69","Gzmb","Prf1")
+ImmuneDiffType[["Mono_Macro"]]<-c('Cd14', 'Fcgr3', 'Cst3', 'C1qc', 'Il1b','Mrc1', 'Msr1', 'Gca', "Ccr2", "Adgre1", 'Ly6c1')
+ImmuneDiffType[["Mast_cells"]]<-c("Slc18a2", 'Fcer1a', 'Hpgds', 'Enpp3', 'Fcgr2b',"Cma1","Kit","Rab27b")
+ImmuneDiffType[["Eosinophils"]]<-c('Ifng', 'Tnf')
+ImmuneDiffType[["ResidentMacro"]]<-c('Cx3cr1','Cd68',"H2-Ab1","Csf1r","Adgre1","Irf9","Nfatc1")
+ImmuneDiffType[["Monocyte"]]<-c('Ccr2','Csf1r',"Cd68","Adgre1","Ly6c2","Chil3","F10","Plac8")
+ImmuneDiffType[["Plasma"]]<-c('Ly6d','Ly6c2',"Ms4a1")
+
+ImmuneDiffType[["Mono_Macro2"]]<-c('Nos2',"Ccr2",'Csf1r',"Cd68","Adgre1")
+ImmuneDiffType[["MacrophageOverall"]]<-c('Adgre1',"Cd68",'Csf1r',"Fcgrt")
+ImmuneDiffType[["NK_Tcell"]]<-c('Cd3e','Klrk1','Il7r',"Tcra")
+
+ImmuneDiffType[["KidneyAllCellsMarkers"]]<- c("Lrp2","Slc34a1","Slc5a12", # PTS1
+                     "Cyp4a14", # PTS2
+                     "Slc7a12", # PTS3
+                     "Acsm1","Cubn","Havcr1","Slc12a3","Slc8a1","Calb1","Trpm6","Pvalb","Wnk1","Trpv5","Fst","Slc14a2","Slc12a1","Cldn10","Atp6v1g3","Aqp6","Slc26a4","Aqp2","Hsd11b2" ,"Scnn1g","Krt5","Krt14","Upk1b", "Col3a1","Lum","Fbn1","Pecam1","Igfbp3","Cdh5","Ptprc","Lyz2","Lst1","C1qa","C1qb","Il1b","Cd14","Cxcr6","Cd247", "Cd79b","Ms4a1","Igkc","Nkg7","Cd7","Ccl5","Ireb2","Alas2","C78334")
+
+kidneycellsMarkers <-c("Lrp2","Slc34a1","Slc5a12", # PTS1
+                     "Cyp4a14", # PTS2
+                     "Slc7a12", # PTS3
+                     "Acsm1","Cubn","Havcr1","Slc12a3","Slc8a1","Calb1","Trpm6","Pvalb","Wnk1","Trpv5","Fst","Slc14a2","Slc12a1","Cldn10","Atp6v1g3","Aqp6","Slc26a4","Aqp2","Hsd11b2" ,"Scnn1g","Krt5","Krt14","Upk1b", "Col3a1","Lum","Fbn1","Pecam1","Igfbp3","Cdh5","Ptprc","Lyz2","Lst1","C1qa","C1qb","Il1b","Cd14","Cxcr6","Cd247", "Cd79b","Ms4a1","Igkc","Nkg7","Cd7","Ccl5","Ireb2","Alas2","C78334")
+
+KidneyCellTypeDotPlot<-DotPlot(LymphoidcellsUpdated, features = kidneycellsMarkers)+RotatedAxis()
+ggsave(paste0(Outdir, "KidneyCellMarkers_DotPlot.pdf"), plot = KidneyCellTypeDotPlot, height = 6, width =20)
+length(ImmuneDiffType)
+message(">>> Generate each biomarker feature and put into corresponding folders...")
+for (i in 1:length(ImmuneDiffType)) {
+  # cell type name
+  ImmuneCellType <- names(ImmuneDiffType[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(Outdir,
+        "/Biomarkers/",
+        ImmuneCellType,"/")
+  dir.create(ImmuneCellTypeDir,showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  
+  # generate the dotplots
+  CellTypeDotPlot<-DotPlot(LymphoidcellsUpdatedF, features = ImmuneDiffType[[ImmuneCellType]])
+  ggsave(paste0(ImmuneCellTypeDir, ImmuneCellType,"_DotPlot.pdf"), plot = CellTypeDotPlot, height = 6, width = 6)
+  # generate each feature
+  #ImmuneDiffType[[ImmuneCellType]]
+  for (j in ImmuneDiffType[[ImmuneCellType]]) {
+    
+   # j ="Il4"
+       # we use this details to escape the figures that did not show up in spatial
+    skip_to_next <- FALSE
+   
+    # Note that print(b) fails since b doesn't exist
+   # LayerData(Lymphoidcells, assay = "RNA", layer = "data")[j,]
+    tryCatch(
+      print(LayerData(LymphoidcellsUpdatedF, assay = "RNA", layer = "data")[j, ]),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    
+    FeaturePlots <-
+      FeaturePlot(LymphoidcellsUpdatedF, features =  j, split.by = "orig.ident") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 14
+    )
+  }
+  
+}
+
+message(">>> ... Biomarker scanning has been finished")
+```
+
+# ######################################################################################
+# 4. Detect differentially expressed genes and perform functional enrichment
+# ######################################################################################
+# Check the functional enrichment of difference among the different cell types
+```{r}
+message(">>> Detect differentially expressed genes...")
+setwd(dir = GOenrichDir)
+LymphoidCellTypemarkers <- FindAllMarkers(LymphoidcellsUpdatedF,
+                min.pct = 0.25,test.use= "MAST") 
+LymphoidCellTypemarkers<-AllClustermarkers
+write.csv(LymphoidCellTypemarkers,file = "Lymphoidcells_allclustermarkers_Updated.csv")
+
+# Generate a table for figure
+LymphoidClusterSpecifcUpgeneFreqFigure <-
+  table(LymphoidCellTypemarkers$cluster) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq)) + geom_bar(stat = "identity") + theme_classic() +  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  xlab("Lymphoid cell type") + ylab("Differentially expressed gene number")
+
+ggsave(
+  "LymphoidBiomarkersnumbersFigure.pdf",
+  plot = LymphoidClusterSpecifcUpgeneFreqFigure,
+  height = 4,
+  width = 6
+)
+
+# Create a GO comparison for the figure
+LymphoidClusterSpecifcUpgene <- list()
+LymphoidCellTypes<- levels(Idents(LymphoidcellsUpdatedF))
+for (n in LymphoidCellTypes) {
+  # put he DEG into the up-regulated gene for comparision
+  LymphoidClusterSpecifcUpgene[[n]] <-
+    LymphoidCellTypemarkers %>% filter(cluster %in% n &
+                                        avg_log2FC >= 0.25) %>% pull(gene)
+  #}
+}
+LymphoidClusterSpecifcUpgene
+#library(clusterProfiler)
+# Comparing the Cluster
+message(">>> Peform the GO functional enrichment of differentially expressed genes...")
+LymphoidClusterSpecifcUpgeneGOenrich <-
+  compareCluster(
+    geneClusters = LymphoidClusterSpecifcUpgene,
+    fun = "enrichGO",
+    OrgDb = "org.Mm.eg.db",
+    ont = "BP",
+    keyType = 'SYMBOL',
+    pvalueCutoff=1
+  )
+
+?compareCluster
+write.csv(LymphoidClusterSpecifcUpgeneGOenrich,
+          "LymphoidClusterSpecifcUpgeneGOenrich.csv")
+
+LymphoidClusterSpecifcUpgeneGOenrichDotPlot <-
+  dotplot(
+    LymphoidClusterSpecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = 3
+  ) +RotatedAxis()
+? dotplot
+#low = "LightBlue", midpoint=0, mid="white", high = "FireBrick",
+ggsave(
+  "LymphoidClusterSpecifcUpgeneGOenrichDotPlot.pdf",
+  plot = LymphoidClusterSpecifcUpgeneGOenrichDotPlot,
+  height = 18,
+  width = 18
+)
+
+# we group the description and calcuate by the number
+
+LymphoidClusterSpecifcUpgeneGOenrichCalculation<- LymphoidClusterSpecifcUpgeneGOenrich %>% as.data.frame() %>% group_by(Description) %>% summarise(count=n(), groups = paste(unique(Cluster), collapse = ", "))
+
+write.csv(LymphoidClusterSpecifcUpgeneGOenrichCalculation, file = "LymphoidClusterSpecifcUpgeneGOenrichCalculation.csv")
+
+# we only consider the significance that showed in one cluster
+LymphoidClusterSpecifcUpgeneGOenrichCalculationSignifcance<- LymphoidClusterSpecifcUpgeneGOenrich %>%  as.data.frame() %>% filter(p.adjust < 0.05) %>% group_by(Description) %>% summarise(count=n(), groups = paste(unique(Cluster), collapse = ", "))
+write.csv(LymphoidClusterSpecifcUpgeneGOenrichCalculationSignifcance, file = "LymphoidClusterSpecifcUpgeneGOenrichCalculationSignifcance.csv")
+# Identify the pathways only in one
+LymphoidClusterSpecifcUpgeneGOenrichCalculation %>% dplyr::filter(count ==1) %>% group_by(groups) 
+
+# Then I would like to integrate these significance and nonsigificance together
+FinalLymphoidClusterSpecifcUpgeneGOenrichCalculation <-LymphoidClusterSpecifcUpgeneGOenrichCalculation %>% left_join(LymphoidClusterSpecifcUpgeneGOenrichCalculationSignifcance, by= "Description")
+write.csv(FinalLymphoidClusterSpecifcUpgeneGOenrichCalculation, file = "FinalLymphoidClusterSpecifcUpgeneGOenrichCalculation.csv")
+
+message(">>> select some pathways to show the dotplots...")
+# select some pathways to show
+SelectedPathways<- c("response to superoxide","Toll signaling pathway","Wnt signaling pathway","necroptotic process","JNK cascade","NLRP3 inflammasome complex assembly","response to superoxide","acute-phase response","antimicrobial peptide production","macrophage cytokine production","regulation of respiratory burst","regulation of neutrophil apoptotic process","regulation of macrophage differentiation","regulation of immature T cell proliferation","antigen processing and presentation of endogenous peptide antigen via MHC class I via ER pathway, TAP-independent","regulation of cell cycle G1/S phase transition","apoptotic cell clearance","transforming growth factor beta production","autophagic cell death","coagulation","cellular response to reactive oxygen species","regulation of T-helper 17 cell differentiation","NADPH regeneration","Fc receptor signaling pathway","macrophage chemotaxis","mast cell chemotaxis","immature B cell differentiation","pre-B cell differentiation","response to epidermal growth factor","response to fibroblast growth factor","tissue remodeling")
+dotplot(
+    LymphoidClusterSpecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = SelectedPathways
+  ) +RotatedAxis()
+
+# high conserved pathways
+highconservedpathway<-c("T cell proliferation","T cell differentiation","T cell receptor signaling pathway","myeloid cell homeostasis","myeloid leukocyte activation","myeloid leukocyte differentiation","regulation of adaptive immune response","leukocyte migration","myeloid cell homeostasis","regulation of T cell activation","regulation of T cell differentiation","regulation of T cell receptor signaling pathway","regulation of adaptive immune response")
+highconservedpathwayDotPlot<-dotplot(
+    LymphoidClusterSpecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = highconservedpathway
+  ) +RotatedAxis()
+
+ggsave("highconservedpathwayDotPlot_inlymphoidcelltype.pdf", plot = highconservedpathwayDotPlot, height = 8, width = 12)
+
+SelectedPathway2<- c("I-kappaB phosphorylation","Notch signaling pathway","necroptotic process","hippo signaling","fibroblast migration","canonical Wnt signaling pathway","Toll signaling pathway","fibroblast activation","mesenchymal cell differentiation","collagen fibril organization","response to hydroperoxide","renal water homeostasis","response to interleukin-12","regulation of platelet aggregation","pyroptotic inflammatory response","complement activation","immunoglobulin V(D)J recombination")
+
+SelectedPathway2 <- c("Toll signaling pathway","hippo signaling","necroptotic process","antimicrobial peptide production","regulation of antimicrobial humoral response","regulation of chronic inflammatory response","translational elongation","fibroblast migration","DNA replication","response to hydroperoxide","glutathione metabolic process","hepoxilin metabolic process","insulin processing","linoleic acid metabolic process","response to fibroblast growth factor")
+SelectedPathway2DotPlot<-dotplot(
+    LymphoidClusterSpecifcUpgeneGOenrich,
+    font.size = 12,
+    label_format = 80,
+    showCategory = SelectedPathway2
+  ) +RotatedAxis()
+
+ggsave("SelectedPathway2DotPlot_unique_inlymphoidcelltype.pdf", plot = SelectedPathway2DotPlot, height = 8, width = 8)
+
+message(">>> Select the genes and draw the heatmap...")
+FinalSelectedGenes<- LymphoidClusterSpecifcUpgeneGOenrich %>% as.data.frame() %>% filter(Description %in% SelectedPathway2 & pvalue <0.05) %>% arrange(p.adjust) %>% pull(geneID) %>% strsplit("/") %>% unlist() %>% unique()
+
+DoHeatmap(LymphoidcellsUpdatedF, features = FinalSelectedGenes) + 
+  scale_fill_gradientn(colors = c("blue", "white", "red"))
+message(">>> Select the genes and draw the dotplot")
+LymphoidcellsUpdatedFSelectedPathwayGenesDotPlot<-DotPlot(LymphoidcellsUpdatedF, features = FinalSelectedGenes,cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+ggsave("LymphoidcellsUpdatedFSelectedPathwayGenesDotPlot.pdf", plot = LymphoidcellsUpdatedFSelectedPathwayGenesDotPlot, height = 5, width = 14)
+message(">>> Finished the functional enrichment")
+```
+
+
+# ######################################################################################
+# 5. Generate the Trajectories of T cells, 
+#     identify the UPEC increase genes within these Lymphoid cell types
+# ######################################################################################
+# 5.1 build the monocle run pipeline, this will use object, root identity, and output prefix, target clusters.
+```{r}
+run_monocle_increasing_genes <- function(
+  seurat_obj,
+  target_clusters = c("Th1"),
+  root_ident = "0DPI",
+  output_prefix = "PT_pseudotime"
+){
+  library(Seurat)
+  library(monocle3)
+  library(ComplexHeatmap)
+  library(circlize)
+  library(RColorBrewer)
+  library(dplyr)
+  
+  message(">>> Subsetting target lineage cells...")
+  LymphoidTCells <- subset(
+    seurat_obj,
+    subset = FinalLymphoidCellAnnot %in% target_clusters
+  )
+  
+ 
+  # Extract counts
+  expr_matrix <- GetAssayData(LymphoidTCells, slot = "counts")
+  p_data <- LymphoidTCells@meta.data
+  f_data <- data.frame(
+    gene_short_name = rownames(LymphoidTCells),
+    row.names = rownames(LymphoidTCells)
+  )
+  
+  message(">>> Building cell_data_set object...")
+  cds <- new_cell_data_set(expr_matrix,
+                           cell_metadata = p_data,
+                           gene_metadata = f_data)
+  
+  # Monocle3 pipeline
+  message(">>> Preprocessing CDS...")
+  cds <- preprocess_cds(cds)
+  cds <- reduce_dimension(cds, preprocess_method = "PCA")
+  plot_cells(cds, label_groups_by_cluster=FALSE,  color_cells_by = "FinalLymphoidCellAnnot")
+  # Use Seurat UMAP
+  message(">>> Injecting Seurat UMAP embedding...")
+  seurat_umap <- Embeddings(seurat_obj, reduction = "umap")[colnames(cds), ]
+  cds@int_colData$reducedDims$UMAP <- seurat_umap
+  
+  # Clustering
+  message(">>> Clustering cells...")
+  cds <- cluster_cells(cds)
+  
+  # Learn graph
+  message(">>> Learning trajectory graph...")
+  cds <- learn_graph(cds)
+  
+  # Root cells
+  message(">>> Setting root based on ", root_ident, "...")
+  root_cells <- colnames(cds)[cds@colData$orig.ident == "3DPI"]
+  cds <- order_cells(cds, root_cells = root_cells)
+  plot_cells(cds,
+           color_cells_by = "FinalLymphoidCellAnnot",
+           label_groups_by_cluster=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE)
+  # Identify genes changing over pseudotime
+  message(">>> Running graph_test (spatial autocorrelation)...")
+  pr_graph_test <- graph_test(cds, neighbor_graph = "principal_graph")
+  
+  # generate the trajectory graph
+  TrajectoryCellsPlot<- plot_cells(cds,
+           color_cells_by = "pseudotime",
+           label_groups_by_cluster=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE)
+   ggsave(filename = paste0(output_prefix,"TrajectoryCellsPlot.pdf") , plot =  TrajectoryCellsPlot, width =8, height = 8)
+   
+   
+  increasing_genes <- subset(
+    pr_graph_test, q_value < 0.05 & morans_I > 0
+  )
+  
+  message(">>> Fitting models for increasing genes...")
+  fit <- fit_models(
+    cds[row.names(increasing_genes), ],
+    model_formula_str = "~pseudotime"
+  )
+  
+  coefs <- coefficient_table(fit)
+  
+  up_genes <- subset(
+    coefs,
+    term == "pseudotime" &  q_value < 0.05
+  )
+  
+  up_gene_list <- unique(up_genes$gene_short_name)
+  message(">>> Found ", length(up_gene_list), " increasing genes.")
+  
+  # Build matrix for heatmap
+  message(">>> Building pseudotime expression matrix...")
+  mat <- exprs(cds)[match(up_gene_list, rownames(rowData(cds))),
+                    order(pseudotime(cds))]
+  
+  mat <- t(apply(mat, 1, function(x){ smooth.spline(x, df = 3)$y }))
+  mat <- t(apply(mat, 1, function(x){ (x - mean(x)) / sd(x) }))
+  rownames(mat) <- up_gene_list
+  RequestGeneDotPlot<- VlnPlot(LymphoidTCells, features = up_gene_list,group.by  = "orig.ident")
+  
+ ggsave(filename = paste0(output_prefix,"VlnPlotSplitByData.pdf") , plot =  RequestGeneDotPlot, width =12, height = 15)
+ 
+ RequestGeneFeaturePlot<- FeaturePlot(seurat_obj, features = up_gene_list,split.by   = "orig.ident")
+  
+ ggsave(filename = paste0(output_prefix,"FeaturePlotSplitByDateGenes.pdf") , plot =  RequestGeneFeaturePlot, width =30, height = 30)
+  # Heatmap km=8
+  message(">>> Drawing k-means heatmap km=8...")
+  pdf(paste0(output_prefix, "_psudotimeGenes_upregulated.pdf"),
+      height = 9, width = 8)
+  htkm <- Heatmap(
+    mat,
+    name = "z-score",
+    col = colorRamp2(seq(-2,2,length=11), rev(brewer.pal(11,"Spectral"))),
+    show_row_names = TRUE,
+    show_column_names = FALSE,
+    row_names_gp = gpar(fontsize = 6),
+    km = 8,
+    row_title_rot = 0,
+    use_raster = TRUE,
+    cluster_rows = TRUE,
+    cluster_row_slices = FALSE,
+    cluster_columns = FALSE
+  )
+  print(htkm)
+  dev.off()
+  
+  # Heatmap hierarchical Ward.D2
+  message(">>> Drawing hierarchical clustering heatmap...")
+  pdf(paste0(output_prefix, "_Hierarchical_upregulated.pdf"),
+      height = 9, width = 6)
+  hthc <- Heatmap(
+    mat,
+    name = "z-score",
+    col = colorRamp2(seq(-2,2,length=11), rev(brewer.pal(11,"Spectral"))),
+    show_row_names = TRUE,
+    show_column_names = FALSE,
+    row_names_gp = gpar(fontsize = 6),
+    clustering_method_rows = "ward.D2",
+    clustering_method_columns = "ward.D2",
+    row_title_rot = 0,
+    use_raster = TRUE,
+    cluster_rows = TRUE,
+    cluster_row_slices = FALSE,
+    cluster_columns = FALSE
+  )
+  print(hthc)
+  dev.off()
+  
+  # Return results
+  message(">>> DONE.")
+  return(list(
+    cds = cds,
+    up_genes = up_gene_list,
+    heatmap_matrix = mat
+  ))
+}
+
+```
+
+
+```{r}
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/Pyseudotime/")
+result0 <- run_monocle_increasing_genes(
+  seurat_obj = LymphoidcellsUpdatedF,
+  target_clusters = c("T-RCM"),
+  root_ident = "0DPI",
+  output_prefix = "TRCM_PT"
+)
+
+
+result <- run_monocle_increasing_genes(
+  seurat_obj = LymphoidcellsUpdatedF,
+  target_clusters = c("Th1"),
+  root_ident = "0DPI",
+  output_prefix = "Th1_PT"
+)
+
+result2 <- run_monocle_increasing_genes(
+  seurat_obj = LymphoidcellsUpdatedF,
+  target_clusters = c("Treg"),
+  root_ident = "0DPI",
+  output_prefix = "Treg_PT"
+)
+
+ TregDotPlot<- VlnPlot(LymphoidTCells, features = c("Ikzf2","Samhd1","Itgae" ,"Smdt1" ),group.by  = "orig.ident")
+
+ ggsave(filename = "TregVlnPlotSplitByData.pdf" , plot =  TregDotPlot, width = 9, height = 6)
+ 
+result3 <- run_monocle_increasing_genes(
+  seurat_obj = LymphoidcellsUpdatedF,
+  target_clusters = c("Th17"),
+  root_ident = "0DPI",
+  output_prefix = "Th17_PT"
+)
+
+
+ 
+result4 <- run_monocle_increasing_genes(
+  seurat_obj = LymphoidcellsUpdatedF,
+  target_clusters = c("T-RCM","Cd8","Th1","Treg","Th17", "gamma-delta T-17 cells"),
+  root_ident = "0DPI",
+  output_prefix = "TCells"
+)
+# 1. Identify genes changing along the principal graph
+cds <- preprocess_cds(cds, num_dim = 50)
+cds <- reduce_dimension(cds)
+deg <- graph_test(cds, neighbor_graph = "principal_graph")
+deg_sig <- subset(deg, q_value < 0.05)
+genes_use <- rownames(deg_sig)
+
+expr_mat <- exprs(cds)[genes_use, ]
+
+# Filter genes expressed in at least 10 cells
+keep <- rowSums(expr_mat > 0) > 10
+genes_use <- genes_use[keep]
+
+length(genes_use)
+# 2. Cluster significant genes into gene modules
+modules <- find_gene_modules(cds, resolution = 0.1, genes = rownames(deg_sig))
+
+```
+
+
+# 4.2 we use monocle instead of monocle3 
+```{r}
+library(monocle)
+# the expression
+#rm(ls=CDS)
+# we only select the T cells
+LymphoidTCells <- subset(
+    LymphoidcellsUpdatedF,
+    subset = FinalLymphoidCellAnnot %in% c("T-RCM","Cd8","Th1","Treg","Th17", "gamma-delta T-17 cells")
+  )
+
+Lymphoid_expr_matrix = LayerData(LymphoidTCells, layer  = "counts")
+
+# check expression matrix:
+
+# Cell meta annotation -- phenotype
+p_data <- LymphoidTCells@meta.data 
+head(p_data)
+rownames(Lymphoid_expr_matrix)
+# Gene meta annotation
+f_data<- data.frame(gene_short_name = rownames(Lymphoid_expr_matrix), row.names = rownames(Lymphoid_expr_matrix))
+f_data
+# UMIs or read ounts are better modele with the negative biomial.
+pd <- new("AnnotatedDataFrame", data = p_data)
+fd <- new("AnnotatedDataFrame", data = f_data)
+
+
+CDS <- monocle::newCellDataSet(as.matrix(Lymphoid_expr_matrix), 
+                       phenoData = pd, 
+                       featureData = fd,
+                       lowerDetectionLimit = 0.1,
+                       expressionFamily=negbinomial.size())
+CDS
+CDS <- estimateSizeFactors(CDS)
+CDS <- estimateDispersions(CDS)
+
+# quality control:
+## 起初是 24582 features, 768 samples 
+#---------首先是对基因的过滤-------------
+CDS <- detectGenes(CDS, min_expr = 0.1)
+print(head(CDS@featureData@data))
+expressed_genes <- row.names(subset(CDS@featureData@data,
+                                    num_cells_expressed >= 10))
+length(expressed_genes)
+colnames(phenoData(CDS)@data)
+
+
+# step1：dispersionTable()
+
+disp_table <- dispersionTable(CDS)
+unsup_clustering_genes <- subset(disp_table, 
+                                 mean_expression >= 0.1)
+CDS <- setOrderingFilter(CDS, unsup_clustering_genes$gene_id)
+CDS
+plot_ordering_genes(CDS) 
+# 图中黑色的点就是被标记出来一会要进行聚类的基因
+CDS[expressed_genes,]
+# step2 plot pc variance explained
+plot_pc_variance_explained(CDS, return_all = F) # norm_method='log'
+
+
+
+## Trajactory step 1: choose genes that define a cells' progress that compare the infection vs noninfection within the infected timepoints
+# First, we must decide which genes we will use to define a cell's progress through myogenesis. We ultimately want a set of genes that increase (or decrease) in expression as a function of progress through the process we're studying.
+
+#Ideally, we'd like to use as little prior knowledge of the biology of the system under study as possible. We'd like to discover the important ordering genes from the data, rather than relying on literature and textbooks, because that might introduce bias in the ordering. We'll start with one of the simpler ways to do this, but we generally recommend a somewhat more sophisticated approach called "dpFeature".
+
+# One effective way to isolate a set of ordering genes is to simply compare the cells collected at the beginning of the process to those at the end and find the differentially expressed genes, as described above. The command below will find all genes that are differentially expressed in response to the switch from growth medium to differentiation medium:
+
+# here we will detect the genes based on the series of timepoints 
+diff_test_res <- differentialGeneTest(CDS[expressed_genes,],
+              fullModelFormulaStr = "~orig.ident")
+diff_test_res%>% arrange(qval) %>% head()
+nrow(diff_test_res)
+diff_test_res 
+# these will order the gene from our choose from control to infection
+ordering_genes <- row.names (subset(diff_test_res, qval < 0.01))
+
+length(ordering_genes)
+# we also select the genes with high dispersion across cells
+dis_table<- dispersionTable(CDS)
+
+ordering_genes_2 <- subset(dis_table,
+                  mean_expression >= 0.05 & dispersion_empirical >= 0.05 * dispersion_fit)$gene_id
+length(ordering_genes_2)
+Final_ordering_genes<- intersect(ordering_genes,ordering_genes_2 )
+write.csv(Final_ordering_genes, file = "Final_ordering_genes.csv")
+
+length(Final_ordering_genes)
+CDS <- setOrderingFilter(CDS, Final_ordering_genes)
+plot_ordering_genes(CDS)
+
+# reduce data dimention using DDRTree 
+CDS <- reduceDimension(CDS, max_components = 2,
+    method = 'DDRTree')
+# trajectory step3: order cells along the trajectory
+CDS <- monocle::orderCells(CDS,root_state = NULL, num_paths = NULL, reverse = NULL)
+
+?orderCells
+ 
+??GM_state
+#install.packages("igraph")
+pData(cds)
+plot_cell_trajectory(CDS, color_by = "FinalLymphoidCellAnnot", cell_size = 0.5)
+plot_cell_trajectory(CDS, color_by = "orig.ident",cell_size=0.5)
+
+# ensure infected_date is a factor with correct order
+# pData(cds)$infected_date <- factor(pd(CDS)$orig.ident,
+#                                    levels = c("0DPI", "3DPI", "7DPI", "28DPI"))
+# 
+# dates <- levels(pData(cds)$infected_date)
+
+# trajectory_plots <- lapply(dates, function(d) {
+#   cds_sub <- cds[, pData(cds)$infected_date == d]
+#   
+#   plot_cell_trajectory(cds_sub, color_by = "State") +
+#     ggtitle(paste("Trajectory –", d)) +
+#     theme_bw() +
+#     theme(plot.title = element_text(size = 14, face = "bold"))
+# })
+
+# combine all four panels
+wrap_plots(trajectory_plots, ncol = 2)
+
+plot_cell_trajectory(CDS, color_by = "orig.ident",cell_size=0.5)
+?plot_cell_trajectory
+# order by 
+
+
+# "State" is just Monocle's term for the segment of the tree. The function below is handy for identifying the State which contains most of the cells from time zero. We can then pass that to orderCells:
+unique(CDS@phenoData@data$SCT_snn_res.0.3)
+T0_counts <- table(CDS@phenoData@data$FinalLymphoidCellAnnot, CDS@phenoData@data$orig.ident)[,"0DPI"]
+# as.numeric(names(T0_counts)[which
+#           (T0_counts == max(T0_counts))])
+# table(CDS@phenoData@data$SCT_snn_res.0.3, CDS@phenoData@data$DataSet)[,"0DPI"]
+GM_state <- function(CDS){
+  if (length(unique(CDS@phenoData@data$FinalLymphoidCellAnnot)) > 1){
+    T0_counts <- table(CDS@phenoData@data$FinalLymphoidCellAnnot, CDS@phenoData@data$orig.ident)[,"0DPI"]
+    return(as.numeric(names(T0_counts)[which
+          (T0_counts == max(T0_counts))]))
+  } else {
+    return (1)
+  }
+}
+GM_state(CDS)
+#CDS2 <- orderCells(CDS, root_state = 1)
+plot_cell_trajectory(CDS, color_by = "Pseudotime")
+
+
+# 
+BEAM_res <- BEAM(CDS, branch_point = 1, cores = 1)
+BEAM_res <- BEAM_res[order(BEAM_res$qval),]
+BEAM_res <- BEAM_res[,c("gene_short_name", "pval", "qval")]
+
+
+```
+
+# ######################################################################################
+# 6. generate the Progeny signaling pathways
+# ######################################################################################
+
+```{r}
+# set up the directory
+setwd(ProgenyDir)
+## we set up with a high memory
+library(progeny)
+options(future.globals.maxSize = 891289600000) 
+## We compute the Progeny activity scores and add them to our Seurat object
+## as a new assay called Progeny. 
+
+# create cluster data frame with the cells, Celltypes
+LymphoidCluster<- data.frame(Cell = names(Idents(LymphoidcellsUpdatedF)),   
+                              CellType = as.character(Idents(LymphoidcellsUpdatedF)),
+                              stringsAsFactors = FALSE)
+
+LymphoidcellsUpdatedF <- progeny(LymphoidcellsUpdatedF, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+LymphoidcellsUpdatedF
+# setup the default assay as progeny
+DefaultAssay(object = LymphoidcellsUpdatedF) <- "progeny"
+
+LymphoidcellsUpdatedF <- Seurat::ScaleData(LymphoidcellsUpdatedF, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(LymphoidcellsUpdatedF, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+#progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, LymphoidCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+LymphoidCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+
+#pheatmap(as.matrix(LymphoidCellForHeatmap),scale = "row")
+# generate the heatmap for PT
+pdf(file="LymphoidCell_Progeny_ForHeatmap.pdf",height = 5, width = 5)
+progeny_hmap = pheatmap(
+  as.matrix(LymphoidCellForHeatmap),
+  fontsize=8,
+  fontsize_row=8,
+  show_rownames=TRUE,
+  cluster_cols=TRUE,
+  cluster_rows=TRUE,
+  scale="row",
+  clustering_distance_rows="euclidean",
+  clustering_method="complete",
+  color=myColor,
+  main="PROGENy (500)",
+  angle_col="45",
+  border_color=NA,
+  treeheight_col=0,
+  treeheight_row=0
+)
+
+# progeny_hmap = pheatmap(LymphoidCellForHeatmap,fontsize=8, 
+#                         fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+#                         cex=1, clustering_distance_rows="euclidean", cex=1,
+#                         # clustering_distance_cols="euclidean", clustering_method="complete", 
+#                         color=myColor, breaks = progenyBreaks, 
+#                         main = "PROGENy (500)", angle_col = 45,
+#                         border_color = NA,
+#                         treeheight_col = 0,   treeheight_row=0)
+
+print(progeny_hmap)
+dev.off()
+test<- FeaturePlot(LymphoidcellsUpdatedF, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(LymphoidcellsUpdatedF, features = i,split.by = "orig.ident") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_Lymphoid_cluster_featurePlot.pdf"), plot = p2, width = 20, height = 5)
+}
+
+```
+
+# Progeney Within Time
+```{r}
+setwd(paste0(ProgenyDir,"ProgeneyWithinTime/"))
+
+LymphoidcellsUpdatedF@meta.data %>% head()
+# set up the identity 
+LymphoidcellsUpdatedF@meta.data<- LymphoidcellsUpdatedF@meta.data %>% mutate(FinalAnnotationInfectedTim=paste0(orig.ident,"|",FinalLymphoidCellAnnot))
+Idents(LymphoidcellsUpdatedF) <- "FinalAnnotationInfectedTim"
+# create cluster data frame with the cells, Celltypes
+LymphoidCluster<- data.frame(Cell = names(Idents(LymphoidcellsUpdatedF)),   
+                              CellType = as.character(Idents(LymphoidcellsUpdatedF)),
+                              stringsAsFactors = FALSE)
+
+LymphoidcellsUpdatedF <- progeny(LymphoidcellsUpdatedF, scale=FALSE, organism="Mouse", top=500, perm=1, return_assay = TRUE)
+LymphoidcellsUpdatedF
+# setup the default assay as progeny
+DefaultAssay(object = LymphoidcellsUpdatedF) <- "progeny"
+
+LymphoidcellsUpdatedF <- Seurat::ScaleData(LymphoidcellsUpdatedF, assay = "progeny") 
+## We can now directly apply Seurat functions in our Progeny scores. 
+## For instance, we scale the pathway activity scores. 
+progeny_scores_df <- 
+  as.data.frame(t(GetAssayData(LymphoidcellsUpdatedF, slot = "scale.data", 
+                               assay = "progeny"))) %>%
+  rownames_to_column("Cell") %>%
+  gather(Pathway, Activity, -Cell) 
+
+#progeny_scores_df %>% filter(Cell =="0DPI_AAAAAAAACCACCAGA")
+## We match Progeny scores with the cell clusters.
+progeny_scores_df <- inner_join(progeny_scores_df, LymphoidCluster)
+
+progeny_scores_df %>% head()
+## We summarize the Progeny scores by cellpopulation
+summarized_progeny_scores <- progeny_scores_df %>% 
+  group_by(Pathway, CellType) %>%
+  summarise(avg = mean(Activity), std = sd(Activity))
+summarized_progeny_scores
+
+
+## We prepare the data for the plot
+summarized_progeny_scores_df <- summarized_progeny_scores %>%
+  dplyr::select(-std) %>%   
+  spread(Pathway, avg) %>%
+  data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE) 
+
+paletteLength = 80
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+progenyBreaks = c(seq(min(summarized_progeny_scores_df), 0, 
+                      length.out=ceiling(paletteLength/2) + 1),
+                  seq(max(summarized_progeny_scores_df)/paletteLength, 
+                      max(summarized_progeny_scores_df), 
+                      length.out=floor(paletteLength/2)))
+LymphoidCellForHeatmap<-as.data.frame(t(summarized_progeny_scores_df[,-1]))
+# for selected cells
+colnames(LymphoidCellForHeatmap)
+Tcells<- c("0DPI|T-RCM","3DPI|T-RCM","7DPI|T-RCM","28DPI|T-RCM","0DPI|Th1","3DPI|Th1","7DPI|Th1","28DPI|Th1","0DPI|Treg","3DPI|Treg","7DPI|Treg","28DPI|Treg","3DPI|Th17","7DPI|Th17","28DPI|Th17","0DPI|Cd8","3DPI|Cd8","7DPI|Cd8","28DPI|Cd8")
+LymphoidCellForHeatmapSelectedTWithinTime<- LymphoidCellForHeatmap[,Tcells]
+
+
+#pheatmap(as.matrix(LymphoidCellForHeatmap),scale = "row")
+# generate the heatmap for PT
+pdf(file="LymphoidCell_Progeny_ForHeatmap_withinfection.pdf",height = 5, width = 10)
+progeny_hmap = pheatmap(
+  as.matrix(LymphoidCellForHeatmapSelectedTWithinTime),
+  fontsize=8,
+  fontsize_row=8,
+  show_rownames=TRUE,
+  cluster_cols=FALSE,
+  cluster_rows=TRUE,
+  scale="row",
+  clustering_distance_rows="euclidean",
+  clustering_method="complete",
+  color=myColor,
+  main="PROGENy (500)",
+  angle_col="45",
+  border_color=NA,
+  treeheight_col=0,
+  treeheight_row=0
+)
+
+# progeny_hmap = pheatmap(LymphoidCellForHeatmap,fontsize=8, 
+#                         fontsize_row = 8,  show_rownames=T, cluster_cols=T, cluster_rows=T, scale="row",
+#                         cex=1, clustering_distance_rows="euclidean", cex=1,
+#                         # clustering_distance_cols="euclidean", clustering_method="complete", 
+#                         color=myColor, breaks = progenyBreaks, 
+#                         main = "PROGENy (500)", angle_col = 45,
+#                         border_color = NA,
+#                         treeheight_col = 0,   treeheight_row=0)
+
+print(progeny_hmap)
+dev.off()
+test<- FeaturePlot(LymphoidcellsUpdatedF, features = "NFkB")
+ggsave("test_NFKB.pdf", plot = test, width = 5, height = 5)
+# generate the featureplot 
+ProgenyFeatures <- summarized_progeny_scores$Pathway %>% unique()
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-(FeaturePlot(LymphoidcellsUpdatedF, features = i,split.by = "orig.ident") & 
+  scale_colour_gradient2(low = 'blue', mid = 'white', high = 'red'))& 
+  ggtitle(paste0(i," activity"))
+  
+  ggsave(paste0(i, "_Lymphoid_cluster_featurePlot.pdf"), plot = p2, width = 20, height = 5)
+}
+
+
+```
+
+
+# Run the slingshot for the Trajectory Inference for Single-Cell Data
+```{r}
+#BiocManager::install("slingshot")
+slingshotdir<- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/Progeny/Slingshot/")
+setwd(slingshotdir)
+library("slingshot")
+# we only select the T cells
+LymphoidTCells <- subset(
+    LymphoidcellsUpdatedF,
+    subset = FinalLymphoidCellAnnot %in% c("T-RCM","Cd8","Th1","Treg","Th17")
+  )
+
+# filter genes down to potential cell-type markers
+# at least M (15) reads in at least N (15) cells
+DefaultAssay(LymphoidTCells) <- "RNA"
+GetAssayData(LymphoidTCells, slot = "counts")
+
+# conver the seruat object to single cell experiment
+sce <- as.SingleCellExperiment(LymphoidTCells)
+
+# Prepare cluster labels and reduced dimensions
+# Cluster labels
+sce$FinalLymphoidCellAnnot
+cluster_labels <- sce$FinalLymphoidCellAnnot  # replace with your cluster column
+
+# Reduced dimensions
+# the pca is tnot in the sce
+reduced_dims <- Embeddings(LymphoidTCells, "pca")
+# add the PCA
+reducedDims(sce)$PCA <- reduced_dims
+#reduced_dims <- reducedDims(sce)$PCA  # or UMAP if you prefer
+umap_embeddings <- Embeddings(LymphoidTCells, "umap")
+reducedDims(sce)$UMAP <- umap_embeddings
+# sce <- slingshot(
+#   sce,
+#   clusterLabels = cluster_labels,
+#   reducedDim = "UMAP"
+# )
+
+# Run slingshot
+sce <- slingshot(
+  sce,
+  clusterLabels = cluster_labels,
+  reducedDim = "PCA"  # or provide reduced_dims directly
+)
+
+# Extract pseudotime
+# Get pseudotime for each lineage
+pseudotime <- slingPseudotime(sce)
+pseudotime %>% head()
+# Example: add to Seurat metadata
+LymphoidTCells$slingshot_pt <- pseudotime[,1]  # first lineage
+
+
+# Visualization
+library(RColorBrewer)
+library(ggplot2)
+
+# Plot UMAP with tragjectory
+library(RColorBrewer)
+
+cluster_labels <- factor(cluster_labels)  # ensure correct mapping
+colors <- brewer.pal(n = length(levels(cluster_labels)), name = "Set1")
+pdf("Umap_slingshot_Tcell_withclorlinedot.pdf", height = 4, width = 4)
+plot(
+  reducedDims(sce)$UMAP[,1],
+  reducedDims(sce)$UMAP[,2],
+  col = colors[as.numeric(cluster_labels)],
+  pch = 16,
+  xlab = "UMAP1",
+  ylab = "UMAP2",
+  main = "Slingshot Trajectory on UMAP"
+)
+
+lines(SlingshotDataSet(sce), lwd = 2, col = "black")
+dev.off()
+
+# 3. using slingshot
+
+library(grDevices)
+colors <- colorRampPalette(brewer.pal(11,'Spectral')[-6])(100)
+plotcol <- colors[cut(sce$slingPseudotime_1, breaks=100)]
+# 
+
+library(RColorBrewer)
+pdf("pca_slingshot_Tcell_withclorlinedot.pdf", height = 4, width = 4)
+colors <- brewer.pal(n = length(levels(cluster_labels)), name = "Set1")
+plot(
+  reducedDims(sce)$PCA[,1],
+  reducedDims(sce)$PCA[,2],
+  col = colors[as.numeric(cluster_labels)], 
+  pch = 16
+)
+lines(SlingshotDataSet(sce), lwd=2, type = 'lineages', col = 'black')
+# Add legend
+legend(
+  "topleft",                     # position of legend
+  legend = levels(cluster_labels), # cluster names
+  col = colors,                   # colors
+  pch = 16,                        # symbol
+  bty = "n"                        # no box around legend
+)
+dev.off()
+
+pdf("pca_slingshot_Tcell_withclorlinedot_pseudotime.pdf", height = 4, width = 4)
+colors <- colorRampPalette(brewer.pal(11,'Spectral')[-6])(100)
+plotcol <- colors[cut(sce$slingPseudotime_1, breaks=100)]
+
+plot(reducedDims(sce)$PCA, col = plotcol, pch=16, asp = 1)
+lines(SlingshotDataSet(sce), lwd=2, col='black')
+dev.off()
+# downstream analysis
+# Identifying temporally dynamic genes
+#BiocManager::install("tradeSeq")
+library(tradeSeq)
+
+# fit negative binomial GAM
+sce <- fitGAM(sce)
+
+saveRDS(sce, file = "T_Cell_Fitnegativebinomial.rds")
+# test for dynamic expression
+ATres <- associationTest(sce)
+# We can then pick out the top genes based on p-values and visualize their expression over developmental time with a heatmap. Here we use the top 250 most dynamically expressed genes
+ATres[order(ATres$pvalue), ] %>% head()
+topgenes <- rownames(ATres[order(ATres$pvalue), ])[1:30]
+pst.ord <- order(sce$slingPseudotime_1, na.last = NA)
+heatdata <- assays(sce)$counts[topgenes, pst.ord]
+sce@metadata
+heatclus <- sce$GMM[pst.ord]
+paletteLength = 100 
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+library(viridis)
+myColor <- viridis(100, option = "B")
+pdf("TopTemporallydynamicGenes.pdf", height = 4, width = 4)
+pheatmap(as.matrix(heatdata), scale = "row", cluster_cols = F, show_colnames = F,treeheight_row = F,color=myColor,border_color = NA, breaks = seq(-3, 3))
+dev.off()
+heatmap(log1p(heatdata))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# These are the preliminary results to define the different clusters.
+# Please ignore these analyses, we will remove them once publish.
+# other ways to detect the different T cells
+```{r}
+
+TsubtypeByModulDir<- paste0(BioMarkerDir,"TsubtypeByModule/")
+dir.create(TsubtypeByModulDir)
+# Mouse T cell subtype markers for Seurat AddModuleScore
+Tcell_markers <- list(
+  "Naive_CD4" = c("Cd4", "Sell", "Ccr7", "Il7r"),
+  "CentralMemory_CD4" = c("Cd4", "Cd44", "Sell", "Ccr7", "Il7r"),
+  "EffectorMemory_CD4" = c("Cd4", "Cd44", "Ccr7", "Il7r"),
+  "Naive_CD8" = c("Cd8a", "Sell", "Ccr7", "Il7r"),
+  "CentralMemory_CD8" = c("Cd8a", "Cd44", "Sell", "Ccr7"),
+  "EffectorMemory_CD8" = c("Cd8a", "Cd44", "Ccr7"),
+  "Cytotoxic_CD8" = c("Cd8a", "Gzmb", "Prf1", "Ifng", "Nkg7"),
+  "Activated_Tcell" = c("Cd69", "Il2ra", "Cd44"),
+  "Treg" = c("Foxp3", "Il2ra", "Ctla4", "Nrp1", "Tnfrsf18"),
+  "Activated_Treg" = c("Foxp3", "Cd69", "Icos", "Ctla4"),
+  "Th1" = c("Tbx21", "Ifng", "Cxcr3"),
+  "Th2" = c("Gata3", "Il4", "Il5", "Il13", "Ccr4"),
+  "Th17" = c("Rorc", "Il17a", "Il17f", "Il22", "Ccr6"),
+  "Tfh" = c("Bcl6", "Cxcr5", "Pdcd1", "Icos"),
+  "GammaDelta_T" = c("Trdc", "Trgc1", "Trgc2", "Cd3e", "Cd3g", "Nkg7"),
+  "IL17_GammaDelta_T" = c("Trdc", "Trgc1", "Trgc2", "Rorc", "Il17a", "Il17f", "Ccr6"),
+  "Trm_CD8" = c("Cd69", "Itgae", "Itga1"),
+  "Trm_CD4" = c("Cd69", "Itgae", "Cd4")
+)
+
+# add the T markers 
+
+all_Tmarker_genes <- unique(unlist(Tcell_markers))
+
+all_Tmarker_genes
+
+All_Tmarker_genesDotPlot<-DotPlot(LymphoidcellsUpdated, features = all_Tmarker_genes,cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+
+ggsave("All_Tmarker_genesDotPlot.pdf", plot = All_Tmarker_genesDotPlot, height = 6, width = 15)
+
+LymphoidcellsUpdated <- AddModuleScore(LymphoidcellsUpdated, features = Tcell_markers, name = names(Tcell_markers))
+
+#TSubtypes<-colnames(Lymphoidcells@meta.data)[13:30]
+for (i in TSubtypes){
+  requestedCellsFeaturePlot <- FeaturePlot(LymphoidcellsUpdated, features = i, split.by = "orig.ident")
+  ggsave(paste0(TsubtypeByModulDir,i,"_FeaturePlot_Byaddmodule.pdf"), plot = requestedCellsFeaturePlot, height = 5, width = 15)
+  
+}
+
+FeaturePlot(LymphoidcellsUpdated, features = c("Naive_CD41", "EffectorMemory_CD4","Th171", "Treg9"))
+
+LymphoidcellsUpdated$Lymphoidcellsubtype <- apply(LymphoidcellsUpdated@meta.data[, paste0(names(Tcell_markers), "1")], 1, function(x) {
+  names(Tcell_markers)[which.max(x)]
+})
+
+```
+
+# I cannot identify the cluster 1,5,11,12 names, so that I will run the DEG detection for each cluster
+```{r}
+AllClustermarkers <- FindAllMarkers(LymphoidcellsUpdated,
+                min.pct = 0.25,test.use= "MAST") 
+
+write.csv(AllClustermarkers,file = "Lymphoidcells_allclustermarkers_Updated.csv")
+
+Cluster1_5_12Markers<- c("Fxyd2","Umod","Ldhb","Atp5b","Tmsb4x","Rps18","Rps23","Gm11808","Id2","Arpc2","Rgs1","Atp5j")
+
+Cluster_12_Markers<- c("Cd3e","mt-Cytb","Hbb-bs","mt-Nd1","mt-Co1","Ddah1","mt-Co3","mt-Co2","mt-Nd3","Gnai2","Park7","Tsc22d3","Hspa1a")
+Cluster12CellTypeDotPlot<-DotPlot(LymphoidcellsUpdated, features = Cluster_12_Markers) +RotatedAxis()
+
+Cluster_5_Markers <- c("Dock10","Rftn1","Arhgap15","mt-Nd3","Ppp1r12a","Tnfaip3","mt-Nd5","Pde4b","Malat1","Xist","mt-Nd2")
+Cluster5CellTypeDotPlot<-DotPlot(LymphoidcellsUpdated, features = Cluster_5_Markers) +RotatedAxis()
+
+
+
+activated_CD4_coStim <- c("Cd4","Trac","Tnfrsf4","Icos","Tnfrsf9","Tnfrsf18","Cd6","Cd5","Stat1","Shisa5")
+DotPlot(LymphoidcellsUpdated, features = activated_CD4_coStim) +RotatedAxis()
+# panels to run alongside
+tfh_panel <- c("Cxcr5","Bcl6","Il21","Pdcd1","Slamf6","Icos")
+DotPlot(Lymphoidcells, features = tfh_panel) +RotatedAxis()
+th1_panel <- c("Tbx21","Ifng","Cxcr3","Stat4","Stat1") 
+DotPlot(Lymphoidcells, features = th1_panel) +RotatedAxis()
+treg_panel <- c("Foxp3","Il2ra","Ctla4","Ikzf2","Tnfrsf18")
+DotPlot(LymphoidcellsUpdated, features = treg_panel) +RotatedAxis()
+
+
+```
+
+
+# Generate the cell types and their markers
+```{r}
+# 
+UpdateBiomarkerDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Lymphoidcells/Biomarkers/UpdatedBiomarkers_V1/")
+
+setwd(UpdateBiomarkerDir)
+# The marker set for T cell and NK cells
+FinalMarkers <- c(
+  "Cd3e","Cd4","Cd8a","Cd8b1","Ccr7", "Tcf7","Sell", ## Those are the Tissue-recirculating central memory T cells --- cluster 0
+   "Cd7", "Ccl5","Cxcr3", # activated, cytotoxic CD8⁺ T cells
+  "Ifng","Cd44", ## Those are the effector memory or effector CD4 T cells, effector Th1-type. ---cluster 2
+  "Il17a","Rorc","Scart1", ## γδ T cells — IL-17 producing (γδ T17) / tissue-resident---cluster 3
+  "Pdcd1","Pbk", "Ccna2", "Ube2c", ## progenitor-exhausted DN T cells (Pdcd1+Cxcr6+ Cd4- Cd8-) -- cluster 13
+   "Klrk1","Ncr1","Nkg7","Gzmb","Prf1",## NK cell (Cytotoxic) -- cluster 4
+  "Cd7", "Xcl1", ## NK cell (Immature/developing) --- cluster 6
+  "Dock10","Arhgap15","Pde4b","Tnfaip3", ## Activated or metabolically active T cells, possibly tissue-resident or migrating, with stress/mitochondrial activity. -- cluster 5
+   "Park7","Tsc22d3",
+  ### Progenitor exhausted T cells? High mt-gene and stress/ROS markers -- cluster 12 "mt-Cytb", "mt-Nd1", "mt-Co1",
+    "Il2ra", "Il7r","Thy1","Gata3", "Fosb", "Il4" #### Activated ILC2-like cells -- cluster 11 CD127(Il7r) and CD90 (Thy1) as innate lymphoid cells 
+
+)
+
+
+LymphoidcellsDimWithAnn<- DimPlot(LymphoidcellsUpdatedF,label = F)
+ggsave(filename = "LymphoidcellsDimWithAnn.pdf", plot = LymphoidcellsDimWithAnn, width = 8, height = 4)
+
+LymphoidcellsDimWithAnnSplit<-DimPlot(LymphoidcellsUpdatedF, split.by = "orig.ident",label = F)
+
+ggsave(filename = "LymphoidcellsDimWithAnnSplit.pdf", plot = LymphoidcellsDimWithAnnSplit, width = 13, height = 3)
+
+saveRDS(Lymphoidcells, file = "Lymphoidcells_withannotation.rds")
+
+Lymphoidcells = readRDS("Lymphoidcells_withannotation.rds")
+
+DimPlot(Lymphoidcells)
+FinalMarkerDotPlot<- DotPlot(LymphoidcellsUpdatedF, features = (FinalMarkers %>% unique())) +RotatedAxis()
+
+ggsave("FinalMarkerDotPlot_NotOrdered.pdf", plot= FinalMarkerDotPlot, height = 5, width = 15)
+
+# We generate the final cell types and biomarkers
+TNKcellMarkers<- list()
+TNKcellMarkers[["Tissue-recirculating central memory T cells"]] <- c("Cd3e","Cd4","Cd8a","Cd8b1","Ccr7","Il7r", "Tcf7","Sell","S1pr1","Foxo1")
+TNKcellMarkers[["Effector CD4 T cells, effector Th1-type"]] <- c("Cd3e","Cd4","Cd8a","Cd8b1", "Ifng","Cxcr3","Tbx21","Stat4",
+                                                                 "Foxp3","Il2ra", "Ctla4", # T reg
+                                                                 "Cxcr5","Bcl6","Il21", #Tfh
+                                                                  "Gata3","Il4", #Th2
+                                                                 "Il17a","Rorc", # Th17
+                                                                 "Il22",
+                                                           "Ccr5","Cd44","Tnfrsf4","Cd6","Cd5")
+
+TNKcellMarkers[["IL-17–producing γδ T cells"]] <- c("Cd3e", "Cd8a","Cd8b1","Cd4","Il17a","Rorc","Scart1")
+
+TNKcellMarkers[["NK cell (Cytotoxic)"]] <- c("Cd3e","Klrk1","Ncr1","Nkg7","Gzmb","Prf1")
+TNKcellMarkers[["NK cell (Immature-developing)"]] <- c("Cd3e","Klrk1","Ncr1","Nkg7","Gzmb","Prf1","Cd7", "Xcl1")
+
+
+TNKcellMarkers[["Activated or metabolically active T cells"]] <- c("Cd3e","Cd4","Cd8a","Dock10","Arhgap15","Pde4b","Tnfaip3")
+TNKcellMarkers[["Activated ILC2-like cells"]] <- c("Cd3e","Cd4","Gata3", "Il2ra", "Il7r","Fosb","Il1rl1", "Klrg1", "Il5", "Il13", "Areg", "Rora", "Arg1", "Il4")
+
+TNKcellMarkers[["Progenitor exhausted T cells"]] <- c("Cd3e","Cd4","Cd8a","Pdcd1","Pbk", "Ccna2", "Ube2c")
+TNKcellMarkers[["Progenitor-exhausted DN T cells"]] <- c("Cd3e","Cd4","Cd8a","Park7","Tsc22d3","mt-Cytb", "mt-Nd1", "mt-Co1")
+
+TNKcellMarkers[["Monocyte, Macrophage"]] <- c("Cd68","Ly6c2","Ccr2","Itgam","Csf1r","Adgre1","C1qa","S100a8","S100a9","Ly6g","Cd3g")
+
+TNKcellMarkers[["HelperLymphoidcells"]] <- c("Cd3e","Cd4","Cd8a","Cd8b1", "Ifng","Cxcr3","Tbx21","Stat4",
+                                                                 "Foxp3","Il2ra", "Ctla4", # T reg
+                                                                 "Cxcr5","Bcl6","Il21", #Tfh
+                                                                  "Gata3","Il4", #Th2
+                                                                 "Il17a","Rorc", # Th17
+                                                                 "Il22", # Th22
+                                                
+                                                                 "Ccr5","Cd44","Tnfrsf4","Cd6","Cd5")
+#TNKcellMarkers[["Progenitor-exhausted DN T cells"]] <- c("Cd3e","Cd4","Cd8a","Park7","Tsc22d3","mt-Cytb", "mt-Nd1", "mt-Co1")
+
+TNKcellMarkers[["ILCs"]] <- c("Cd3e","Cd4","Cd8a", "Cd19","Cd79","Ms4a1", "Itgam","Adgre1", "Itgax","H2-Ab1", "Ly6g","Ly76","Fce1a","Cd117", "Il7r","Thy1","Id2","Tcf7","Tox","Il1rl1","Id2","Zbtb16" )
+### Lin- markers T cells, B cells, Myeloid/monocytes, Dendritic cells, Granulocyte/neutrophil, mast cells/Basophils
+# ILCs should have:
+# → High Il7r (CD127), Id2, Tcf7, Tox
+# → Low/absent Cd3e, Cd19, Cd11b, Cd11c, Ly6g, etc.
+# Cell Type	Commonly Excluded Markers (Genes / Proteins)
+# T cells	CD3E, CD4, CD8A
+# B cells	CD19, MS4A1 (CD20)
+# NK cells	CD94 (KLRD1) (optional — sometimes included)
+# Myeloid	CD14, CD16 (FCGR3A), CD11C (ITGAX)
+# Dendritic / pDCs	CD123 (IL3RA), BDCA2 (CLEC4C)
+# Erythroid / Others	CD34, CD94, TCRαβ, TCRγδ
+
+ImmuneDiffType[["Cd4"]]<- c("Cd3e","Cd4","Cd27","Ptprc","Il7r","Il2ra") # CD4 Naive cells: Cd4+, CD27+, CD45RA+, CD127+, CD25-, CD45RO-
+
+
+TNKcellMarkers[["Cd8"]] <- c( "Cd8a","Cd28","Sell","Ccr7" ) # CD8 Naive T cells: Cd8+, CD27+, CD28+, CD45RA+, CD62L+, CCR7+, CD45RO-
+TNKcellMarkers[["Th1"]] <-c("Cd4",'Ifng','Tnf', 'Stat1', 'Stat4', 'Tbx21', 'Il12a', 'Il2', 'Lta')
+TNKcellMarkers[["Th2"]] <-c("Cd4",'Il4', 'Gata3','Il2', 'Il10','Il13', 'Il25', 'Stat5a','Irf4','Stat6',  'Il5')
+TNKcellMarkers[["Th17"]] <-c("Cd4",'Il17a', 'Il17f','Rorc','Tgfb1', 'Il6',  'Stat3',  'Il23a', 'Irf4', 'Maf', 'Il21', 'Il22')
+TNKcellMarkers[["Treg"]] <-c("Cd4",'Foxp3',"Il2ra",'Tgfb1', 'Il10',  'Stat5a', 'Il2')
+TNKcellMarkers[["Th9"]] <-c("Cd4",'Il9',"Spi1",'Stat6', 'Irf4', 'Tgfb1', 'Il4',  'Il10')
+TNKcellMarkers[["Th22"]]<-c("Cd4","Il22", 'Il23a', 'Il6', 'Ahr')
+
+TNKcellMarkers[["Activated_Tcell"]] = c("Cd3e","Cd69", "Il2ra", "Cd44")
+TNKcellMarkers[["Cytotoxic_Tcell"]] = c("Cd3e","Gzmb", "Prf1", "Ifng")
+TNKcellMarkers[["Naive_CD8"]] = c("Cd3e","Cd8a", "Sell", "Ccr7", "Il7r")
+TNKcellMarkers[["Naive_CD4"]] = c("Cd3e","Cd4", "Sell", "Ccr7", "Il7r")
+TNKcellMarkers[["CentralMemory_CD4"]] = c("Cd3e","Cd4", "Cd44", "Sell", "Ccr7", "Il7r")
+TNKcellMarkers[["EffectorMemory_CD4"]] = c("Cd3e","Cd4", "Cd44", "Ccr7", "Il7r")
+TNKcellMarkers[["CentralMemory_CD8"]] = c("Cd3e","Cd8a", "Cd44", "Sell", "Ccr7")
+TNKcellMarkers[["EffectorMemory_CD8"]] = c("Cd3e","Cd8a", "Cd44", "Ccr7") 
+TNKcellMarkers[["Progenitor_Exhausted"]] = c("Cd3e","Tcf7","Cxcr5","Slamf6","Id3","Bcl6","Pdcd1") 
+TNKcellMarkers[["Terminally_exhausted"]] = c("Cd3e","Pdcd1","Havcr2","Entpd1","Tox","Prdm1","Eomes", "Cxcr6","Lag3","Tigit","Cd244") 
+
+for (i in 1:length(TNKcellMarkers)) {
+  # cell type name
+  ImmuneCellType <- names(TNKcellMarkers[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(UpdateBiomarkerDir,
+        ImmuneCellType,"/")
+  dir.create(ImmuneCellTypeDir,showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  
+  # generate the dotplots
+  CellTypeDotPlot<-DotPlot(LymphoidcellsUpdatedF, features = TNKcellMarkers[[ImmuneCellType]],cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+  ggsave(paste0(ImmuneCellTypeDir, ImmuneCellType,"_DotPlot.pdf"), plot = CellTypeDotPlot, height = 6, width = 9)
+  # generate each feature
+  #TNKcellMarkers[[ImmuneCellType]]
+  for (j in TNKcellMarkers[[ImmuneCellType]]) {
+    
+   # j ="Il4"
+       # we use this details to escape the figures that did not show up in spatial
+    skip_to_next <- FALSE
+   
+    # Note that print(b) fails since b doesn't exist
+   # LayerData(Lymphoidcells, assay = "RNA", layer = "data")[j,]
+    tryCatch(
+      print(LayerData(LymphoidcellsUpdatedF, assay = "RNA", layer = "data")[j, ]),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    
+    FeaturePlots <-
+      FeaturePlot(LymphoidcellsUpdatedF, features =  j, split.by = "orig.ident") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 12
+    )
+      FeaturePlotsCombined <-
+      FeaturePlot(LymphoidcellsUpdatedF, features =  j) + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation_combined.pdf"
+      ),
+      plot = FeaturePlotsCombined,
+      height = 4,
+      width = 6
+    )
+  }
+  
+}
+
+```
+
+
+# then add the annotation and set up the order
+```{r}
+# The cluster of 
+UpdateBiomarkerDir2<- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Lymphoidcells/Biomarkers/UpdatedBiomarkers_V1/")
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Lymphoidcells/Biomarkers/UpdatedBiomarkers_V1/")
+Idents(TNKcells) <- "TNKCellAnnotUpdateV1"
+
+# set up the levels
+AnnotationLevels<- c("Tissue-recirculating central memory T cells","Effector CD4 T cells, effector Th1-2-type","Effector CD4 T cells, effector Th17-Treg-Tfh-Th22-type", "Activated, cytotoxic CD8 T cells","IL-17 producing gamma delta T cell", "Activated, tissue-resident ILC2-like","Activated ILC2-like", "NK cell (Immature/developing) ", "NK cell (Cytotoxic)" )
+
+Idents(TNKcells) <- ordered (factor(Idents(TNKcells)), levels = AnnotationLevels)
+
+TNKCells_OnlyDimplot<- DimPlot(TNKcells,label = F, label.size = 2)
+
+ggsave(filename = "TNKCells_OnlyDimplot.pdf", plot = TNKCells_OnlyDimplot, width = 9, height = 4)
+
+TNKCells_OnlyDimplotSplit<-DimPlot(TNKcells, split.by = "orig.ident",label = F)
+
+ggsave(filename = "TNKCells_OnlyDimplotSplit.pdf", plot = TNKCells_OnlyDimplotSplit, width = 13, height = 3)
+
+
+
+
+DefaultAssay(TNKcells) ="RNA"
+TMarkersCandidates <- c("Cd3e","Cd4","Cd8a","Cd8b1","Sell","Cd44","Cd69","Thy1",
+                        "Ifng","Cxcr3","Tbx21", # Th1
+                        "Gata3","Il4", #Th2
+                         "Foxp3","Il2ra",  # T reg
+                        "Il17a","Rorc", # Th17
+                        "Spi1", # Th9 "Il9" not found
+                        "Cxcr5","Bcl6","Il21", #Tfh
+                         "Il22", # Th22
+                          "Klrk1","Ncr1","Nkg7","Gzmb","Prf1",## NK cell (Cytotoxic) 
+                         "Cd7", "Xcl1", ## NK cell (Immature/developing) --- cluster 6
+                           "Il7r", "Fosb","Il1rl1","Id2","Zbtb16",#### Activated ILC2-like cells -- cluster 11 CD127(Il7r) and CD90 (Thy1) as innate lymphoid cells 
+                         "Pdcd1","Pbk", "Ccna2", "Ube2c", ## progenitor-exhausted DN T cells   
+                        "Dock10","Arhgap15","Pde4b","Tnfaip3", ## Activated or metabolically active T cells, possibly tissue-resident or migrating, with stress/mitochondrial activity. 
+                        "Park7","Tsc22d3" ### Progenitor exhausted T cells? High mt-gene and stress/ROS markers -- cluster 12 "mt-Cytb", "mt-Nd1", "mt-Co1",
+
+
+ )
+TNKCells_TMarkersCandidatesDotplot<- DotPlot(TNKcells, features = TMarkersCandidates,cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+
+ggsave(filename = "TNKCells_TMarkersCandidatesDotplot.pdf", plot = TNKCells_TMarkersCandidatesDotplot, width = 15, height = 4)
+
+
+TNKCells_FinalMarkersV2Dotplot<- DotPlot(TNKcells, features = FinalMarkers %>% unique(),cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+
+ggsave(filename = "TNKCells_FinalMarkersV2Dotplot.pdf", plot = TNKCells_FinalMarkersV2Dotplot, width = 13, height = 4)
+
+
+
+
+
+for (i in 1:length(TNKcellMarkers)) {
+  # cell type name
+  ImmuneCellType <- names(TNKcellMarkers[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(UpdateBiomarkerDir2,
+        ImmuneCellType,"/")
+  dir.create(ImmuneCellTypeDir,showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  
+  # generate the dotplots
+  CellTypeDotPlot<-DotPlot(TNKcells, features = TNKcellMarkers[[ImmuneCellType]],cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+  ggsave(paste0(ImmuneCellTypeDir, ImmuneCellType,"_DotPlot_TNKcells.pdf"), plot = CellTypeDotPlot, height = 6, width = 9)
+  # generate each feature
+  #TNKcellMarkers[[ImmuneCellType]]
+  for (j in TNKcellMarkers[[ImmuneCellType]]) {
+    
+   # j ="Il4"
+       # we use this details to escape the figures that did not show up in spatial
+    skip_to_next <- FALSE
+   
+    # Note that print(b) fails since b doesn't exist
+   # LayerData(Lymphoidcells, assay = "RNA", layer = "data")[j,]
+    tryCatch(
+      print(LayerData(TNKcells, assay = "RNA", layer = "data")[j, ]),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    
+    FeaturePlots <-
+      FeaturePlot(TNKcells, features =  j, split.by = "orig.ident") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_AnnoatationTNKcells.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 12
+    )
+      FeaturePlotsCombined <-
+      FeaturePlot(TNKcells, features =  j) + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation_combined_TNKcells.pdf"
+      ),
+      plot = FeaturePlotsCombined,
+      height = 4,
+      width = 6
+    )
+  }
+  
+}
+
+saveRDS(TNKcells, file = "T_NK_ILC_V111525.rds")
+
+
+```
+
+
+
+# we then removed the cluster of 1, 9, 10. (monocyte  macrophage and filtered epithelial cells)
+# performed the reclusting
+# reannotated the clusters
+
+```{r}
+# The cluster of 
+UpdateBiomarkerDir2<- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Lymphoidcells/Biomarkers/UpdateBiomarkers_V2_TNKOnly/")
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Lymphoidcells/Biomarkers/UpdateBiomarkers_V2_TNKOnly/")
+LymphoidcellsUpdated@meta.data %>% head()
+Idents(LymphoidcellsUpdated) <- "SCT_snn_res.0.8"
+
+DimPlot(Lymphoidcells,label = T)
+# we remove the cluster 1, cluster 9 and 10 
+TNKcells<- subset(Lymphoidcells, subset= (SCT_snn_res.0.8 %in% c(0,2:8,11:13)))
+DimPlot(TNKcells,label = T)
+
+# we only use them for the annotation
+
+
+
+# Then we recluster these cells
+TNKcells <- SCTransform(TNKcells, verbose = TRUE)
+TNKcells <- RunPCA(TNKcells,npcs = 15, verbose = TRUE)
+
+# Run harmony for the PT cells
+TNKcells <- RunHarmony(TNKcells, 
+				group.by.vars = c("orig.ident"), 
+				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+TNKcells <- RunUMAP(TNKcells, dims = 1:15, verbose = TRUE, reduction = "harmony")
+TNKcells <- FindNeighbors(TNKcells, dims = 1:15,  verbose = TRUE, reduction = "harmony")
+
+TNKcells<- FindClusters(TNKcells,  verbose = TRUE, resolution = 0.5)
+
+TNKcellsHighRes<- FindClusters(TNKcells,  verbose = TRUE, resolution = 0.8)
+DimPlot(TNKcellsHighRes, label = T, split.by = "orig.ident")
+
+TNKcells@meta.data %>% head()
+# add the names of each subsets
+TNKcells@meta.data <- TNKcells@meta.data %>%   mutate(TNKCellAnnotUpdateV1 = 
+           case_when(SCT_snn_res.0.5 %in% c("0") ~ "Effector CD4 T cells, effector Th1-2-type",
+                     SCT_snn_res.0.5 %in% c("1") ~ "Tissue-recirculating central memory T cells", 
+                     SCT_snn_res.0.5 %in% c("2") ~ "Activated ILC2-like", 
+                     SCT_snn_res.0.5 %in% c("3") ~ "IL-17 producing gamma delta T cell",
+                     SCT_snn_res.0.5 %in% c("4") ~ "NK cell (Cytotoxic)", 
+                     SCT_snn_res.0.5 %in% c("5") ~ "Effector CD4 T cells, effector Th17-Treg-Tfh-Th22-type", 
+                     SCT_snn_res.0.5 %in% c("6") ~ "NK cell (Immature/developing) ", 
+                     SCT_snn_res.0.5 %in% c("7") ~ "Activated, cytotoxic CD8 T cells", 
+                     SCT_snn_res.0.5 %in% c("8") ~ "IL-17 producing gamma delta T cell",
+                     SCT_snn_res.0.5 %in% c("9") ~ "Activated, tissue-resident ILC2-like", 
+                     
+    )) 
+
+Idents(TNKcells) <- "TNKCellAnnotUpdateV1"
+
+# set up the levels
+AnnotationLevels<- c("Tissue-recirculating central memory T cells","Effector CD4 T cells, effector Th1-2-type","Effector CD4 T cells, effector Th17-Treg-Tfh-Th22-type", "Activated, cytotoxic CD8 T cells","IL-17 producing gamma delta T cell", "Activated, tissue-resident ILC2-like","Activated ILC2-like", "NK cell (Immature/developing) ", "NK cell (Cytotoxic)" )
+
+Idents(TNKcells) <- ordered (factor(Idents(TNKcells)), levels = AnnotationLevels)
+
+TNKCells_OnlyDimplot<- DimPlot(TNKcells,label = F, label.size = 2)
+
+ggsave(filename = "TNKCells_OnlyDimplot.pdf", plot = TNKCells_OnlyDimplot, width = 9, height = 4)
+
+TNKCells_OnlyDimplotSplit<-DimPlot(TNKcells, split.by = "orig.ident",label = F)
+
+ggsave(filename = "TNKCells_OnlyDimplotSplit.pdf", plot = TNKCells_OnlyDimplotSplit, width = 13, height = 3)
+
+
+
+
+DefaultAssay(TNKcells) ="RNA"
+TMarkersCandidates <- c("Cd3e","Cd4","Cd8a","Cd8b1","Sell","Cd44","Cd69","Thy1",
+                        "Ifng","Cxcr3","Tbx21", # Th1
+                        "Gata3","Il4", #Th2
+                         "Foxp3","Il2ra",  # T reg
+                        "Il17a","Rorc", # Th17
+                        "Spi1", # Th9 "Il9" not found
+                        "Cxcr5","Bcl6","Il21", #Tfh
+                         "Il22", # Th22
+                          "Klrk1","Ncr1","Nkg7","Gzmb","Prf1",## NK cell (Cytotoxic) 
+                         "Cd7", "Xcl1", ## NK cell (Immature/developing) --- cluster 6
+                           "Il7r", "Fosb","Il1rl1","Id2","Zbtb16",#### Activated ILC2-like cells -- cluster 11 CD127(Il7r) and CD90 (Thy1) as innate lymphoid cells 
+                         "Pdcd1","Pbk", "Ccna2", "Ube2c", ## progenitor-exhausted DN T cells   
+                        "Dock10","Arhgap15","Pde4b","Tnfaip3", ## Activated or metabolically active T cells, possibly tissue-resident or migrating, with stress/mitochondrial activity. 
+                        "Park7","Tsc22d3" ### Progenitor exhausted T cells? High mt-gene and stress/ROS markers -- cluster 12 "mt-Cytb", "mt-Nd1", "mt-Co1",
+
+
+ )
+TNKCells_TMarkersCandidatesDotplot<- DotPlot(TNKcells, features = TMarkersCandidates,cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+
+ggsave(filename = "TNKCells_TMarkersCandidatesDotplot.pdf", plot = TNKCells_TMarkersCandidatesDotplot, width = 15, height = 4)
+
+
+TNKCells_FinalMarkersV2Dotplot<- DotPlot(TNKcells, features = FinalMarkers %>% unique(),cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+
+ggsave(filename = "TNKCells_FinalMarkersV2Dotplot.pdf", plot = TNKCells_FinalMarkersV2Dotplot, width = 13, height = 4)
+
+
+
+
+
+for (i in 1:length(TNKcellMarkers)) {
+  # cell type name
+  ImmuneCellType <- names(TNKcellMarkers[i])
+  #ImmuneCellType <- "Mast_cells"
+  # create a director for the cell type
+  ImmuneCellTypeDir <- paste0(UpdateBiomarkerDir2,
+        ImmuneCellType,"/")
+  dir.create(ImmuneCellTypeDir,showWarnings = FALSE)
+  setwd(ImmuneCellTypeDir)
+  
+  # generate the dotplots
+  CellTypeDotPlot<-DotPlot(TNKcells, features = TNKcellMarkers[[ImmuneCellType]],cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+  ggsave(paste0(ImmuneCellTypeDir, ImmuneCellType,"_DotPlot_TNKcells.pdf"), plot = CellTypeDotPlot, height = 6, width = 9)
+  # generate each feature
+  #TNKcellMarkers[[ImmuneCellType]]
+  for (j in TNKcellMarkers[[ImmuneCellType]]) {
+    
+   # j ="Il4"
+       # we use this details to escape the figures that did not show up in spatial
+    skip_to_next <- FALSE
+   
+    # Note that print(b) fails since b doesn't exist
+   # LayerData(Lymphoidcells, assay = "RNA", layer = "data")[j,]
+    tryCatch(
+      print(LayerData(TNKcells, assay = "RNA", layer = "data")[j, ]),
+      error = function(e) {
+        skip_to_next <<- TRUE
+      }
+    )
+    
+    if (skip_to_next) {
+      next
+    }
+    
+    FeaturePlots <-
+      FeaturePlot(TNKcells, features =  j, split.by = "orig.ident") + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_AnnoatationTNKcells.pdf"
+      ),
+      plot = FeaturePlots,
+      height = 4,
+      width = 12
+    )
+      FeaturePlotsCombined <-
+      FeaturePlot(TNKcells, features =  j) + RotatedAxis()
+    ggsave(
+      paste0(
+        ImmuneCellTypeDir,
+        ImmuneCellType,
+        "_",
+        j,
+        "_Feature_GeneMarkers_Annoatation_combined_TNKcells.pdf"
+      ),
+      plot = FeaturePlotsCombined,
+      height = 4,
+      width = 6
+    )
+  }
+  
+}
+
+saveRDS(TNKcells, file = "T_NK_ILC_V111525.rds")
+
+```
+
+
+# add the final annotation
+```{r}
+# set up the order of annotation
+DefaultAssay(TNKcells) ="RNA"
+TMarkersCandidates <- c("Cd3e","Cd4","Cd8a","Cd8b1","Sell","Cd44","Cd69","Thy1",
+                        "Ifng","Cxcr3","Tbx21", # Th1
+                        "Gata3","Il4", #Th2
+                         "Foxp3","Il2ra",  # T reg
+                        "Il17a","Rorc", # Th17
+                        "Spi1", # Th9 "Il9" not found
+                        "Cxcr5","Bcl6","Il21", #Tfh
+                         "Il22", # Th22
+                          "Klrk1","Ncr1","Nkg7","Gzmb","Prf1",## NK cell (Cytotoxic) 
+                         "Cd7", "Xcl1", ## NK cell (Immature/developing) --- cluster 6
+                           "Il7r", "Fosb","Il1rl1","Id2","Zbtb16",#### Activated ILC2-like cells -- cluster 11 CD127(Il7r) and CD90 (Thy1) as innate lymphoid cells 
+                         "Pdcd1","Pbk", "Ccna2", "Ube2c", ## progenitor-exhausted DN T cells   
+                        "Dock10","Arhgap15","Pde4b","Tnfaip3", ## Activated or metabolically active T cells, possibly tissue-resident or migrating, with stress/mitochondrial activity. 
+                        "Park7","Tsc22d3" ### Progenitor exhausted T cells? High mt-gene and stress/ROS markers -- cluster 12 "mt-Cytb", "mt-Nd1", "mt-Co1",
+
+
+ )
+TNKCells_TMarkersCandidatesDotplot<- DotPlot(TNKcells, features = TMarkersCandidates,cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))  + RotatedAxis() 
+
+ggsave(filename = "TNKCells_TMarkersCandidatesDotplot.pdf", plot = TNKCells_TMarkersCandidatesDotplot, width = 15, height = 4)
+
+
+```
+
+
+
+
+
+```{r}
+# number of cells
+
+table(scrna@meta.data$DataSet)
+
+MACPropotionWithinTime <- table(Lymphoidcells@meta.data$DataSet,Idents(Lymphoidcells)) %>% as.data.frame() %>%
+  group_by(Var1) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
+ggsave("MACPropotionWithinTime.pdf", plot = MACPropotionWithinTime, width = 4, height = 3)
+```
+
+# add markers for the B cells and macrophages
+```{r}
+FinalMarkers <- c("Cd79a","Cd79b","C1qa","C1qb","Cd81","Lyz2","Ctsh","Selenop","Mgl2","Itgam","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Lrp2","Umod","Aqp2","Igfbp7","Havcr1", "Lcn2")
+
+# reference: https://www.sciencedirect.com/science/article/pii/S0085253822007153
+MacrophageFinalMarkersDoplot<- DotPlot(Lymphoidcells, features = FinalMarkers, col.min = -4, col.max = 1) +RotatedAxis() 
+MacrophageFinalMarkersDoplot
+ggsave(filename = "MacrophageFinalMarkersDoplot.pdf", plot = MacrophageFinalMarkersDoplot, width = 8, height = 4)
+
+
+IFNstimulatedMarkers <- c("Ccl4", "Ccl3", "Cxcl2", "Il1b",  "Cd72", "Cxcl9", "Ccl12", "Isg15", "Gbp2")
+ DotPlot(Lymphoidcells, features = IFNstimulatedMarkers, col.min = -4, col.max = 1) +RotatedAxis()
+
+ M2Markers <- c("Mrc1", "Maf", "Apoe",  "Stab1")
+ 
+ DotPlot(Lymphoidcells, features = M2Markers, col.min = -4, col.max = 1) +RotatedAxis()
+ # 
+ # Trem2, Cd9, Spp1, and Lgals3
+ # Hist1h2ap, Hist1h1b, Birc5, Ube2c, and Cenpf.
+ # 
+ 
+```
+
+
+# check the markers
+```{r}
+# macrophage 1 and macrophage 2:
+CFilePath<- paste0(Outdir,"Candidatemarkers")
+
+dir.create(file.path(CFilePath))
+setwd(file.path(CFilePath))
+
+# M1 can choose CD80, CD86, CD64, CD16 and CD32 as markers. 
+Macrophage2TypeMarkers <- c("Nos2","Cxcr6","Ccl3","Ccl4","Ly6d","Lyz2","C1qa","Ifitm1","Ifngr1","Il17a","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b","Cd163","Mrc1","Arg1", "Cd68","Havcr1","Lcn2")
+
+Lymphoidcells2BiomarkerDotPlot <- DotPlot(Lymphoidcells, features = Macrophage2TypeMarkers) +RotatedAxis()
+ggsave("Lymphoidcells2BiomarkerDotPlot.pdf", plot = Lymphoidcells2BiomarkerDotPlot, height = 5, width = 8)
+
+Macrophage1Markers <- c("Nos2","Ifngr1","Il17a","Il1b","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b")
+
+LymphoidcellsT1BiomarkerDotPlot<- DotPlot(Lymphoidcells, features = Macrophage1Markers) +RotatedAxis()
+ggsave("LymphoidcellsT1BiomarkerDotPlot.pdf", plot = LymphoidcellsT1BiomarkerDotPlot, height = 4, width = 6)
+
+# M2 can choose CD163 and CD206 are major markers, Arg1 DECTIN
+Macrophage2Markers <- c("Arg1","Cd206","Il13","Cd163","Mrc1", "Cd68")
+LymphoidcellsT2BiomarkerDotPlot<- DotPlot(Lymphoidcells, features = Macrophage2Markers) +RotatedAxis()
+ggsave("LymphoidcellsT2BiomarkerDotPlot.pdf", plot = LymphoidcellsT2BiomarkerDotPlot, height = 4, width = 6)
+
+# Resident markers: Cxcr1, Ccr2, Ly6c
+ResidentMarkers <- c("Cx3cr1", "Ccr2", "Ly6c1","H2-Ab1")
+MACResidentBiomarkerDotPlot<- DotPlot(Lymphoidcells, features = ResidentMarkers) +RotatedAxis()
+ggsave("MACResidentBiomarkerDotPlot.pdf", plot = MACResidentBiomarkerDotPlot, height = 4, width = 6)
+MACResidentBiomarkerDotPlot
+
+# Combined biomarkers: "Cx3cr1", "Ccr2", "Ly6c1", 
+MacrophageFinalMarkers<- c("Cx3cr1", "Ccr2", "Ly6c1","Nos2","Tnf","Ifngr1","Il1b","Cd86","Fcgr1","Fcgr3","Fcgr2b","Arg1","Tgfb1","Mrc1", "Cd68" )
+MacrophageFinalMarkersDotPlot<- DotPlot(Lymphoidcells, features = MacrophageFinalMarkers, col.min = -0.5) +RotatedAxis()
+MacrophageFinalMarkersDotPlot
+
+for (i in Macrophage1Markers){
+
+  FeaturePlots<-FeaturePlot(Lymphoidcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_M1_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+
+}
+
+
+for (i in Macrophage2Markers){
+
+  FeaturePlots<-FeaturePlot(Lymphoidcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_M2_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+
+}
+
+for (i in ResidentMarkers){
+
+  FeaturePlots<-FeaturePlot(Lymphoidcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+
+  ggsave(paste0(Outdir,"/CandidateMarkers/", i, "_Res_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+
+}
+#
+# setwd(file.path(Outdir))
+
+
+```
+
+# add the annotation of macrophage
+```{r}
+
+# add the annotation using case_when
+Lymphoidcells@meta.data %>% head()
+Lymphoidcells@meta.data <- Lymphoidcells@meta.data %>%   mutate(MACIntegrateAnnot = 
+           case_when(SCT_snn_res.0.05 %in% c("0") ~ "RecMAC", # Recruited MAC
+                     SCT_snn_res.0.05 %in% c("1") ~ "ResMAC", # Resident MAC
+                     SCT_snn_res.0.05 %in% c("2") ~ "B", # B Cells not the Macrophage
+                 )) 
+ 
+ # then add the PTIntegrateAnnot into the meta data of orignal
+# generate the data frame for PT cell meta data
+MACSubAnnotation <- Lymphoidcells@meta.data %>% dplyr::select(SCT_snn_res.0.05, MACIntegrateAnnot)
+
+table(MACSubAnnotation$MACIntegrateAnnot)
+
+scrna@meta.data
+## add this annotation into the meta dataset
+scrna@meta.data <- scrna@meta.data %>% rownames_to_column('CellID') %>% 
+  left_join( MACSubAnnotation %>% rownames_to_column('CellID'))%>% 
+# then add a new column that change the NA into Raw_cell_type
+  # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
+  mutate(MACSub = ifelse(is.na(MACIntegrateAnnot), Raw_cell_type,MACIntegrateAnnot))
+### join the meta data to meta annoation
+
+Idents(scrna) <- scrna@meta.data$MACSub
+
+scrna@meta.data %>% head()
+
+row.names(scrna@meta.data) <- scrna@meta.data$CellID
+ DimPlot(scrna, reduction = "umap", label = TRUE, pt.size = 0.5)
+ 
+```
+
+
+# check the contribution of the early response during APN in monocytes
+```{r}
+# contribution of monocyte-derived macrophage to inflammation
+
+InflammationMarkers<- c("Cxcl1","Ccl4", "Ccl2", "Cxcl2")
+GrowthFactors<- c("Csf3","Csf2")
+InjuredMarkers <- c("Havcr1","Lcn2")
+CytokinesMarkers<- c("Il23a","Ifngr1","Ifngr2","Il12","Il1a","Tnf","Il6","Il1f6")
+Signaling <- c("Myd88","Tlr2","Tlr4","Nlrp3","Nfkb1","Nos2","Cybb")
+Profibrotic <- c("Mmp2","Mmp9","Tgfb1","Col4a1","Col1a1")
+
+InflammationMarkersDotPlot<- DotPlot(Lymphoidcells, features = InflammationMarkers) +RotatedAxis()
+GrowthFactorsDotPlot<- DotPlot(Lymphoidcells, features = GrowthFactors) +RotatedAxis()
+InjuredMarkersDotPlot<- DotPlot(Lymphoidcells, features = InjuredMarkers) +RotatedAxis()
+CytokinesMarkersDotPlot<- DotPlot(Lymphoidcells, features = CytokinesMarkers) +RotatedAxis()
+SignalingDotPlot<- DotPlot(Lymphoidcells, features = Signaling) +RotatedAxis()
+ProfibroticDotPlot<- DotPlot(Lymphoidcells, features = Profibrotic) +RotatedAxis()
+ggsave("InflammationMarkersDotPlot.pdf", plot = InflammationMarkersDotPlot, height = 4, width = 6)
+ggsave("GrowthFactorsDotPlot.pdf", plot = GrowthFactorsDotPlot, height = 4, width = 6)
+ggsave("InjuredMarkersDotPlot.pdf", plot = InjuredMarkersDotPlot, height = 4, width = 6)
+ggsave("CytokinesMarkersDotPlot.pdf", plot = CytokinesMarkersDotPlot, height = 4, width = 6)
+ggsave("SignalingDotPlot.pdf", plot = SignalingDotPlot, height = 4, width = 6)
+ggsave("ProfibroticDotPlot.pdf", plot = ProfibroticDotPlot, height = 4, width = 6)
+
+
+```
+
+
+```{r}
+# the healthy cells
+HealthMarkers<- c("Slc22a30", "Atp11a", "Trim7", "Slc22a6", "Slc7a13", "Slc5a2", "Slc5a10", "Spp2",  "Gatm", "Dcxr")
+
+DotPlot(Lymphoidcells, features =  HealthMarkers, col.min = -0.5) +RotatedAxis()
+
+CyclingMarker <- "Mki67"
+DotPlot(Lymphoidcells, features =  CyclingMarker, col.min = -0.5) +RotatedAxis()
+
+EarlyInjuryMarkers <- c("Cdh13", "Cdh6", "Havcr1")
+DotPlot(Lymphoidcells, features =  EarlyInjuryMarkers, col.min = -0.5) +RotatedAxis()
+LateInjuryMarkers <-c( "Ccl2", "Gm17268", "Cald1")
+DotPlot(Lymphoidcells, features =  LateInjuryMarkers, col.min = -0.5) +RotatedAxis()
+
+ReparingMarkers <- "Top2a"
+
+DotPlot(Lymphoidcells, features =  ReparingMarkers, col.min = -0.5) +RotatedAxis()
+
+FailedFepairMarkers <- c("Ypel2","Kcnip4")
+
+DotPlot(Lymphoidcells, features =  FailedFepairMarkers, col.min = -0.5) +RotatedAxis()
+# 
+MaladptiveMarkers <- c("Vcam1", "Havcr1",  "Icam1", "Prom1","Cxcl2","Ccl3","Myc")
+
+DotPlot(Lymphoidcells, features =  MaladptiveMarkers, col.min = -0.5) +RotatedAxis()
+
+
+# Combined 
+#"Lrp2","Slc34a1","Slc13a1"
+KidneyStatuesMarkers<- c( "Slc5a2","Slc34a1","Inmt","Apom", "Slc7a13","Slc22a6", "Prom1","Top2a","Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1","Vcam1", "Ypel2","Kcnip4","Hsp90aa1","Col27a1","Plin2")
+
+ DotPlot(Lymphoidcells, features =  KidneyStatuesMarkers,col.min = -1) +RotatedAxis()
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1")
+ DotPlot(Lymphoidcells, features =  KidneyStatuesTypeMarkers) +RotatedAxis()
+ 
+ KidneyStatuesTypeMarkers2<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "S100a6","S100a8","S100a9","Pdgfb","Bak1","Bad","Casp8","Ptgs2","Casp1","Hmox1","Nfkbia")
+  DotPlot(Lymphoidcells, features =  KidneyStatuesTypeMarkers2) +RotatedAxis()
+
+ #, cluster 5: Fn1, Havcr1, Cst3, Igfbp7, S100a8, Il1b, Slc7a13 : Profibrotic PT
+ # cluster 1: Spp1, Prom1, Kcnip4, Col27a1,Top2a,Nfkbia: Cycling PT
+ # cluster 8: Cdh13, Hsp90aa1,Inmt, Mki67 : Proliferating PT
+ 
+ # cluster 1: ASpp1, Prom1, Kcnipp4: Progenitor PT
+ 
+ # cluster 0: Aldob
+```
+
+# the biomarkers for the 
+```{r}
+CandidateMarkers <- c("Aldob","Slc34a1","Spp1","Spp2","Lcn2", "Slc22a8","Slc5a2","Inmt","Prom1","Defb1","Top2a","Nfkbia", "Kcnip4", "Slc22a6", "Apoe","Havcr1", "Fn1","C3", "Il1b","S100a8", "Igfbp7", "Cst3", "Col27a1", "Hsp90aa1","Cdh13")
+
+CandidateMarkersDotPlot<-  DotPlot(Lymphoidcells, features =  CandidateMarkers, col.min = 0) +RotatedAxis()
+
+ggsave("PT_CandidateMarkersDotPlot.pdf", plot = CandidateMarkersDotPlot, height = 6, width = 12)
+```
+
+
+# generate the health cluster of Myeloblast cells
+Ref: https://www.nature.com/articles/s41467-023-40156-6
+```{r}
+MYEDir <- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/MYE_Subclusters/")
+setwd(MYEDir)
+# Read the preclustered object
+
+# We only collect the PT cells
+#CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
+
+scrna @meta.data
+
+#Lymphoidcells <- subset(scrna, subset = Raw_cell_type == "MAC"  )
+Lymphoidcells <- subset(scrna, subset = Raw_cell_type == "MAC" |Raw_cell_type == "NEU" |Raw_cell_type == "B" )
+Lymphoidcells@meta.data
+
+# We then recluster the PT cells
+# recluster the cells
+Lymphoidcells <- SCTransform(Lymphoidcells, verbose = TRUE)
+Lymphoidcells <- RunPCA(Lymphoidcells,npcs = 8, verbose = TRUE)
+
+# Run harmony for the PT cells
+Lymphoidcells <- RunHarmony(Lymphoidcells, 
+				group.by.vars = c("DataSet"), 
+				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
+Lymphoidcells <- RunUMAP(Lymphoidcells, dims = 1:8, verbose = TRUE, reduction = "harmony")
+Lymphoidcells <- FindNeighbors(Lymphoidcells, dims = 1:8,  verbose = TRUE, reduction = "harmony")
+
+Lymphoidcells<- FindClusters(Lymphoidcells,  verbose = TRUE, resolution = 0.1)
+
+LymphoidcellsDim<- DimPlot(Lymphoidcells,label = T)
+LymphoidcellsDim
+ggsave(filename = "LymphoidcellsDim.pdf", plot = LymphoidcellsDim, width = 8, height = 6)
+
+LymphoidcellsDimSplit<-DimPlot(Lymphoidcells, split.by = "DataSet",label = T)
+LymphoidcellsDimSplit
+ggsave(filename = "LymphoidcellsDimDimSplit.pdf", plot = LymphoidcellsDimSplit, width = 10, height = 3)
+
+Idents(Lymphoidcells)
+```
+
+
+```{r}
+
+# change the order the cluster
+
+
+FinalMarkers <- c("S100a8","S100a9","Il1b","Itgam","Ly6g","Ly6c1", "Cd79a","Cd79b","C1qa","C1qb","Ctsh","Selenop","Cd81","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Nos2","Tnf","Ifngr1","Arg1","Lrp2","Umod","Aqp2","Havcr1","Lcn2","Igfbp7")
+
+#
+FinalMarkers <- c("Itgam","Il1b","S100a8","S100a9","Ly6g", "Cd79a","Cd79b","C1qa","C1qb","Cd81","Ctsh","Selenop","Mgl2","H2-Ab1","Cx3cr1", "Ccr2", "Lrp2","Umod","Aqp2","Havcr1","Lcn2","Igfbp7")
+# reference: https://www.sciencedirect.com/science/article/pii/S0085253822007153
+LymphoidcellsFinalMarkersDoplot<- DotPlot(Lymphoidcells, features = FinalMarkers, col.min = -0.5) +RotatedAxis() 
+ggsave("LymphoidcellsFinalMarkersDoplot.pdf", plot = LymphoidcellsFinalMarkersDoplot, height = 6, width = 9)
+
+LymphoidcellsFinalMarkersDoplot
+LymphoidcellsDimSplit
+DoHeatmap(Lymphoidcells, features = FinalMarkers)
+```
+
+
+
+
+
+
+
+# generate the subclusters of PT, DCT, IC, PC
+```{r}
+# dividing into cycling, transitioning, adap- tive (successful or maladaptive repair) and degenerative (damaged or stressed). 
+# cycling: Mki67
+# Early Injury: Cdh13, Cdh6, Havcr1
+# Late Injury: Ccl2, Gm17268, Cald1
+# conserved: Slc13a1, Slc5a2,  Slc7a13, Cyp7b1
+
+
+
+# Panoptosis
+# Il1b, MLKL, Gsdmd,Ripk3
+
+# Fibrosis 
+# Fn1, Col1a1, Col3a1, Tgfb1
+# adaptive
+# VCAM1, DCDC2 and HAVCR1, C3, ICAM1
+# VCAM1 PROM1 ITGB8
+# Vcam1, Havcr1, Dcdc2, Icam1, Prom1, ITgb8
+
+#degenerative
+# SPP1, CST3, CLU and IGFBP7, APOE ALDOB
+# B2M S100A6
+# Spp1, Cst3, GDF15,Clu, Igfbp7, Apoe, Aldob, B2m, S100a6
+# agionegious PEC,
+# EGFR, VEGF, Cdh5
+
+# Egfr, Vegf, Cdh5
+KidneyStatuesMarkers<- c("Slc13a1", "Slc5a2", "Slc7a13", "Cyp7b1","Mki67","Cdh13", "Cdh6", "Havcr1","Ccl2", "Gm17268", "Cald1")
+
+KidneyStatuesTypeMarkers<- c("Il1b", "Mlkl", "Gsdmd","Ripk3","Fn1", "Col1a1", "Col3a1", "Tgfb1","Vcam1", "Havcr1", "Icam1", "Prom1", "Spp1", "Cst3","Gdf15", "Clu", "Igfbp7", "Apoe", "Aldob", "B2m", "S100a6")
+
+DotPlot(scrna, features =  KidneyStatuesMarkers, col.min = -0.5) +RotatedAxis()
+DotPlot(scrna, features =  KidneyStatuesTypeMarkers, col.min = -0.5) +RotatedAxis()
+
+
+for (i in KidneyStatuesMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+for (i in KidneyStatuesTypeMarkers){
+# 
+  FeaturePlots<-FeaturePlot(scrna, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/KidneyStatuesTypeMarkers/", i, "_Feature_GeneMarkers_Annoatation.pdf"), plot =FeaturePlots, height =6, width = 14)
+}
+
+
+# with the inflammation markers
+
+# with the fibrosis markers
+
+# with the apoptosis markers
+
+# with the necrosis markers
+
+# with the endothelial markers
+
+
+```
+
+

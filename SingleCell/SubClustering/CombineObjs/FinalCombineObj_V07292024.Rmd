@@ -122,7 +122,7 @@ ImmDir<- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluatio
 PTcells<- readRDS(file = paste0(PTDir,"PIPSeq_PTAnnotated_v061824.rds"))
 
 # With Imm annotation
-Immuncells <- readRDS(paste0(ImmDir,"PIPSeq_ImmuneSub_Annotated_v0823"))
+Immuncells <- readRDS(paste0(ImmDir,"PIPSeq_ImmuneSub_Annotated_v0823.RDS"))
 
 # 
 

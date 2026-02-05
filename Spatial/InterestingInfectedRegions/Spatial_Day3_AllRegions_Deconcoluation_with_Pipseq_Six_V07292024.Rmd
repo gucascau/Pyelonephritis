@@ -1,5 +1,5 @@
 ---
-title: "Spatial_Day5_AllRegions_Deconcoluation_with_Pipseq_Six_V1012"
+title: "Spatial_Day3_AllRegions_Deconcoluation_with_Pipseq_Six_V1012"
 output: html_document
 Author: Xin Wang
 Email: xin.wang@nationwidechildrens.org 
@@ -7,7 +7,7 @@ Copyright (c) 2024 Kidney and Urology Tract Center
 Nationwide Children's Hospital
 date: "2024-08-21"
 Description: 
-#   This script is to profile the all the regions at Day 5
+#   This script is to profile the all the regions at Day 3
 
 #     Note:
 #    #     We have already got the deconvolution of the spatial transcriptomics
@@ -240,7 +240,7 @@ NichesExp<- cluster_averages$SCT
 write.csv(NichesExp, file = "Day3_niches_geneExpr.csv")
 # we only select the niches the selected niches
 Idents(Pyelonephritis_InfectionSubslidesD3)
-Pyelonephritis_InfectionSubslidesD3Infected<- subset (Pyelonephritis_InfectionSubslidesD3, idents = c("N12","N13","N14","N15","N16","N17"))
+Pyelonephritis_InfectionSubslidesD3Infected<- subset (Pyelonephritis_InfectionSubslidesD3, idents = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"))
 
 InfectedRegionsSpatialDimPlot<-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD3Infected,pt.size.factor = 1500)
 InfectedRegionsSpatialDimPlot
@@ -516,7 +516,7 @@ CellChat::netVisual_heatmap(cellchat, measure = "weight", color.heatmap = "Blues
 # pathway
 AllPotentialPathways<-cellchat@netP$pathways
 AllPotentialPathways
-pathways.show <- c("TNF","CCL","CXCL","IL1","IL2","IL4","IL6","IL16")
+pathways.show <-  c("IL1","IL2", "IL4", "IL6", "IL10", "IL12","IL16" , "IL17",  "IFN-II", "TNF",  "CCL", "CXCL", "XCR")
 par(mfrow=c(1,1), xpd = TRUE) # `xpd = TRUE` should be added to show the title
 # save t
 pdf(file="Spatial_D3_Overall_TNFSignalingNetVisual.pdf",height = 7, width = 5)
@@ -528,7 +528,7 @@ cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") # the sl
 par(mfrow=c(1,1))
 netAnalysis_signalingRole_network(cellchat, signaling = pathways.show, width = 8, height = 2.5, font.size = 10)
 dev.off()
-CandidatePathways<- c("TNF","CCL","CXCL","IL1","IL2","IL4","IL6","IL16")
+CandidatePathways<-  c("IL1","IL2", "IL4", "IL6", "IL10", "IL12","IL16" , "IL17",  "IFN-II", "TNF",  "CCL", "CXCL", "XCR")
 #CandidatePathways <-cellchat@netP$pathways
 
 pdf(file="Spatial_D3_Overall_InnateImmuneSignalingNetVisual.pdf",height = 6, width = 4)
@@ -564,7 +564,7 @@ ClsContributionPair
 ggsave("Spatial_D3_Overall_BarplotClsContributionPair.pdf", plot = ClsContributionPair, height = 5, width = 10)
 
 # we only select the N12, N13, N14, N15, N16, N17
-LimitedClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) ) %>% filter(ClusterName %in% c("N12","N13","N14","N15","N16","N17")) %>% ggplot(aes(x=name, y= contribution, fill =ClusterName)) +
+LimitedClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) ) %>% filter(ClusterName %in% c("N8","N10","N11","N12","N13","N14","N15","N16","N17")) %>% ggplot(aes(x=name, y= contribution, fill =ClusterName)) +
   # Implement a grouped bar chart
   geom_bar(position = "dodge", stat = "identity") + theme_classic()+RotatedAxis() 
 ClsContributionPair
@@ -572,13 +572,13 @@ ClsContributionPair
 ggsave("Spatial_D3_Overall_BarplotClsContributionPair_Infected.pdf", plot = LimitedClsContributionPair, height = 5, width = 10)
 
 LimitedClsContributionPairHeatmap<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) )%>% 
-filter(ClusterName %in% c("N12","N13","N14","N15","N16","N17"))%>%
+filter(ClusterName %in% c("N8","N10","N11","N12","N13","N14","N15","N16","N17"))%>%
   ggplot(aes(x=name, y= ClusterName, fill =contribution))+scale_fill_distiller(palette = "Spectral") +geom_tile() +RotatedAxis() 
 LimitedClsContributionPairHeatmap
 ggsave("Spatial_D3_Overall_BarplotClsContributionPair_Infected_heatmap.pdf", plot = LimitedClsContributionPairHeatmap, height = 4, width = 8)
 
 saveRDS(cellchat, file = "cellchat_Spatial_D3_Overall.rds")
-
+cellchat <- readRDS("cellchat_Spatial_D3_Overall.rds")
 # check the pair of the interactions
 
 # extract the enriched pairs
@@ -595,7 +595,7 @@ dev.off()
 cellchat@net
 # Only for N11,N12, N13, N14, N15,N16,N17
 pdf(file="Spatial_D3_Targets_Overall_InnateImmuneSignalingnetVisual_bubble.pdf",height = 8, width = 12)
-netVisual_bubble(cellchat,  sources.use = c("N12","N13","N14","N15","N16","N17"), targets.use = c("N12","N13","N14","N15","N16","N17"), signaling = CandidatePathways, remove.isolate = T,sort.by.source = T,sort.by.target = T)
+netVisual_bubble(cellchat,  sources.use = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"), targets.use = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"), signaling = CandidatePathways, remove.isolate = T,sort.by.source = T,sort.by.target = T)
 dev.off()
 ?netVisual_bubble
 # For the TNF signaling

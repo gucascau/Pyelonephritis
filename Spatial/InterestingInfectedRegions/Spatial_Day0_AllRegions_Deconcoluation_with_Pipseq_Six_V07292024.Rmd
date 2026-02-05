@@ -76,6 +76,7 @@ library(progeny)
 library(pheatmap)
 library(clusterProfiler)
 library(decoupleR)
+library(CellChat)
 
 ```
 
@@ -229,6 +230,7 @@ Pyelonephritis_InfectionSubslidesD0@images$slice8
 SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0,pt.size.factor = 1500)
 DefaultAssay(Pyelonephritis_InfectionSubslidesD0) <-"Spatial"
 
+
 # check the average expression of each cluster
 DefaultAssay(Pyelonephritis_InfectionSubslidesD0) <-"SCT"
 Pyelonephritis_InfectionSubslidesD0@meta.data
@@ -239,7 +241,7 @@ NichesExp<- cluster_averages$SCT
 
 write.csv(NichesExp, file = "Control_niches_geneExpr.csv")
 # we only select the niches the selected niches
-Pyelonephritis_InfectionSubslidesD0Infected<- subset (Pyelonephritis_InfectionSubslidesD0, idents = c("N12","N13","N14","N15","N16","N17"))
+Pyelonephritis_InfectionSubslidesD0Infected<- subset (Pyelonephritis_InfectionSubslidesD0, idents = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"))
 
 InfectedRegionsSpatialDimPlot<-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0Infected,pt.size.factor = 1500)
 ggsave("Pyelonephritis_InfectionSubslidesD0Infected_SpatialDimplot.pdf", plot = InfectedRegionsSpatialDimPlot, height = 4, width = 4)
@@ -249,20 +251,20 @@ ggsave("Pyelonephritis_InfectionSubslidesD0Infected_SpatialDimplot.pdf", plot = 
 # Pyelonephritis_InfectionSubslidesD0 <- subset (Pyelonephritis_InfectionSubslidesD0,slice8_imagerow > 270 | slice8_imagecol > 270, invert = TRUE)
 # SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0, pt.size.factor = 1500)
 # Pyelonephritis_InfectionSubslidesD0 <- subset (Pyelonephritis_InfectionSubslidesD0, idents = c("N13","N14","N15","N16","N17"))
-InfectedCorMedRegionD7Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0,label = TRUE, pt.size.factor =1600)
+InfectedCorMedRegionD0Spatial <-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0,label = TRUE, pt.size.factor =1600)
  ?SpatialDimPlot
-InfectedCorMedRegionD7Spatial
+InfectedCorMedRegionD0Spatial
 ggsave("Spatial_infectedPelivis_day7_SpatialDimplot.pdf",
-      plot = InfectedCorMedRegionD7Spatial,
+      plot = InfectedCorMedRegionD0Spatial,
       height = 8,
       width = 8 )
 
-# InfectedCorMedRegionD7SpatialDim<- DimPlot(Pyelonephritis_InfectionSubslidesD0,label = TRUE)
+# InfectedCorMedRegionD0SpatialDim<- DimPlot(Pyelonephritis_InfectionSubslidesD0,label = TRUE)
 # ggsave("Spatial_infectedPelivis_day7_Dimplot.pdf",
-#       plot = InfectedCorMedRegionD7SpatialDim,
+#       plot = InfectedCorMedRegionD0SpatialDim,
 #       height = 3,
 #       width = 4 )
-# InfectedCorMedRegionD7SpatialDim
+# InfectedCorMedRegionD0SpatialDim
 # # define the cell type order
 # # set up the order 
 CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "PT-S1S2-N2","PT-S1S2-N3","InfPT","ProfPT","PC1","PC2","ICA" ,"ICB", "DegCD", "DTL", "TAL","DCT-TAL"  ,"CNT","SMC" ,"URO", "DegURO","FIB" , "END","PL",  "ResMac" , "MONa","MONb", "MACa", "MACb", "NEU"  ,"T" ,"B","NK" )
@@ -273,6 +275,9 @@ CelltypeOrder <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1",  "
 # get the summary of the selected regions
  GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD0)
  summary(GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD0))
+ 
+ SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD0, features = "Cxcl5",pt.size.factor = 1500)
+ SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD0, features = "Cxcr2",pt.size.factor = 1500)
 ```
 # ############################## 
 # Generate the deconvoluted details
@@ -325,7 +330,7 @@ ct
     "#33FFFF", # DTL
     "#b66dff", #TAL
     "#FF9900", #DCT-TAL
-    "#FFD700", # CNT
+    "#FFD000", # CNT
     "#ADE700", # SMC
     "#C5DECD", #URO
     "#66Ff66", #DegURO
@@ -422,7 +427,7 @@ spatial.locs = Seurat::GetTissueCoordinates(Pyelonephritis_InfectionSubslidesD0,
 # Spatial factors of spatial coordinates
 # For 10X Visium, the conversion factor of converting spatial coordinates from Pixels to Micrometers can be computed as the ratio of the theoretical spot size (i.e., 65um) over the number of pixels that span the diameter of a theoretical spot size in the full-resolution image (i.e., 'spot_diameter_fullres' in pixels in the 'scalefactors_json.json' file). 
 # Of note, the 'spot_diameter_fullres' factor is different from the `spot` in Seurat object and thus users still need to get the value from the original json file. 
-scalefactors = jsonlite::fromJSON(txt = file.path("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Datasets/VisiumRun1/acute_pyelo/seurat", 'scalefactors_json.json'))
+scalefactors = jsonlite::fromJSON(txt = file.path("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Datasets/VisiumRun1/control/seurat", 'scalefactors_json.json'))
 spot.size = 65 # the theoretical spot size (um) in 10X Visium
 conversion.factor = spot.size/scalefactors$spot_diameter_fullres
 spatial.factors = data.frame(ratio = conversion.factor, tol = spot.size/2)
@@ -437,7 +442,7 @@ min(d.spatial[d.spatial!=0]) # this value should approximately equal 100um for 1
 
 # create a cellchat object
 cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels",
-                           datatype = "spatial", coordinates = spatial.locs, spatial.factors = spatial.factors)
+                           datatype = "spatial", coordinates = data.matrix(spatial.locs), spatial.factors = spatial.factors)
 cellchat
 #> CellChat analysis of spatial data! The input spatial locations are 
 
@@ -458,7 +463,7 @@ cellchat@DB <- CellChatDB.use
 # Preprocessing the expression data for cell-cell communication analysis
 # subset the expression data of signaling genes for saving computation cost
 cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
-future::plan("multisession", workers = 4) 
+#future::plan("multisession", workers = 10) 
 cellchat <- identifyOverExpressedGenes(cellchat)
 cellchat <- identifyOverExpressedInteractions(cellchat, variable.both = F)
 #> The number of highly variable ligand-receptor pairs used for signaling inference is 648
@@ -476,11 +481,17 @@ print(as.numeric(execution.time, units = "secs"))
 # Compute the communication probability and infer cellular communication network
 ## we set up with a high memory
 
-options(future.globals.maxSize = 89128960000000) 
+# Use multicore on Linux (safer than multisession)
+#plan("multicore", workers = 10)
+
+# Set max future size to 16 GB
+options(future.globals.maxSize = 16 * 1024^3)
+#cellchat <- computeCommunProb(cellchat)
 
 cellchat <- computeCommunProb(cellchat, type = "truncatedMean", trim = 0.1,
                               distance.use = TRUE, interaction.range = 250, scale.distance = 0.01,
                               contact.dependent = TRUE, contact.range = 100)
+?computeCommunProb
 #> truncatedMean is used for calculating the average gene expression per cell group. 
 #> [1] ">>> Run CellChat on spatial transcriptomics data using distances as constraints of the computed communication probability <<< [2024-02-22 10:39:52.098053]"
 #> Molecules of the input L-R pairs are diffusible. Run CellChat in a diffusion manner based on the `interaction.range`.
@@ -502,11 +513,11 @@ cellchat <- aggregateNet(cellchat)
 groupSize <- as.numeric(table(cellchat@idents))
 par(mfrow = c(1,2), xpd=TRUE)
 netVisual_circle(cellchat@net$count, vertex.weight = rowSums(cellchat@net$count), weight.scale = T, label.edge= F, title.name = "Number of interactions")
-pdf(file="Spatial_D7_Overall_netVisual_circle_strength.pdf",height = 5, width = 4)
+pdf(file="Spatial_D0_Overall_netVisual_circle_strength.pdf",height = 5, width = 4)
 netVisual_circle(cellchat@net$weight, vertex.weight = rowSums(cellchat@net$weight), weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
 dev.off()
 #library(ComplexHeatmap)
-pdf(file="Spatial_D7_Overall_NetVisual_interaction_counts.pdf",height = 5, width = 4)
+pdf(file="Spatial_D0_Overall_NetVisual_interaction_counts.pdf",height = 5, width = 4)
 netVisual_heatmap(cellchat, measure = "count", color.heatmap = "Blues")
 dev.off()
 #> Do heatmap based on a single object
@@ -517,7 +528,7 @@ AllPotentialPathways
 pathways.show <- c("TNF")
 par(mfrow=c(1,1), xpd = TRUE) # `xpd = TRUE` should be added to show the title
 # save t
-pdf(file="Spatial_D7_Overall_TNFSignalingNetVisual.pdf",height = 7, width = 5)
+pdf(file="Spatial_D0_Overall_TNFSignalingNetVisual.pdf",height = 7, width = 5)
 #netVisual_aggregate(cellchat, signaling = pathways.show, layout = "circle")
 #dev.off()
 # Compute the network centrality scores
@@ -526,11 +537,12 @@ cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") # the sl
 par(mfrow=c(1,1))
 netAnalysis_signalingRole_network(cellchat, signaling = pathways.show, width = 8, height = 2.5, font.size = 10)
 dev.off()
-CandidatePathways<- c("CCL","CXCL","TNF")
-#CandidatePathways <-cellchat@netP$pathways
+CandidatePathways<-  c("IL1","IL2", "IL4", "IL6", "IL10", "IL12","IL16" , "IL17",  "IFN-II", "TNF",  "CCL", "CXCL", "XCR")
 
-pdf(file="Spatial_D7_Overall_InnateImmuneSignalingNetVisual.pdf",height = 6, width = 4)
-Test<-netAnalysis_contribution(cellchat, signaling = CandidatePathways, sources.use= c("N14"),return.data=T)
+#CandidatePathways <-ellchat@netP$pathways
+
+pdf(file="Spatial_D0_Overall_InnateImmuneSignalingNetVisual.pdf",height = 6, width = 4)
+Test<-netAnalysis_contribution(cellchat, signaling = CandidatePathways, sources.use= c("N10"),return.data=T)
 
 dev.off()
 
@@ -539,6 +551,7 @@ RequestedClusters<- levels(Idents(Pyelonephritis_InfectionSubslidesD0))
 RequestedClusters
 RequestLigendReceptors<-list()
 for (i in RequestedClusters){
+ #i=c("N17")
   Test<-netAnalysis_contribution(cellchat, signaling = CandidatePathways, sources.use= i,return.data=T)
   RequestLigendReceptors[[i]] <- Test$LR.contribution
   
@@ -559,23 +572,23 @@ ClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sa
   geom_bar(position = "dodge", stat = "identity") + theme_classic()+RotatedAxis() 
 ClsContributionPair
 # save the pairs
-ggsave("Spatial_D7_Overall_BarplotClsContributionPair.pdf", plot = ClsContributionPair, height = 5, width = 10)
+ggsave("Spatial_D0_Overall_BarplotClsContributionPair.pdf", plot = ClsContributionPair, height = 5, width = 10)
 
-# we only select the N12, N13, N14, N15, N16, N17
-LimitedClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) ) %>% filter(ClusterName %in% c("N12","N13","N14","N15","N16","N17")) %>% ggplot(aes(x=name, y= contribution, fill =ClusterName)) +
+# we only select the c("N8","N10","N11","N12","N13","N14","N15","N16","N17")
+LimitedClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) ) %>% filter(ClusterName %in% c("N8","N10","N11","N12","N13","N14","N15","N16","N17")) %>% ggplot(aes(x=name, y= contribution, fill =ClusterName)) +
   # Implement a grouped bar chart
   geom_bar(position = "dodge", stat = "identity") + theme_classic()+RotatedAxis() 
 ClsContributionPair
 # save the pairs
-ggsave("Spatial_D7_Overall_BarplotClsContributionPair_Infected.pdf", plot = LimitedClsContributionPair, height = 5, width = 10)
+ggsave("Spatial_D0_Overall_BarplotClsContributionPair_Infected.pdf", plot = LimitedClsContributionPair, height = 5, width = 10)
 
 LimitedClsContributionPairHeatmap<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) )%>% 
-filter(ClusterName %in% c("N12","N13","N14","N15","N16","N17"))%>%
+filter(ClusterName %in% c("N8","N10","N11","N12","N13","N14","N15","N16","N17"))%>%
   ggplot(aes(x=name, y= ClusterName, fill =contribution))+scale_fill_distiller(palette = "Spectral") +geom_tile() +RotatedAxis() 
 LimitedClsContributionPairHeatmap
-ggsave("Spatial_D7_Overall_BarplotClsContributionPair_Infected_heatmap.pdf", plot = LimitedClsContributionPairHeatmap, height = 4, width = 8)
+ggsave("Spatial_D0_Overall_BarplotClsContributionPair_Infected_heatmap.pdf", plot = LimitedClsContributionPairHeatmap, height = 4, width = 8)
 
-#saveRDS(cellchat, file = "cellchat_Spatial_D7_Overall.rds")
+saveRDS(cellchat, file = "cellchat_Spatial_D0_Overall.rds")
 
 # check the pair of the interactions
 
@@ -586,22 +599,22 @@ netVisual_individual(cellchat, signaling = pathways.show,  pairLR.use = pairLR.I
 
 # read the cell chat object
 cellchat@net$prob
-#cellchat <- readRDS("cellchat_Spatial_D7_Overall.rds")
-pdf(file="Spatial_D7_Overall_InnateImmuneSignalingnetVisual_bubble.pdf",height = 8, width = 12)
+cellchat <- readRDS("cellchat_Spatial_D0_Overall.rds")
+pdf(file="Spatial_D0_Overall_InnateImmuneSignalingnetVisual_bubble.pdf",height = 8, width = 12)
 netVisual_bubble(cellchat,  signaling = CandidatePathways, remove.isolate = FALSE)
 dev.off()
 cellchat@net
 # Only for N11,N12, N13, N14, N15,N16,N17
-pdf(file="Spatial_D7_Targets_Overall_InnateImmuneSignalingnetVisual_bubble.pdf",height = 8, width = 12)
-netVisual_bubble(cellchat,  sources.use = c("N12","N13","N14","N15","N16","N17"), targets.use = c("N12","N13","N14","N15","N16","N17"), signaling = CandidatePathways, remove.isolate = T,sort.by.source = T,sort.by.target = T)
+pdf(file="Spatial_D0_Targets_Overall_InnateImmuneSignalingnetVisual_bubble.pdf",height = 8, width = 12)
+netVisual_bubble(cellchat,  sources.use = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"), targets.use = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"), signaling = CandidatePathways, remove.isolate = T,sort.by.source = T,sort.by.target = T)
 dev.off()
 ?netVisual_bubble
 # For the TNF signaling
-pdf(file="Spatial_D7_Overall_TnfspatialFeature.pdf",height = 4.5, width = 4)
+pdf(file="Spatial_D0_Overall_TnfspatialFeature.pdf",height = 4.5, width = 4)
 spatialFeaturePlot(cellchat, features = c("Tnf","Tnfrsf1a"), point.size = 1.2, color.heatmap = "Reds", direction = 1)
 dev.off()
 
-pdf(file="Spatial_D7_Overall_Il1bspatialFeature.pdf",height = 4.5, width = 4)
+pdf(file="Spatial_D0_Overall_Il1bspatialFeature.pdf",height = 4.5, width = 4)
 spatialFeaturePlot(cellchat, features = c("Il1b","Il1r1"), point.size = 1.2, color.heatmap = "Reds", direction = 1)
 dev.off()
 
@@ -614,21 +627,21 @@ netAnalysis_signalingRole_scatter(cellchat, signaling = CandidatePathways)
  ht1<-netAnalysis_signalingRole_heatmap(cellchat, pattern = "outgoing", signaling = CandidatePathways)
  ht1
 ht2<- netAnalysis_signalingRole_heatmap(cellchat, pattern = "incoming", signaling = CandidatePathways)
-pdf(file="Spatial_D7_Overall_outgoincome.pdf",height = 5, width = 12)
+pdf(file="Spatial_D0_Overall_outgoincome.pdf",height = 5, width = 12)
 ht1+ht2
 dev.off()
 
 # we plot the CXCL for vlnPlot
-pdf(file="Spatial_D7_Overall_outgoincome_Violn_CCL.pdf",height = 15, width = 9)
+pdf(file="Spatial_D0_Overall_outgoincome_Violn_CCL.pdf",height = 15, width = 9)
 
 plotGeneExpression(cellchat, signaling = c("CCL"), enriched.only = TRUE, type = "violin")
 dev.off()
-pdf(file="Spatial_D7_Overall_outgoincome_Violn_TNF.pdf",height = 6, width = 9)
+pdf(file="Spatial_D0_Overall_outgoincome_Violn_TNF.pdf",height = 6, width = 9)
 
 plotGeneExpression(cellchat, signaling = c("TNF"), enriched.only = TRUE, type = "violin")
 dev.off()
 
-pdf(file="Spatial_D7_Overall_outgoincome_Violn_CXCL.pdf",height = 9, width = 9)
+pdf(file="Spatial_D0_Overall_outgoincome_Violn_CXCL.pdf",height = 9, width = 9)
 
 plotGeneExpression(cellchat, signaling = c("CXCL"), enriched.only = TRUE, type = "violin")
 dev.off()
@@ -650,9 +663,22 @@ for (j in pairLR.Interested$interaction_name){
   SpatialFeature<- spatialFeaturePlot(cellchat, pairLR.use = j, point.size = 1.2, do.binary = F, cutoff = 0.05, enriched.only = F, color.heatmap = "Reds", direction = 1)
   
   ggsave(paste0(InterespatialFeatureDir,j,"spatialFeaturePlots.pdf"), plot=SpatialFeature, height = 3, width = 6 )
+  SpatialFeature2<- spatialFeaturePlot(cellchat, pairLR.use = j, point.size = 0.8, do.binary = TRUE, cutoff = 0.05, enriched.only = F, color.heatmap = "Reds", direction = 1)
   
+  ggsave(paste0(InterespatialFeatureDir,j,"spatialFeaturePlots_shared.pdf"), plot=SpatialFeature2, height = 3, width = 3 )
 }
 
+requestedPair<- "CXCL5_CXCR2"
+SpatialFeature<- spatialFeaturePlot(cellchat, pairLR.use = requestedPair, point.size = 1.2, do.binary = F, cutoff = 0.05, enriched.only = F, color.heatmap = "Reds", direction = 1)
+ggsave(paste0(InterespatialFeatureDir,"CXCL5_CXCR2_spatialFeaturePlots.pdf"), plot=SpatialFeature, height = 3, width = 6 )
+
+SpatialFeature
+  ggsave(paste0(InterespatialFeatureDir,j,"spatialFeaturePlots.pdf"), plot=SpatialFeature, height = 3, width = 6 )
+
+
+?spatialFeaturePlot
+
+Seurat::SpatialFeaturePlot(Pyelonephritis_InfectionSubslidesD0, features = "Trp53", pt.size.factor = 6000, crop = TRUE)
 ```
 
 
@@ -682,8 +708,8 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
                     "S100a8","S100a9","Il1b", # Neutrophil
                     "C1qa","C1qb","Aif1", # Macrophage
                     "Cxcr6","Cd247","Cd3e", # T cells
-                    "Igkc","Cd79a","Cd79b", # B cells
-                    "Ccl5","Nkg7","Cd7", # NK/Cd8 cells
+                    "Igkc","CD09a","CD09b", # B cells
+                    "Ccl5","Nkg7","CD0", # NK/Cd8 cells
                     "Cx3cr1", "Ccr2", "H2-Ab1", # reactivate 
                  "Nos2","Ifngr1","Il17a","Il1b","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b", #Macrophage 1
                  "Arg1","Il13","Cd163","Mrc1", "Cd68" # Macrophage 2
@@ -1475,7 +1501,7 @@ paletteMartin <- c(
     "#EE4E34", # MalaPT
     "#F5DEB3", # infiPT
     "#BEE5BF", # HybridPT
-    "#FFD700", # CNT
+    "#FFD000", # CNT
     "#bdbdbd", # DTL
     "#b66dff", #TAL
     "#FF9900", #DCT-TAL
@@ -1552,8 +1578,8 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
                     "S100a8","S100a9","Il1b", # Neutrophil
                     "C1qa","C1qb","Aif1", # Macrophage
                     "Cxcr6","Cd247","Cd3e", # T cells
-                    "Igkc","Cd79a","Cd79b", # B cells
-                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+                    "Igkc","CD09a","CD09b", # B cells
+                    "Ccl5","Nkg7","CD0" # NK/Cd8 cells
 )
 
 SpatialD0MarkersDotPlot<- DotPlot(Pyelonephritis_InfectionSubslidesD0, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
@@ -1581,7 +1607,7 @@ setwd(Day7dir)
 
 Pyelonephritis_Infection$orig.ident
 Pyelonephritis_InfectionSubslidesD0 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
+    subset (Pyelonephritis_Infection, orig.ident == "PyeloD0_1")
 Pyelonephritis_InfectionSubslidesD0
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
@@ -1598,30 +1624,30 @@ ggsave("Pyelonephritis_InfectionSubslidesD0Dimplot.pdf", plot =Pyelonephritis_In
 
 # the prediction of the object
 Pyelonephritis_InfectionSubslidesD0[["predictions"]]
-InfectedMat_D7<- t(Pyelonephritis_InfectionSubslidesD0[["predictions"]]@data)
-colnames(InfectedMat_D7) <- ordered (colnames(InfectedMat_D7), levels =CelltypeOrder)
+InfectedMat_D0<- t(Pyelonephritis_InfectionSubslidesD0[["predictions"]]@data)
+colnames(InfectedMat_D0) <- ordered (colnames(InfectedMat_D0), levels =CelltypeOrder)
 # change the order
-InfectedMat_D7<- InfectedMat_D7[ ,CelltypeOrder]
-InfectedMat_D7
+InfectedMat_D0<- InfectedMat_D0[ ,CelltypeOrder]
+InfectedMat_D0
 # for final celltype matrix: 
-InfectedMat_D7CellType<- InfectedMat_D7[,!colnames(InfectedMat_D7) %in% c("max")]
-InfectedMat_D7CellTypeNozero <- InfectedMat_D7CellType[,colSums(InfectedMat_D7CellType)>0]
+InfectedMat_D0CellType<- InfectedMat_D0[,!colnames(InfectedMat_D0) %in% c("max")]
+InfectedMat_D0CellTypeNozero <- InfectedMat_D0CellType[,colSums(InfectedMat_D0CellType)>0]
 
 
 # correlation
-InfectedMat_D7CellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_D7CellTypeNozero)
-InfectedMat_D7CellTypeInteractions<- plotInteractions(InfectedMat_D7CellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
+InfectedMat_D0CellTypeCorrelationMatrix<-plotCorrelationMatrix(InfectedMat_D0CellTypeNozero)
+InfectedMat_D0CellTypeInteractions<- plotInteractions(InfectedMat_D0CellTypeNozero, "heatmap") + scale_fill_gradientn(colors = c("blue", "white", "red"))
 
-ggsave("SpatialScatterPieDay7_CorrelationMatrix.pdf", plot =InfectedMat_D7CellTypeCorrelationMatrix, height = 6, width = 6 )
+ggsave("SpatialScatterPieDay7_CorrelationMatrix.pdf", plot =InfectedMat_D0CellTypeCorrelationMatrix, height = 6, width = 6 )
 
-ggsave("SpatialScatterPieDay7_HeatmapColocalization.pdf", plot =InfectedMat_D7CellTypeInteractions, height = 6, width = 6 )
+ggsave("SpatialScatterPieDay7_HeatmapColocalization.pdf", plot =InfectedMat_D0CellTypeInteractions, height = 6, width = 6 )
 # scatterpie plot
 # scatterpie plot
 # 
-ct <- colnames(InfectedMat_D7CellType)
+ct <- colnames(InfectedMat_D0CellType)
 ct
 # we did not add the low proportion in the scatterpie
-InfectedMat_D7CellType[InfectedMat_D7CellType < 0.01] <- 0
+InfectedMat_D0CellType[InfectedMat_D0CellType < 0.01] <- 0
 paletteMartin <- c(
     "#b6dbff", # HeaPT-S1
     "#99CCFF", # HeaPT-S2
@@ -1632,7 +1658,7 @@ paletteMartin <- c(
     "#EE4E34", # MalaPT
     "#F5DEB3", # infiPT
     "#BEE5BF", # HybridPT
-    "#FFD700", # CNT
+    "#FFD000", # CNT
     "#bdbdbd", # DTL
     "#b66dff", #TAL
     "#FF9900", #DCT-TAL
@@ -1670,8 +1696,8 @@ str(Pyelonephritis_InfectionSubslidesD0)
 #rownames(Pyelonephritis_Infection)
 SpatialScatterPieDay7 <-plotSpatialScatterpie(
   x= Pyelonephritis_InfectionSubslidesD0,
-  y= InfectedMat_D7CellType,
-  cell_types = colnames(InfectedMat_D7CellType),
+  y= InfectedMat_D0CellType,
+  cell_types = colnames(InfectedMat_D0CellType),
     img = TRUE,
     scatterpie_alpha = 1,
     pie_scale = 0.4) +
@@ -1683,9 +1709,9 @@ ggsave("SpatialScatterPieDay7.pdf",plot = SpatialScatterPieDay7, height = 4,widt
 # colnames(DeconvolutedMatrix)
 # ncol(Pyelonephritis_Infection)
 # nrow(DeconvolutedMatrix)
-InfectedMat_D7CellType
+InfectedMat_D0CellType
 pdf(file = "SpatialScatterPieDay7_CellTypeNetwork.pdf", height = 8,width = 8)
-plotInteractions(InfectedMat_D7CellType, "network")
+plotInteractions(InfectedMat_D0CellType, "network")
 dev.off()
 
 Idents(Pyelonephritis_InfectionSubslidesD0)
@@ -1709,13 +1735,13 @@ Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT
                     "S100a8","S100a9","Il1b", # Neutrophil
                     "C1qa","C1qb","Aif1", # Macrophage
                     "Cxcr6","Cd247","Cd3e", # T cells
-                    "Igkc","Cd79a","Cd79b", # B cells
-                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+                    "Igkc","CD09a","CD09b", # B cells
+                    "Ccl5","Nkg7","CD0" # NK/Cd8 cells
 )
 
-SpatialD7MarkersDotPlot<- DotPlot(Pyelonephritis_InfectionSubslidesD0, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
+SpatialD0MarkersDotPlot<- DotPlot(Pyelonephritis_InfectionSubslidesD0, features = Finalcelltypemarkers,cols = "Spectral", dot.scale = 4) +RotatedAxis() +theme(legend.text = element_text(size = 12), legend.title = element_text(size = 8))
 
-ggsave("SpatialD7MarkersDotPlot.pdf", plot = SpatialD7MarkersDotPlot, height = 6, width = 14)
+ggsave("SpatialD0MarkersDotPlot.pdf", plot = SpatialD0MarkersDotPlot, height = 6, width = 14)
 Pyelonephritis_InfectionSubslidesD0
 
 for (i in Finalcelltypemarkers){
@@ -1727,7 +1753,7 @@ for (i in Finalcelltypemarkers){
   
 }
 
-Pdate ="PyeloD7_1"
+Pdate ="PyeloD0_1"
 pdf(paste0(Pdate,"_MeanProp_tidyHeatmap.pdf"),height = 5, width = 6)
   
    MeanPropForHeatmap <-FinalIntergratedTable %>% filter(orig.ident==Pdate) %>% dplyr::select(-c("Row.names",'orig.ident',"max")) %>% group_by(Annotation) %>% summarise_all("mean") %>% remove_rownames %>% column_to_rownames(var="Annotation") %>% as.matrix()
@@ -1747,7 +1773,7 @@ pdf(paste0(Pdate,"_MeanProp_tidyHeatmap.pdf"),height = 5, width = 6)
 setwd(InfCPiedir)
 Pyelonephritis_Infection$orig.ident
 Pyelonephritis_InfectionSubslidesD0 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
+    subset (Pyelonephritis_Infection, orig.ident == "PyeloD0_1")
 Pyelonephritis_InfectionSubslidesD0
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
@@ -1760,7 +1786,7 @@ Pyelonephritis_InfectionSubslidesD0@images[OtherImages] = NULL
 # we here only select the list at day 7 (slide 8)
 
 Pyelonephritis_InfectionSubslidesD0 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
+    subset (Pyelonephritis_Infection, orig.ident == "PyeloD0_1")
 Pyelonephritis_InfectionSubslidesD0
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
@@ -1776,21 +1802,21 @@ SpatialDimPlot(Pyelonephritis_InfectionSubslidesD0)
 # the prediction of the object
 
 Pyelonephritis_InfectionSubslidesD0[["predictions"]]
-InfectedMat_D7<- t(Pyelonephritis_InfectionSubslidesD0[["predictions"]]@data)
-InfectedMat_D7
+InfectedMat_D0<- t(Pyelonephritis_InfectionSubslidesD0[["predictions"]]@data)
+InfectedMat_D0
 # for final celltype matrix: 
-InfectedMat_D7CellType<- InfectedMat_D7[,!colnames(InfectedMat_D7) %in% c("max")]
+InfectedMat_D0CellType<- InfectedMat_D0[,!colnames(InfectedMat_D0) %in% c("max")]
 
 # correlation
-plotCorrelationMatrix(InfectedMat_D7CellType)
-plotInteractions(InfectedMat_D7CellType, "heatmap")
+plotCorrelationMatrix(InfectedMat_D0CellType)
+plotInteractions(InfectedMat_D0CellType, "heatmap")
 
 # scatterpie plot
 # 
-ct <- colnames(InfectedMat_D7CellType)
+ct <- colnames(InfectedMat_D0CellType)
 ct
 # we did not add the low proportion in the scatterpie
-InfectedMat_D7CellType[InfectedMat_D7CellType < 0.1] <- 0
+InfectedMat_D0CellType[InfectedMat_D0CellType < 0.1] <- 0
 # paletteMartin <- c(
 #     "#000000", "#004949", "#009292", "#ff6db6", "#ffb6db", 
 #     "#490092", "#006ddb", "#b66dff", "#6db6ff", "#b6dbff", 
@@ -1806,7 +1832,7 @@ paletteMartin <- c(
     "#EE4E34", # MalaPT
     "#F5DEB3", # infiPT
     "#BEE5BF", # HybridPT
-    "#FFD700", # CNT
+    "#FFD000", # CNT
     "#bdbdbd", # DTL
     "#b66dff", #TAL
     "#FF9900", #DCT-TAL
@@ -1836,8 +1862,8 @@ str(Pyelonephritis_InfectionSubslidesD0)
 #rownames(Pyelonephritis_Infection)
 plotSpatialScatterpie(
   x= Pyelonephritis_InfectionSubslidesD0,
-  y= InfectedMat_D7CellType,
-  cell_types = colnames(InfectedMat_D7CellType),
+  y= InfectedMat_D0CellType,
+  cell_types = colnames(InfectedMat_D0CellType),
     img = TRUE,
     scatterpie_alpha = 1,
     pie_scale = 0.4) +
@@ -1848,7 +1874,7 @@ plotSpatialScatterpie(
 # ncol(Pyelonephritis_Infection)
 # nrow(DeconvolutedMatrix)
 
-plotInteractions(InfectedMat_D7CellType, "network")
+plotInteractions(InfectedMat_D0CellType, "network")
 
 # we only focused on the specific clusters
 Idents(Pyelonephritis_InfectionSubslidesD0)
@@ -1865,7 +1891,7 @@ Idents(Pyelonephritis_InfectionSubslidesD0)
 setwd(InfCorMeddir)
 Pyelonephritis_Infection$orig.ident
 Pyelonephritis_InfectionSubslidesD0 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
+    subset (Pyelonephritis_Infection, orig.ident == "PyeloD0_1")
 Pyelonephritis_InfectionSubslidesD0
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
@@ -1914,10 +1940,10 @@ dev.off()
 
 ```{r}
 # generate the spatial pie plot for this region
-ct <- colnames(InfectedMat_D7CellType)
+ct <- colnames(InfectedMat_D0CellType)
 ct
 # we did not add the low proportion in the scatterpie
-InfectedMat_D7CellType[InfectedMat_D7CellType < 0.1] <- 0
+InfectedMat_D0CellType[InfectedMat_D0CellType < 0.1] <- 0
 # paletteMartin <- c(
 #     "#000000", "#004949", "#009292", "#ff6db6", "#ffb6db", 
 #     "#490092", "#006ddb", "#b66dff", "#6db6ff", "#b6dbff", 
@@ -1933,7 +1959,7 @@ paletteMartin <- c(
     "#EE4E34", # MalaPT
     "#F5DEB3", # infiPT
     "#BEE5BF", # HybridPT
-    "#FFD700", # CNT
+    "#FFD000", # CNT
     "#bdbdbd", # DTL
     "#b66dff", #TAL
     "#FF9900", #DCT-TAL
@@ -2010,7 +2036,7 @@ ggsave("Spatial_infected_day7_InfectedPevRegionD1Interactions.pdf",
 setwd(InfCPiedir)
 Pyelonephritis_Infection$orig.ident
 Pyelonephritis_InfectionSubslidesD0 <-
-    subset (Pyelonephritis_Infection, orig.ident == "PyeloD7_1")
+    subset (Pyelonephritis_Infection, orig.ident == "PyeloD0_1")
 Pyelonephritis_InfectionSubslidesD0
   # there seems to be an error in the susetting, so we removed other igmages
   #names(Pyelonephritis_InfectionSubslides@images)
@@ -2088,10 +2114,10 @@ dev.off()
 
 # scatterpie plot
 # 
-ct <- colnames(InfectedMat_D7CellType)
+ct <- colnames(InfectedMat_D0CellType)
 ct
 # we did not add the low proportion in the scatterpie
-InfectedMat_D7CellType[InfectedMat_D7CellType < 0.1] <- 0
+InfectedMat_D0CellType[InfectedMat_D0CellType < 0.1] <- 0
 # paletteMartin <- c(
 #     "#000000", "#004949", "#009292", "#ff6db6", "#ffb6db", 
 #     "#490092", "#006ddb", "#b66dff", "#6db6ff", "#b6dbff", 
@@ -2107,7 +2133,7 @@ paletteMartin <- c(
     "#EE4E34", # MalaPT
     "#F5DEB3", # infiPT
     "#BEE5BF", # HybridPT
-    "#FFD700", # CNT
+    "#FFD000", # CNT
     "#bdbdbd", # DTL
     "#b66dff", #TAL
     "#FF9900", #DCT-TAL

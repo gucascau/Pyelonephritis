@@ -1,0 +1,229 @@
+---
+title: "SpatialProprocessing_HumanPyelo"
+author: "Xin Wang"
+date: "2025-09-08"
+output: html_document
+---
+```{r}
+library(Seurat)
+library(SeuratData)     # optional
+library(ggplot2)
+#install.packages('arrow') 
+library(arrow)
+library(RColorBrewer)
+```
+
+
+```{r}
+# we only concentrate on the 8um
+# read the control 
+# point to the binned folder for controls
+ControlInputdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/HumanSpatial/Results/SpatialRanger/C1_Ctl/square_008um/"
+
+# Simple: Load10X_Spatial will read counts + spatial image/meta if folder is SpaceRanger-style
+control.sp.obj <- Load10X_Spatial(data.dir = ControlInputdir)
+
+# read the adult 
+AdultInputdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/HumanSpatial/Results/SpatialRanger/E1_Adult_Py/square_008um/"
+adult.sp.obj <- Load10X_Spatial(data.dir = AdultInputdir)
+
+# read the children 
+ChildInputdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/HumanSpatial/Results/SpatialRanger/F1_Child_2_Py/square_008um/"
+child.sp.obj <- Load10X_Spatial(data.dir = ChildInputdir)
+```
+
+# QC 
+```{r}
+setwd("/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/HumanSpatial/Results/Proprocess/")
+# Evaluate the quality of each objects
+spatial_objects <- list(control= control.sp.obj, adult= adult.sp.obj, child= child.sp.obj )
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+CandidateGenes<- c("CYBB","CCR2","FCGR1A","PPARG","NR1H3","S100A8","S100A9","CX3CR1","CD14","CD68","CD163","MRC1","CSF1R","MARCO","CYBA","NCF2","NCF4","RAC1","RAC2","CEACAM8","FUT4","FCGR3B","ITGAM","FCGR3A","MPO","ELANE")
+  feature <- "CYBB"
+feature <- "CCR2"
+feature <- "FCGR1A"
+feature <- "PPARG"
+feature <- "NR1H3"
+# generare the QC evaluation 
+# we only do child
+#for (sample_name in names(spatial_objects)) {
+  #sample_name = "adult"
+  sample_name= "control"
+  sample_name= "child"
+  obj <- spatial_objects[[sample_name]]
+  
+  # Add mitochondrial percentage if not already
+  # Calculate percent.mt if missing
+  if (!"percent.mt" %in% colnames(obj@meta.data)) {
+    obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = "^MT-")
+  }
+  
+  # Filter invalid spots
+  valid_spots <- WhichCells(obj, expression = nFeature_Spatial > 0 &
+                              nCount_Spatial > 0 &
+                              !is.na(percent.mt))
+  obj <- subset(obj, cells = valid_spots)
+  
+  # Create PDF report for this sample
+  pdf(
+    file = paste0(sample_name, "_Spatial_QC_Report.pdf"),
+    width = 12,
+    height = 6
+  )
+  
+  # 1) Violin plots for QC metrics
+  print(VlnPlot(
+    obj,
+    features = c("nFeature_Spatial", "nCount_Spatial", "percent.mt"),
+    ncol = 3,
+    pt.size = 0.1
+  ) +
+    ggtitle(paste0(sample_name, " - QC Violin Plots")))
+  
+  # 3) Spatial feature plots
+  print(
+    SpatialFeaturePlot(obj, features = "nFeature_Spatial", pt.size.factor = 2) + ggtitle(paste0(sample_name, " - nFeature_Spatial"))
+  )
+  print(
+    SpatialFeaturePlot(obj, features = "nCount_Spatial", pt.size.factor = 2) + ggtitle(paste0(sample_name, " - nCount_Spatial"))
+  )
+  print(
+    SpatialFeaturePlot(obj, features = "percent.mt", pt.size.factor = 2) + ggtitle(paste0(sample_name, " - percent.mt"))
+  )
+  
+  dev.off()
+  #DefaultAssay(obj)
+  #obj <- SCTransform(obj, assay = "Spatial", verbose = FALSE)  # creates 'data' slot
+  #obj <- NormalizeData(obj, assay = "Spatial")
+  # generate the NOX2
+  obj <- NormalizeData(obj)
+  obj <- FindVariableFeatures(obj)
+  obj <- ScaleData(obj)
+  #obj <- RunPCA(obj)
+  # get the maxium and minvalue of the gene
+  
+  
+  # Example: plotting CYBB in spatial object
+  
+  # feature <- "CYBB"
+  # feature <- "CCR2"
+  # feature <- "FCGR1A"
+  # feature <- "PPARG"
+  # feature <- "NR1H3"
+  
+  
+  for (feature in CandidateGenes) {
+    # Extract the data and order spots by expression
+    data.use <- FetchData(object = obj, vars = feature)
+    ordered.cells <- rownames(data.use)[order(data.use[[feature]])]
+    
+    # Plot with cells plotted in that order
+    #SpatialFeaturePlot(obj, features = feature, cells.highlight = ordered.cells)
+    
+    Maxvalue <- ceiling(max(obj@assays$Spatial$data[feature, ]))
+    Minvalue <- floor(min(obj@assays$Spatial$data[feature, ]))
+    # pdf(
+    #   file = paste0(sample_name, feature, "_Exp.pdf"),
+    #   width = 12,
+    #   height = 6
+    # )
+    #obj
+     Spatialfeaturerequestgenes <- SpatialFeaturePlot(obj, features = feature , pt.size.factor = 3)
+    #+
+    #+
+    #display.brewer.all()
+    SpatialColors <- colorRampPalette(colors = rev(x = brewer.pal(n = 11, name = "RdBu")))
+    #ggplot2::scale_fill_gradientn(colours = myPalette(6))
+    ggsave(file = paste0(sample_name, feature, "_Exp.pdf"), plot = Spatialfeaturerequestgenes, height = 6, width = 12)
+    Spatialfeaturerequestgenes2 <- SpatialFeaturePlot(obj, features = feature , pt.size.factor = 3) + scale_fill_gradientn(colours=SpatialColors(80))
+     ggsave(file = paste0(sample_name, feature, "_Exp_otherCo.pdf"), plot = Spatialfeaturerequestgenes2, height = 6, width = 12)
+    #dev.off()
+  }
+  
+  #
+  #   pdf(file = paste0(sample_name, "S100A9_Exp.pdf"), width = 12, height = 6)
+  # #obj
+  # SpatialFeaturePlot(obj, features = "S100A9",pt.size.factor = 3)
+  # #+
+  #     #ggplot2::scale_fill_gradientn(colours = myPalette(6))
+  #
+  # dev.off()
+  ? SpatialFeaturePlot
+  #p<-SpatialFeaturePlot(obj, features = "CYBB",pt.size.factor = 5)
+  # check the expression of
+  # Reorder plotting data by expression so low values are drawn first, high on top
+  
+  # Optional: filter low-quality spots (adjust thresholds as needed), This removes empty/background bins but retains most tissue bins.
+  # obj <- subset(obj,
+  #               subset = nFeature_Spatial > 10 &
+  #                 nFeature_Spatial < 10000 &
+  #                 nCount_Spatial > 50 &
+  #                 percent.mt < 60)
+  
+  # Update list with filtered object
+  #spatial_objects[[sample_name]] <- obj
+#}
+
+# we need to filter the low quality reads 
+# Number of features (genes) and total counts (UMIs)
+VlnPlot(control.sp.obj, features = c("nFeature_Spatial", "nCount_Spatial"), ncol = 2)
+# Mitochondrial percentage (if genes prefixed 'mt-')
+control.sp.obj[["percent.mt"]] <- PercentageFeatureSet(control.sp.obj, pattern = "^MT-")
+VlnPlot(control.sp.obj, c("nFeature_Spatial", "nCount_Spatial","percent.mt"), ncol = 3)
+SpatialFeaturePlot(control.sp.obj, c("nFeature_Spatial"),pt.size.factor = 10)
+# the evaluation of the features
+
+
+```
+
+# the expression of CYBB (NOX2)
+```{r}
+
+```
+
+
+```{r}
+control.sp.obj <- subset(control.sp.obj,  subset = nFeature_Spatial > 100 & 
+           nFeature_Spatial < 10000 & 
+           nCount_Spatial > 100 & 
+           percent.mt < 60)
+VlnPlot(control.sp.obj, c("nFeature_Spatial", "nCount_Spatial","percent.mt"), ncol = 3)
+
+SpatialFeaturePlot(control.sp.obj, c("nFeature_Spatial"),pt.size.factor = 40)
+?SpatialFeaturePlot
+# Quick QC and basic workflow
+sp.obj <- SCTransform(sp.obj, assay = "Spatial", verbose = FALSE)   # or NormalizeData + FindVariableFeatures
+sp.obj <- RunPCA(sp.obj, verbose = FALSE)
+sp.obj <- RunUMAP(sp.obj, dims = 1:30)
+sp.obj <- FindNeighbors(sp.obj, dims = 1:30)
+sp.obj <- FindClusters(sp.obj, resolution = 0.4)
+
+# Plot spatial feature or cluster
+SpatialFeaturePlot(sp.obj, features = "nCount_Spatial")       # example
+SpatialDimPlot(sp.obj, label = TRUE)
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

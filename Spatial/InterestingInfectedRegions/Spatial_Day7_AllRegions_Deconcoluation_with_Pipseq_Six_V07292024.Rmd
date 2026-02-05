@@ -198,7 +198,7 @@ DimPlot(Pyelonephritis_Infection)
 
 ```
 # ############################## 
-K# only concentrate on day 7
+s# only concentrate on day 7
 # Overall Regions
 # ############################## 
 ```{r}
@@ -230,7 +230,7 @@ SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7,pt.size.factor = 1500)
 DefaultAssay(Pyelonephritis_InfectionSubslidesD7) <-"Spatial"
 
 # we only select the niches the selected niches
-Pyelonephritis_InfectionSubslidesD7Infected<- subset (Pyelonephritis_InfectionSubslidesD7, idents = c("N12","N13","N14","N15","N16","N17"))
+Pyelonephritis_InfectionSubslidesD7Infected<- subset (Pyelonephritis_InfectionSubslidesD7, idents = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"))
 
 InfectedRegionsSpatialDimPlot<-SpatialDimPlot(Pyelonephritis_InfectionSubslidesD7Infected,pt.size.factor = 1500)
 ggsave("Pyelonephritis_InfectionSubslidesD7Infected_SpatialDimplot.pdf", plot = InfectedRegionsSpatialDimPlot, height = 4, width = 4)
@@ -517,7 +517,7 @@ cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") # the sl
 par(mfrow=c(1,1))
 netAnalysis_signalingRole_network(cellchat, signaling = pathways.show, width = 8, height = 2.5, font.size = 10)
 dev.off()
-CandidatePathways<- c("CCL","CXCL","TNF")
+CandidatePathways<-  c("IL1","IL2", "IL4", "IL6", "IL10", "IL12","IL16" , "IL17",  "IFN-II", "TNF",  "CCL", "CXCL", "XCR")
 #CandidatePathways <-cellchat@netP$pathways
 
 pdf(file="Spatial_D7_Overall_InnateImmuneSignalingNetVisual.pdf",height = 6, width = 4)
@@ -553,7 +553,7 @@ ClsContributionPair
 ggsave("Spatial_D7_Overall_BarplotClsContributionPair.pdf", plot = ClsContributionPair, height = 5, width = 10)
 
 # we only select the N12, N13, N14, N15, N16, N17
-LimitedClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) ) %>% filter(ClusterName %in% c("N12","N13","N14","N15","N16","N17")) %>% ggplot(aes(x=name, y= contribution, fill =ClusterName)) +
+LimitedClsContributionPair<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) ) %>% filter(ClusterName %in% c("N8","N10","N11","N12","N13","N14","N15","N16","N17")) %>% ggplot(aes(x=name, y= contribution, fill =ClusterName)) +
   # Implement a grouped bar chart
   geom_bar(position = "dodge", stat = "identity") + theme_classic()+RotatedAxis() 
 ClsContributionPair
@@ -561,7 +561,7 @@ ClsContributionPair
 ggsave("Spatial_D7_Overall_BarplotClsContributionPair_Infected.pdf", plot = LimitedClsContributionPair, height = 5, width = 10)
 
 LimitedClsContributionPairHeatmap<-FinalRequestedLigandReceptorPairs %>% mutate(ClusterName=sapply(strsplit(rownames(FinalRequestedLigandReceptorPairs), "\\."), `[`, 1) )%>% 
-filter(ClusterName %in% c("N12","N13","N14","N15","N16","N17"))%>%
+filter(ClusterName %in% c("N8","N10","N11","N12","N13","N14","N15","N16","N17"))%>%
   ggplot(aes(x=name, y= ClusterName, fill =contribution))+scale_fill_distiller(palette = "Spectral") +geom_tile() +RotatedAxis() 
 LimitedClsContributionPairHeatmap
 ggsave("Spatial_D7_Overall_BarplotClsContributionPair_Infected_heatmap.pdf", plot = LimitedClsContributionPairHeatmap, height = 4, width = 8)
@@ -584,7 +584,7 @@ dev.off()
 cellchat@net
 # Only for N11,N12, N13, N14, N15,N16,N17
 pdf(file="Spatial_D7_Targets_Overall_InnateImmuneSignalingnetVisual_bubble.pdf",height = 8, width = 12)
-netVisual_bubble(cellchat,  sources.use = c("N12","N13","N14","N15","N16","N17"), targets.use = c("N12","N13","N14","N15","N16","N17"), signaling = CandidatePathways, remove.isolate = T,sort.by.source = T,sort.by.target = T)
+netVisual_bubble(cellchat,  sources.use = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"), targets.use = c("N8","N10","N11","N12","N13","N14","N15","N16","N17"), signaling = CandidatePathways, remove.isolate = T,sort.by.source = T,sort.by.target = T)
 dev.off()
 ?netVisual_bubble
 # For the TNF signaling
@@ -641,6 +641,10 @@ for (j in pairLR.Interested$interaction_name){
   SpatialFeature<- spatialFeaturePlot(cellchat, pairLR.use = j, point.size = 1.2, do.binary = F, cutoff = 0.05, enriched.only = F, color.heatmap = "Reds", direction = 1)
   
   ggsave(paste0(InterespatialFeatureDir,j,"spatialFeaturePlots.pdf"), plot=SpatialFeature, height = 3, width = 6 )
+    
+  SpatialFeature2<- spatialFeaturePlot(cellchat, pairLR.use = j, point.size = 0.8, do.binary = TRUE, cutoff = 0.05, enriched.only = F, color.heatmap = "Reds", direction = 1)
+  
+  ggsave(paste0(InterespatialFeatureDir,j,"spatialFeaturePlots_shared.pdf"), plot=SpatialFeature2, height = 3, width = 3 )
   
 }
 

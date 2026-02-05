@@ -129,12 +129,175 @@ setwd(Outdir)
 SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_Final_Annotated_v08012024.rds"))
 SingleCellObj@meta.data %>% head()
 
+# add the L2 annotation
+# we still think the Inf_PT, and PROF_EPI are T and FIB, not seperate PC1 and PC2
+# 
 
-# check the dimplot
-DimPlot(SingleCellObj, split.by = "DataSet")
-dev.off()
+
+SingleCellObj@meta.data <-
+  SingleCellObj@meta.data %>%mutate(
+    AnnotationL2 =
+      case_when(
+        ImmuneSub %in% c("PTS1-S2-E1") ~ "PT-S1S2-1",
+        #
+        ImmuneSub %in% c("PTS1-S2-E2") ~ "PT-S1S2-2",
+        #
+        ImmuneSub %in% c("PTS3-E1") ~ "PT-S3-1",
+        #
+        ImmuneSub %in% c("PTS3-E2") ~ "PT-S3-2",
+        ImmuneSub %in% c("PC1") ~ "PC",
+        ImmuneSub %in% c("PC2") ~ "PC",
+        ImmuneSub %in% c("InfPT") ~ "T",
+        # B
+        ImmuneSub %in% c("NewPTS1-S2-E1") ~ "PT-S1S2-N1",
+        #
+        ImmuneSub %in% c("NewPTS1-S2-E2") ~ "PT-S1S2-N2",
+        #
+        ImmuneSub %in% c("NewPTS1-S2-E3") ~ "PT-S1S2-N3",
+        ImmuneSub %in% c("Degenerated_URO") ~ "DegURO",
+        ImmuneSub %in% c("PROF_EPI") ~ "FIB",
+        #
+        .default = as.character(ImmuneSub)
+      )
+  )
+
+levels(as.factor(SingleCellObj@meta.data$AnnotationL2))
+# add the L1 annotation
+
+
+
+SingleCellObj@meta.data <-
+  SingleCellObj@meta.data %>%mutate(
+    FinalAnnotation =
+      case_when(
+        ImmuneSub %in% c("PTS1-S2-E1") ~ "PT-S1S2",
+        #
+        ImmuneSub %in% c("PTS1-S2-E2") ~ "PT-S1S2",
+        #
+        ImmuneSub %in% c("PTS3-E1") ~ "PT-S3",
+        #
+        ImmuneSub %in% c("PTS3-E2") ~ "PT-S3",
+        #
+        ImmuneSub %in% c("NewPTS1-S2-E1") ~ "PT-S1S2",
+        #
+        ImmuneSub %in% c("NewPTS1-S2-E2") ~ "PT-S1S2",
+        #
+        ImmuneSub %in% c("NewPTS1-S2-E3") ~ "PT-S1S2",
+        #
+        ImmuneSub %in% c("Degenerated_URO") ~ "URO",
+        ImmuneSub %in% c("PC1") ~ "PC",
+        ImmuneSub %in% c("PC2") ~ "PC",
+        ImmuneSub %in% c("InfPT") ~ "T",
+        # B
+        ImmuneSub %in% c("PROF_EPI") ~ "FIB",
+        #
+        ImmuneSub %in% c("MONa") ~ "MAC",
+        ImmuneSub %in% c("MONb") ~ "MAC",
+        ImmuneSub %in% c("MACa") ~ "MAC",
+        ImmuneSub %in% c("MACb") ~ "MAC",
+        ImmuneSub %in% c("ResMac") ~ "MAC",
+        ImmuneSub %in% c("SMC") ~ "END",
+        .default = as.character(ImmuneSub)
+      )
+  )
+
+SingleCellObj@meta.data$AnnotationL1 = SingleCellObj@meta.data$FinalAnnotation
+levels(as.factor(SingleCellObj@meta.data$AnnotationL1))
+levels(as.factor(SingleCellObj@meta.data$AnnotationL2))
+levels(as.factor(SingleCellObj@meta.data$FinalAnnotation))
+Idents(SingleCellObj) <- "FinalAnnotation"
+length(levels(Idents(SingleCellObj)))
+# set up the order 
+CelltypeOrder <- c("PT-S1S2","PT-S3","DCT-TAL", "TAL", "CNT","DTL","PC","ICA" ,"ICB", "DegCD",  "URO",  "END","FIB" ,"PL","NEU", "MAC", "T" ,"B","NK" )
+
+Idents(SingleCellObj)<- ordered(factor(Idents(SingleCellObj)),levels=CelltypeOrder)
+
+CellTypeDimPlotSplit<-DimPlot(SingleCellObj, label = T, split.by = "DataSet")
+ggsave(filename = "CellTypeDimPlotSplit.pdf", plot = CellTypeDimPlotSplit, width = 18, height = 5)
+CellTypeDimPlot<-DimPlot(SingleCellObj, label = T)
+ggsave(filename = "CellTypeDimPlot.pdf", plot = CellTypeDimPlot, width = 6, height = 5)
+DimPlot(SingleCellObj, label = T)
+FeaturePlot(SingleCellObj, features = "Glul", split.by = "DataSet")
+DotPlot(SingleCellObj,features = "Glul")
+# we change the annotation for 
+SingleCellObj@meta.data %>% head()
+# for the final markers
+Finalcelltypemarkers<- c("Lrp2","Slc34a1","Slc13a3", # Proximal tubule cells (PT)
+                          "Slc5a12", # PTS1
+                     "Cyp4a14", # PTS2
+                     "Slc7a12", # PTS3
+                      "Slc12a3","Pvalb","Wnk1",# Distal connecting tublue (DCT)
+
+                     "Umod","Slc12a1","Cldn10", # Thick ascending limb cells (TAL)
+                      "Klk1","Slc8a1", # Connecting tubule (CNT)
+                     "Slc14a2","Fst","Bst1", # descending thin  limb cells (DTL)
+                     #"Akr1b1","Sh3gl3","Prox1", # ascending thin limb cells (ATL)
+                     #"Enox1","Thsd4", #Macula densa
+                      "Aqp2","Hsd11b2","Scnn1g", # principal cells (PC)
+                    "Atp6v1g3", # Intercalated cells
+                    "Slc4a1","Aqp6","Kit",
+                    "Slc26a4","Hmx2",
+                    "Krt5","Upk1b","Krt14", # Urothelium
+                    "Cdh5","Igfbp3","Pecam1", # Endothelium
+                    "Col3a1","Fbn1","Lum","Col1a1", # Fibroblast
+                    "Ireb2","Alas2","C78334", # Plasmacytoid dentritic cells
+                    "S100a8","S100a9","Il1b", # Neutrophil
+                    "C1qa","C1qb","Aif1", # Macrophage
+                    "Cxcr6","Cd247","Cd3e", # T cells
+                    "Igkc","Cd79a","Cd79b", # B cells
+                    "Ccl5","Nkg7","Cd7" # NK/Cd8 cells
+)
+
+ICAMarkers <- c("Slc26a7","Rcan2","Atp4a","Slc4a1","Aqp6","Kit")
+ICBMarkers<- c("Slc26a4","Hmx2","Spink8")
+MarkerGenesDotPlots<- DotPlot(SingleCellObj, features =  Finalcelltypemarkers, col.min =-0.5, col.max = 3 ) +guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp"))+RotatedAxis()
+ggsave(filename = "MarkerGenesExpression_ClusterAnnotate.pdf", plot = MarkerGenesDotPlots, width = 16, height = 6)
+
+# Summarize the frequency of different cell types
+
+SummarizedCells <- as.data.frame(table(SingleCellObj@meta.data$DataSet, Idents(SingleCellObj)))
+
+OrignalFrequencyCellTypes <-
+  ggplot(data = SummarizedCells , aes(x = Var1, y = Freq, fill= Var2)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(
+    aes(label = Freq),
+    position = position_dodge(width = 0.9),
+    vjust = -0.25,
+    size = 2
+  ) +
+  theme_bw() +
+  theme(
+    panel.border = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.text.x = element_text(
+      angle = 45,
+      vjust = 1,
+      hjust = 1
+    ),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(colour = "black")
+  ) + xlab("Samples") + ylab("Number of cells ")
+
+ggsave(
+  "OrignalFrequencyCells.pdf",
+  plot = OrignalFrequencyCellTypes,
+  width = 8,
+  height = 4
+)
+
+table(SingleCellObj@meta.data$DataSet)/table(SingleCellObj@meta.data$DataSet)
+
+CelltypePropotionWithinTime <- table(SingleCellObj@meta.data$DataSet,Idents(SingleCellObj)) %>% as.data.frame() %>%
+  group_by(Var1) %>%
+  mutate(pct= prop.table(Freq) )  %>% ggplot(aes(x=Var1, y=pct, fill=Var2)) +geom_bar(position="stack", stat="identity") + theme_classic() +scale_y_continuous(labels = scales::percent)
+ggsave("CellTypePropotionWithinTime.pdf", plot = CelltypePropotionWithinTime, width = 4, height = 5.5)
+
+saveRDS(SingleCellObj, file = "Pyelonephritis_singlecell_v012626.RDS")
 
 ```
+
 
 ```{r}
 
@@ -265,6 +428,8 @@ DimPlot(reference)
 # evaluation of predicted labels and manual annatation using marker genes
 ```{r}
 # generate confusinon matrix
+
+
 table(scrna@meta.data $FinalAnnotation,scrna@meta.data $predicted.id)
 # this will show how ofean each predicted label agree with the manual annoation
 conf_mat <- table(scrna@meta.data $FinalAnnotation,scrna@meta.data $predicted.id)
@@ -274,9 +439,3 @@ conf_mat_norm <- prop.table(conf_mat, 1)  # normalize by rows (manual)
 pheatmap(conf_mat_norm, cluster_rows = FALSE, cluster_cols = FALSE)
 
 ```
-
-# we rename the PC1 and PC2
-```{r}
-
-```
-

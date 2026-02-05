@@ -206,8 +206,8 @@ levels(ICPCcellsFinal)
 
 ICPCcellsFinal@meta.data <- ICPCcellsFinal@meta.data %>%   mutate(ICPCAnnot = 
            case_when(SCT_snn_res.0.3 %in% c("0") ~ "DegCD", # PC markers: Aqp2, Hsd11b2, scnn1g
-                     SCT_snn_res.0.3 %in% c("1") ~ "PC", # Seems to be an combined CDs that affected by infection
-                     SCT_snn_res.0.3 %in% c("2") ~ "PC", # Seems to be an combined CDs that affected by infection
+                     SCT_snn_res.0.3 %in% c("1") ~ "PC1", # Seems to be an combined CDs that affected by infection
+                     SCT_snn_res.0.3 %in% c("2") ~ "PC2", # Seems to be an combined CDs that affected by infection
                      SCT_snn_res.0.3 %in% c("3") ~ "ICA", # Seems to be an combined CDs that affected by infection
                      SCT_snn_res.0.3 %in% c("4") ~ "DegCD", # Intercalted Cell A markers: Slc4a1, Aqp6
                      SCT_snn_res.0.3 %in% c("5") ~ "ICB", # Intercalated Cell B markers: Slc26A4, SpinkB
@@ -293,6 +293,37 @@ ggsave(filename = "CollectingDuctMarkersDotPlot2Split_V02132025.pdf", plot = Col
 
 FinalAKICKD_Inflammation_Fibrosis_Markers<- c("Nfkb1","Rela", "Tnf","Tnfrsf1a","Tnfrsf1b", "Il6","Il1b", "Nlrp3","Ccl6","Ccl2","Cxcl10","Cxcl12","Tgfb1","Smad3","Ccn2","Col3a1","Fn1","Acta2","Timp1","Timp2","Mmp2","Mmp7","Cybb","Ripk3","Ripk1","Mlkl")
 
+# requested by Laura for the Notch siganling
+
+########################## Requested by Laura #######################
+# set up into Notch signaling
+setwd(paste0(Outdir,"/Biomarkers/NotchSiganling/"))
+FinalAKICKD_Inflammation_Fibrosis_Markers <- c("Notch1", "Notch2", "Jag1", "Hes1", "Foxi1", "Elf5")
+
+# extract the average expression of these genes
+ICPCcellsFinal@meta.data %>% head()
+# 
+avg_exp_subset_notch <- AverageExpression(ICPCcellsFinal, group.by = "ICPCInfection", features = FinalAKICKD_Inflammation_Fibrosis_Markers)
+
+NotchAverExp<- avg_exp_subset_notch$RNA %>% as.matrix() 
+ICPCInfectedClusterOrderedNew <- c("ICA-0DPI","ICA-3DPI", "ICA-7DPI", "ICA-28DPI", "ICB-0DPI", "ICB-3DPI","ICB-7DPI", "ICB-28DPI",  "PC-0DPI","PC-3DPI", "PC-7DPI", "PC-28DPI","DegCD-0DPI","DegCD-3DPI", "DegCD-7DPI", "DegCD-28DPI")
+
+NotchAverExpNew<- NotchAverExp[,ICPCInfectedClusterOrderedNew]
+NotchAverExp %>% head()
+my_colors <- colorRampPalette(c("blue", "white", "red"))(50)
+pdf("NotchAverExpPheatmap.pdf", height = 4, width = 7)
+pheatmap(NotchAverExpNew,  scale = "row", cluster_rows = F, cluster_cols = F,color = my_colors)
+dev.off()
+
+getwd()
+for (i in FinalAKICKD_Inflammation_Fibrosis_Markers){
+# 
+  FeaturePlots<-FeaturePlot(ICPCcellsFinal, features =  i, order = T) +RotatedAxis()
+  ggsave(paste0(Outdir,"/Biomarkers/NotchSiganling/", i, "_Feature_NotchSignaling.pdf"), plot =FeaturePlots, height =4, width = 5)
+}
+
+
+#Mggsave(filename = "NotchAverExpPheatmap.pdf", plot = NotchAverExpPheatmap, height = 4, width = 6)
 
 FinalInflammation_Fibrosis_markersDotPlot <-
   DotPlot(
@@ -305,7 +336,8 @@ FinalInflammation_Fibrosis_markersDotPlot <-
   #       legend.title = element_text(size = 8))
   #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
 FinalAKICKD_markersDotPlot
-ggsave("FinalInflammation_Fibrosis_markers_IC_DotPlot.pdf", plot =FinalInflammation_Fibrosis_markersDotPlot, height = 5, width = 8 )
+ggsave("FinalInflammation_Fibrosis_markers_IC_DotPlot_Notch.pdf", plot =FinalInflammation_Fibrosis_markersDotPlot, height = 5, width = 5)
+########################## done for Laura #######################
 nfkb_pathway <- c("Nfkb1", "Nfkb2", "Rel", "Relb", "Ikbkb", "Ikbkg", "Chuk", "Traf6", "Myd88", "Il1b", "Tnfa") # Master regulator of cytokine production and immune activation
 nfkb_pathway_markersDotPlot <-
   DotPlot(
