@@ -413,6 +413,8 @@ scrna@meta.data $predicted.id
 # save the reference object
 saveRDS(reference, file = "Mouse_ATLAS_reference.rds")
 DimPlot(reference)
+reference <- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/AnnotationValidation/Mouse_ATLAS_reference.rds")
+reference
 # # another method:
 # library("Seurat")
 # #install.packages("anndata")
@@ -439,3 +441,23 @@ conf_mat_norm <- prop.table(conf_mat, 1)  # normalize by rows (manual)
 pheatmap(conf_mat_norm, cluster_rows = FALSE, cluster_cols = FALSE)
 
 ```
+
+
+```{r}
+SingleCellObj<- readRDS(file =  "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/AnnotationValidation/Pyelonephritis_singlecell_v012626.RDS")
+
+# only share 
+SingleCellObj<- DietSeurat(SingleCellObj, assays = "RNA", dimreducs = c("pca","umap"))
+DimPlot(SingleCellObj)
+SingleCellObj@meta.data %>% head()
+FeaturePlot(SingleCellObj, features = "Cd3e"))
+
+# only provide the final annotation meta data
+SingleCellObj@meta.data<- SingleCellObj@meta.data %>% dplyr::select(orig.ident, nCount_RNA, nFeature_RNA, percent.mt, rDNA, DataSet, FinalAnnotation)
+saveRDS(SingleCellObj, "Pyelonephritis_singlecell_v030426.RDS")
+SingleCellObj<- readRDS(file =  "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/AnnotationValidation/Pyelonephritis_singlecell_v030426.RDS")
+SingleCellObj@meta.data %>% head()
+
+FeaturePlot(SingleCellObj, features = "Upk1b")
+```
+

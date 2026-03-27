@@ -511,7 +511,7 @@ p <- SpatialDimPlot(
 
 ScatterpiePlot<-p +  geom_scatterpie(
     data = df,
-    aes(x = imagecol, y = imagerow, r = 2.5),
+    aes(x = imagecol, y = imagerow, r = 2.8),
     cols = colnames(mat),
     color = NA,
     linewidth = 0,

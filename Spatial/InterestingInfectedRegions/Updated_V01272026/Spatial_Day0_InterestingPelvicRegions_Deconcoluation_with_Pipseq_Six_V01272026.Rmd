@@ -500,7 +500,7 @@ p <- SpatialDimPlot(
 
 ScatterpiePlot<-p +  geom_scatterpie(
     data = df,
-    aes(x = imagecol, y = imagerow, r = 2.5),
+    aes(x = imagecol, y = imagerow, r = 2.8),
     cols = colnames(mat),
     color = NA,
     linewidth = 0,
@@ -516,7 +516,7 @@ ggsave("ScatterpiePlot.pdf", plot = ScatterpiePlot, height = 6, width = 6)
 q<- ggplot() + 
   geom_scatterpie(
     data = df,
-    aes(x = imagecol, y = imagerow, r = 2.5),
+    aes(x = imagecol, y = imagerow, r = 2.8),
     cols = colnames(mat),
     color = NA,        # removes circle outline
     linewidth = 0      # removes slice borders (new ggplot)

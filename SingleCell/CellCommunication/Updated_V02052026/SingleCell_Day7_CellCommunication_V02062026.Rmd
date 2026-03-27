@@ -98,7 +98,7 @@ Scindir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation
 # Spindir ="/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V07292024/"
 
 # The cell-cell communication output directory for day 0:
-Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V02052026/OverallDay7/"
+Outdir = "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V02262026//OverallDay7/"
 
 dir.create(Outdir)
 data_path = "/Users/XXW004/Documents/Projects/LectureForSingleCellGroup/Datasets/NicheNet/"
@@ -161,6 +161,13 @@ Pyelonephritis_InfectionDay7
 nrow(Pyelonephritis_InfectionDay7@meta.data)
 Pyelonephritis_InfectionDay7@meta.data %>% head()
 ### create a cellchat object
+FeaturePlot(SingleCellObj, features = c("Il1b","Il1r1", "Il1rap"), split.by = "FinalCombinedDate")
+FeaturePlot(SingleCellObj, features = c("Il6", "Il6ra"), split.by = "FinalCombinedDate")
+
+DotPlot(SingleCellObj, features = c("Il1b","Il1r1", "Il1rap","Il6", "Il6ra", "Il17a","Il17f","Il17ra","Il17rc")) +RotatedAxis() +coord_flip()
+# we run the normlaization, scarling the data again
+Pyelonephritis_InfectionDay7<- NormalizeData(Pyelonephritis_InfectionDay7)
+Pyelonephritis_InfectionDay7 <- ScaleData(Pyelonephritis_InfectionDay7)
 
 
 cellchat <- createCellChat(object = Pyelonephritis_InfectionDay7, group.by = "FinalCombinedAnnation", assay = "RNA")
@@ -177,15 +184,65 @@ showDatabaseCategory(CellChatDB)
 # subset the expression data of signaling genes for saving computation cost
 cellchat@DB <- CellChatDB
 
+# # Define your cytokine LR pairs with heterodimeric receptors
+# customLR <- data.frame(
+#   ligand = c("Il1b", "Il6", "Il17a"),
+#   receptor = c("Il1r1_Il1rap", "Il6ra_Il6st", "Il17ra_Il17rc"),
+#   ligand.alias = c("Il1b","Il6","Il17a"),
+#   receptor.alias = c("Il1r1_Il1rap","Il6ra_Il6st","Il17ra_Il17rc"),
+#   interaction_name = c("IL1","IL6","IL17"),
+#   pathway_name = c("IL1","IL6","IL17"),
+#   annotation = rep("Secreted Signaling", 3),
+#   stringsAsFactors = FALSE
+# )
+# 
+# colnames(CellChatDB.mouse$interaction)
+# # Append to the database
+# CellChatDB_custom <- cellchat@DB
+# CellChatDB_custom$interaction <- rbind(CellChatDB_custom$interaction,
+#                                       customLR)
+# cellchat@DB <- CellChatDB_custom
+# Check all pathways containing IL6
+CellChatDB$interaction[grep("IL6", CellChatDB$interaction$pathway_name), ]
+
+# Check all interactions for IL1B
+CellChatDB$interaction[grep("Il1b", CellChatDB$interaction$ligand.symbol), ]
+# Force the interactions to be tested
+cellchat@LR$LRsig <- cellchat@DB$interaction
+
+
+CellChatDB.mouse$interaction[
+  grep("Il17", CellChatDB.mouse$interaction$ligand), ]
+CellChatDB.mouse$interaction[grep("Il1b", CellChatDB.mouse$interaction$ligand), ] 
+CellChatDB.mouse$interaction %>% head()
 #Preprocessing the expression data for cell-cell communication analysis
 # subset the expression data of signaling genes for saving computation cost
 #cellchat <- subsetData(cellchat) # This step is necessary even if using the whole 
 cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
-
+?subsetData
 #future::plan("multisession", workers = 4) # do parallel
-
-cellchat <- identifyOverExpressedGenes(cellchat)
+? identifyOverExpressedGenes
+cellchat <- identifyOverExpressedGenes(cellchat, thresh.pc = 0, thresh.fc = 0, thresh.p = 0.1)
 cellchat <- identifyOverExpressedInteractions(cellchat)
+cellchat@var.features$features
+
+cellchat@var.features <- unique(c(cellchat@var.features, 
+                                  c("Il17a","Il17ra","Il17rc",
+                                    "Il6","Il6ra","Il6st",
+                                    "Il1b","Il1r1","Il1rap")))
+
+"Il17a" %in% cellchat@var.features
+"Il17ra" %in% cellchat@var.features
+"Il6" %in% cellchat@var.features
+"Il6ra" %in% cellchat@var.features
+"Il1b" %in% cellchat@var.features
+"Il1r1" %in% cellchat@var.features
+genes_to_check <- c("Il17a","Il17ra","Il17rc",
+                    "Il6","Il6ra","Il6st",
+                    "Il1b","Il1r1","Il1rap")
+# Check which ones are in var.features
+genes_to_check %in% cellchat@var.features
+genes_to_check[genes_to_check %in% cellchat@var.features]
 #> The number of highly variable ligand-receptor pairs used for signaling inference is 692
 levels(cellchat@idents)
 unique(cellchat@idents)
@@ -194,18 +251,26 @@ unique(cellchat@idents)
 
 #### Part II: Inference of cell-cell communication network
 ptm = Sys.time()
-cellchat <- computeCommunProb(cellchat, type = "triMean")
-
+cellchat <- computeCommunProb(
+  cellchat,
+  type = "triMean",
+  raw.use = TRUE,
+  # use raw data (less filtering from scaled data)
+  population.size = TRUE,
+  # adjust for cluster size (recommended)
+ 
+)
+?computeCommunProb
 # save the object of all the cells
 
-saveRDS(cellchat, file = "SingleCell_Date7_Cellchat.rds")
+saveRDS(cellchat, file = "SingleCell_Date7_Cellchat_V022326.rds")
 
 # read the object of date 0
 # cellchat <- readRDS("SingleCell_Date7_Cellchat.rds")
 # read the object
 #cellchat<- readRDS("SingleCellDay7.rds")
 # then we fileterd the cellgroup for cell cell communintion is 10
-cellchat <- filterCommunication(cellchat, min.cells = 3)
+cellchat <- filterCommunication(cellchat, min.cells = 1)
 
 # Then extracte the infered celllular communciation network as a dataframe
 df.net <- subsetCommunication(cellchat)
@@ -240,12 +305,14 @@ for (i in 1:nrow(mat)) {
   mat2[i, ] <- mat[i, ]
   netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
 }
-dev.off()
+dev.off() 
 
 # Part III: Visualization of cell-cell communication network
 cellchat@netP$pathways
+#netAnalysis_signalingRole(cellchat, signaling = "IL1")
+subsetCommunication(cellchat, signaling = "IL10")
+netVisual_aggregate(cellchat, signaling = "IL")
 
-# 
 pathways.show <- c("CXCL","CCL","TNF","TGFb","IGFBP","CDH5","EGF") 
 pathways.show <- c("CXCL","CCL","IFN-II","CD45","CD52","CD86","ICAM") 
 

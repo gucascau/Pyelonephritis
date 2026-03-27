@@ -495,7 +495,7 @@ q<- ggplot() +
                         breaks = names(pal))
 
 
-img <- GetImage(D28CorMedsubcluster, image = "slice8", mode = "raster")
+img <- GetImage(D28CorMedsubcluster, image = "slice9", mode = "raster")
 
 p <- SpatialDimPlot(
   D28CorMedsubcluster,
@@ -506,7 +506,7 @@ p <- SpatialDimPlot(
 
 ScatterpiePlot<-p +  geom_scatterpie(
     data = df,
-    aes(x = imagecol, y = imagerow, r = 2),
+    aes(x = imagecol, y = imagerow, r = 2.7),
     cols = colnames(mat),
     color = NA,
     linewidth = 0,

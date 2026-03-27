@@ -500,11 +500,11 @@ p <- SpatialDimPlot(
 
 ScatterpiePlot<-p +  geom_scatterpie(
     data = df,
-    aes(x = imagecol, y = imagerow, r = 2.5),
+    aes(x = imagecol, y = imagerow, r = 2.8),
     cols = colnames(mat),
     color = NA,
     linewidth = 0,
-    alpha = 0.9
+    alpha = 1.2
   ) +
   scale_fill_manual(values = pal,breaks = names(pal))+
   scale_y_reverse() +

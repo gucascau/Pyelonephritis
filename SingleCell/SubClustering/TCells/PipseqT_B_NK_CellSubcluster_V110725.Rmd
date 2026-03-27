@@ -1113,7 +1113,7 @@ LymphoidCellTypemarkers <- FindAllMarkers(LymphoidcellsUpdatedF,
                 min.pct = 0.25,test.use= "MAST") 
 LymphoidCellTypemarkers<-AllClustermarkers
 write.csv(LymphoidCellTypemarkers,file = "Lymphoidcells_allclustermarkers_Updated.csv")
-
+LymphoidCellTypemarkers<- read.csv("Lymphoidcells_allclustermarkers_Updated.csv")
 # Generate a table for figure
 LymphoidClusterSpecifcUpgeneFreqFigure <-
   table(LymphoidCellTypemarkers$cluster) %>% as.data.frame() %>%
@@ -1151,10 +1151,13 @@ LymphoidClusterSpecifcUpgeneGOenrich <-
     pvalueCutoff=1
   )
 
+saveRDS(LymphoidClusterSpecifcUpgeneGOenrich,"LymphoidClusterSpecifcUpgeneGOenrich.rds")
 ?compareCluster
 write.csv(LymphoidClusterSpecifcUpgeneGOenrich,
           "LymphoidClusterSpecifcUpgeneGOenrich.csv")
 
+LymphoidClusterSpecifcUpgeneGOenrich<- readRDS("LymphoidClusterSpecifcUpgeneGOenrich.rds")
+library(clusterProfiler)
 LymphoidClusterSpecifcUpgeneGOenrichDotPlot <-
   dotplot(
     LymphoidClusterSpecifcUpgeneGOenrich,
@@ -1190,13 +1193,47 @@ write.csv(FinalLymphoidClusterSpecifcUpgeneGOenrichCalculation, file = "FinalLym
 message(">>> select some pathways to show the dotplots...")
 # select some pathways to show
 SelectedPathways<- c("response to superoxide","Toll signaling pathway","Wnt signaling pathway","necroptotic process","JNK cascade","NLRP3 inflammasome complex assembly","response to superoxide","acute-phase response","antimicrobial peptide production","macrophage cytokine production","regulation of respiratory burst","regulation of neutrophil apoptotic process","regulation of macrophage differentiation","regulation of immature T cell proliferation","antigen processing and presentation of endogenous peptide antigen via MHC class I via ER pathway, TAP-independent","regulation of cell cycle G1/S phase transition","apoptotic cell clearance","transforming growth factor beta production","autophagic cell death","coagulation","cellular response to reactive oxygen species","regulation of T-helper 17 cell differentiation","NADPH regeneration","Fc receptor signaling pathway","macrophage chemotaxis","mast cell chemotaxis","immature B cell differentiation","pre-B cell differentiation","response to epidermal growth factor","response to fibroblast growth factor","tissue remodeling")
-dotplot(
-    LymphoidClusterSpecifcUpgeneGOenrich,
-    font.size = 12,
-    label_format = 80,
-    showCategory = SelectedPathways
-  ) +RotatedAxis()
 
+SelectedPathways<- c("T cell differentiation","alpha-beta T cell activation","CD4-positive, alpha-beta T cell activation","CD8-positive, alpha-beta T cell activation","T-helper cell differentiation","T-helper 17 type immune response","natural killer cell activation","B cell activation","immature B cell differentiation","immature T cell proliferation","type II interferon production","interleukin-1 beta production","interleukin-17 production","interleukin-6 production","interleukin-10 production","cell killing","granzyme-mediated programmed cell death signaling pathway","granulocyte chemotaxis","wound healing","defense response to bacterium","toll-like receptor 4 signaling pathway","response to oxidative stress","response to reactive oxygen species","NADPH regeneration","canonical NF-kappaB signal transduction","tumor necrosis factor production","acute inflammatory response","inflammasome-mediated signaling pathway","transforming growth factor beta production","mitophagy","mesenchyme development","Toll signaling pathway","necroptotic process","interleukin-18 production","Notch signaling pathway","antimicrobial peptide production","fibroblast activation","negative regulation of toll-like receptor 4 signaling pathway","response to hydroperoxide","regulation of extracellular matrix organization","immunoglobulin V(D)J recombination")
+
+# reorder the levels
+# Reorder the 'Description' factor levels
+# LymphoidClusterSpecifcUpgeneGOenrich@compareClusterResult$Description <- factor(LymphoidClusterSpecifcUpgeneGOenrich@compareClusterResult$Description, levels = SelectedPathways)
+# 
+# 
+# dotplot(
+#     LymphoidClusterSpecifcUpgeneGOenrich,
+#     font.size = 12,
+#     label_format = 80,
+#     showCategory = SelectedPathwayss,
+#     #orderBy = "Description"
+#   ) +RotatedAxis()
+# ?dotplot
+
+# use our own:
+df <- LymphoidClusterSpecifcUpgeneGOenrich@compareClusterResult
+
+df$Description <- factor(df$Description, levels = SelectedPathways)
+
+TcellFinalFunctionalEnrichments<-ggplot(df, aes(x = Cluster, y = Description)) +
+  geom_point(aes(size = Count, color = p.adjust)) +
+  
+  # 🔥 dotplot-like color
+  scale_color_gradient(
+    high = "red", 
+    low = "blue", 
+    name = "p.adjust",
+    trans = "reverse"   # IMPORTANT: makes low p-values red
+  ) +
+  
+  scale_y_discrete(limits = rev(SelectedPathways)) +
+  
+  theme_bw() +
+  theme(
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+ggsave("TcellFinalFunctionalEnrichments.pdf", plot = TcellFinalFunctionalEnrichments, height = 8, width = 7.5)
 # high conserved pathways
 highconservedpathway<-c("T cell proliferation","T cell differentiation","T cell receptor signaling pathway","myeloid cell homeostasis","myeloid leukocyte activation","myeloid leukocyte differentiation","regulation of adaptive immune response","leukocyte migration","myeloid cell homeostasis","regulation of T cell activation","regulation of T cell differentiation","regulation of T cell receptor signaling pathway","regulation of adaptive immune response")
 highconservedpathwayDotPlot<-dotplot(

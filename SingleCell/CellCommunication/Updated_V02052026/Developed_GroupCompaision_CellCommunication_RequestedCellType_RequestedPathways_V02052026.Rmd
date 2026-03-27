@@ -109,7 +109,8 @@ getwd()
 SingleCellObj <- readRDS(file = paste0(Scindir,"PIPSeq_EpithelialStromaImmMergeObjs_v02052026.rds"))
 SingleCellObj@meta.data %>% head()
 levels(Idents(SingleCellObj))
-# check the dimplot
+
+# check the dimplot 
 DefaultAssay(SingleCellObj) <- "RNA"
 SingleCellObj <- JoinLayers(SingleCellObj)
 SingleCellObj
@@ -172,6 +173,8 @@ CellchatPathwaydetails_named <- lapply(names(CellchatPathwaydetails), function(n
   CellchatPathwaySummarize
 })
 CellchatPathwaydetails_named_combined <- do.call(rbind, CellchatPathwaydetails_named)
+
+CellchatPathwaydetails %>% head()
 
 ```
 
@@ -512,6 +515,16 @@ receptor_celltypes <- c("PT-S1S2-1","PT-S1S2-2","PT-S3-1","PT-S3-2", "PT-S1S2-N1
 output_dir <- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V02052026/PackagesTestForRequested/LymphoidToAll/")
 Interestedpathways_celltocell_dotplots(seurat_obj,  CellchatInteteracome, Cellchatpathways,requested_pathway_tag, requested_pathway, ligand_celltypes_tag, ligand_celltypes,receptor_celltypes_tag,  receptor_celltypes,output_dir)
 
+
+# The interaction between IC PC and immune cells
+ligand_celltypes_tag <- "CollectingDucts"
+ligand_celltypes <- c("PC","ICA" ,"ICB", "DegCD")
+receptor_celltypes_tag<- "ImmuneCells"
+receptor_celltypes <- c("Neu1","Neu2","Neu3","Neu4","Monocytes","Mon-Mφs1","Mon-Mφs2","Dendritic Cells","Res-Mφs1","Res-Mφs2","Res-Mφs3","T-RCM", "Cd8", "Th1", "Treg", "Th17", "gamma-delta T-17 cells","ILC-like cells","iNK cells","cNK cells", "B cells")
+output_dir <- c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/CellCommunication_V02052026/PackagesTestForRequested/CDToImmune/")
+Interestedpathways_celltocell_dotplots(seurat_obj,  CellchatInteteracome, Cellchatpathways,requested_pathway_tag, requested_pathway, ligand_celltypes_tag, ligand_celltypes,receptor_celltypes_tag,  receptor_celltypes,output_dir)
+
+table(seurat_obj@meta.data$FinalCombinedAnnation)
 ```
 
 

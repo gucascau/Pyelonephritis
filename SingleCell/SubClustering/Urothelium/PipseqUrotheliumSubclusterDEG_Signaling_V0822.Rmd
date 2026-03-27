@@ -32,6 +32,7 @@ library(updateR)
 library("sctransform")
 library("ggthemes")
 library(Seurat)
+library(scCustomize)
 
 # BiocManager::install("limma")
 # BiocManager::install("ComplexHeatmap")
@@ -237,6 +238,7 @@ UROcellsDotPlot
 ggsave(filename = "UROcellsDotPlot.pdf", plot = UROcellsDotPlot, height = 4, width = 6)
 
 
+
 # for vlnPlot, we only plot the interesting genes
 UrotheliumInterestMarkers <- c("Krt5","Upk3a","Upk2","Krt15","Krt14","Krt6a","Cd44","Upk1b","Krt18","Krt7","Krt19","Krt20")
 
@@ -339,7 +341,7 @@ UROcells<-readRDS("PIPSeq_UROAnn_v061824.rds")
 
 FinalMarkers <- c("Krt5","Upk3a","Upk2","Krt15","Krt14","Krt6a","Cd44","Upk1b","Krt18","Krt7","Krt19","Krt20")
 # reorder the levels: 
-Idents(UROcells)<-ordered(factor(UROcells@meta.data$UROENDIntegrateAnnot2),levels=c("URO","aURO"))
+Idents(UROcells)<-ordered(factor(UROcells@meta.data$UROAnnotation),levels=c("URO","aURO"))
 
 FinalMarkersDotPlot<-DotPlot(UROcells, features = FinalMarkers)+RotatedAxis()
 
@@ -367,29 +369,30 @@ UROmataAnnotation
 table(UROmataAnnotation$UROAnnotation)
 
 # read the object of scrna with the annotations of the PT, IC PC cells.
-scrna<- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/ICPC_Subclusters/PIPSeq_PTICPCAnnotated_v061824.rds")
+scrna<- readRDS("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/URO_Subclusters/PIPSeq_PTUROAnnotated_v061824.rds")
 scrna@meta.data %>% head()
 ## add this annotation into the meta dataset
 scrna@meta.data <- scrna@meta.data  %>% 
   left_join( UROmataAnnotation %>% rownames_to_column('rn'),by="rn") %>% 
 # then add a new column that change the NA into Raw_cell_type
   # mutate(NewAnnoation = coalesce(PTIntegrateAnnot,Raw_cell_type))
-  mutate(PTICPCENDUROFinalAnn = ifelse(is.na(UROENDIntegrateAnnot), PTICPCFinalAnn,UROENDIntegrateAnnot))
+  mutate(PTUROENDUROFinalAnn = ifelse(is.na(UROENDIntegrateAnnot), PTUROFinalAnn,UROENDIntegrateAnnot))
 ### join the meta data to meta annoation
-levels(as.factor(scrna@meta.data$PTICPCENDUROFinalAnn))
+levels(as.factor(scrna@meta.data$PTUROENDUROFinalAnn))
 
 # set up the row name and identity
 row.names(scrna@meta.data) <- scrna@meta.data$rn
-Idents(scrna) <- scrna@meta.data$PTICPCENDUROFinalAnn
+Idents(scrna) <- scrna@meta.data$PTUROENDUROFinalAnn
 
- DimPlot(scrna,  label = TRUE, pt.size = 0.5)
+ 
+DimPlot(scrna,  label = TRUE, pt.size = 0.5)
 #left_join(rownames_to_column(UUOProjectObject_F@meta.data), MetaAnnotation, by=c("rownames" = "Symbol"))
 
 ### join the meta data to meta annoation
 #UUOProjectObject_F@meta.data %>% mutate(Symbol=rownames(UUOProjectObject_F@meta.data))%>% left_join(MetaAnnotation %>% mutate(Symbol=rownames(MetaAnnotation)), by = 'Symbol')
 
  
- saveRDS(scrna, file = "PIPSeq_PTICPCENDURO_Annotated_v061824.rds")
+ saveRDS(scrna, file = "PIPSeq_PTUROENDURO_Annotated_v061824.rds")
  
  #scrna <- readRDS("PIPSeq_Annotated_v0823.rds")
  
@@ -1299,6 +1302,197 @@ ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2,
 #   ggsave(paste0(i, "_URO_cluster_featurePlot_DateClusterCombined.pdf"), plot = p2, width = 10, height = 5)
 # }
 ```
+
+
+
+# Identify the DEGs comparing aURO to URO
+
+
+# identification of biomarkers in the CD
+```{r}
+setwd(DEGDir)
+AllClustermarkers <- FindAllMarkers(UROcells,
+                min.pct = 0.25,test.use= "MAST") 
+
+#AllClustermarkers
+write.csv(AllClustermarkers, file = "ClusterSpecificGenes.csv")
+
+AllClustermarkers %>% head()
+AllClustermarkers <- read.csv("ClusterSpecificGenes.csv")
+# check the GO enrichments of CD
+AllClustermarkers %>% filter(cluster == "URO") %>%filter(p_val_adj <=0.05 & avg_log2FC>=0.25) %>% nrow()
+AllClustermarkers %>% filter(cluster == "aURO") %>%filter(p_val_adj <=0.05 & avg_log2FC>=0.25) %>% nrow()
+#AllClustermarkers %>% filter(cluster == "ICA") %>% nrow()
+# create a list to store the gene - upregulated genes
+ClusterSpecificGenes <- list()
+ClusterSpecificGenes[["URO"]] <- AllClustermarkers %>% filter(cluster == "URO") %>%filter(p_val_adj <=0.05 & avg_log2FC>=0.25) %>%  pull(gene)
+ClusterSpecificGenes[["aURO"]] <- AllClustermarkers %>% filter(cluster == "aURO") %>% filter(p_val_adj <=0.05 & avg_log2FC>=0.25)%>% pull(gene)
+
+#ClusterSpecificGenes[["CD"]] <- AllClustermarkers %>% filter(cluster == "CD")%>%filter(p_val_adj <=0.05) %>% pull(gene)
+
+# check the CD specific
+#AllClustermarkers %>% filter(cluster == "CD") %>% pull(gene)
+
+# check the top 10 detected biomarkers in each cluster
+UROTop5List<- AllClustermarkers %>% group_by(cluster) %>% slice_max(avg_log2FC, n = 5) %>% pull(gene)
+UROTop5List
+UROTop5MarkersDotPlot <- DotPlot(UROcells, features =  unique(UROTop5List)) +RotatedAxis()
+ggsave(filename = "UROTop10MarkersDotPlot.pdf", plot = UROTop5MarkersDotPlot, width = 8, height =4)
+
+UROTop5MarkersDohetmap <- DoHeatmap(UROcells, features =  unique(UROTop5List))
+
+ggsave(filename = "UROTop5MarkersDoheatmap.pdf", plot = UROTop5MarkersDohetmap, width = 5, height =5)
+UROTop5MarkersDohetmap
+```
+
+
+# For AMP genes
+```{r}
+#c('Rnase4', 'Rnase6', 'Mbd1', 'Mbd2', 'Umod', 'Ltf', 'Camp')
+AMPdir<- paste0(BioMarkerDir,"AMPdir")
+dir.create(AMPdir)
+setwd(AMPdir)
+DefaultAssay(UROcells) <-"RNA"
+AMPCandidates<- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4","Umod", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
+
+AMPCandidatesDotPlot<-DotPlot(UROcells, features = AMPCandidates)+guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() + coord_flip()
+ggsave(filename = "AMPCandidatesDotPlot_V02132025.pdf", plot = AMPCandidatesDotPlot, width = 8, height =6)
+
+UROcells@meta.data%>% head()
+
+AMPCandidates_HeatMap<-DoHeatmap(UROcells, features = AMPCandidates)
+ggsave(filename = "AMPCandidates_HeatMap_V02132025.pdf", plot = AMPCandidates_HeatMap, width = 5, height =5)
+
+FeaturePlot(UROcells, features =  "Defb1" )
+FeaturePlot(UROcells, features =  "Lcn2",  order = T )
+
+FeaturePlot(UROcells, features =  "Rnase4", order=T)
+
+# identify the gene list that expressed 
+AMPCandidatesExp<- c("Camp","Defb1","Reg3g","S100a8","S100a9","Ltf","Lcn2")
+UROcells@assays$SCT@data["Defb1",]
+for (i in AMPCandidates){
+# 
+  # FeaturePlots<-FeaturePlot(UROcells, features =  i, order = T) +RotatedAxis()
+  # ggsave(paste0(Outdir,"/Biomarkers/AMPs/", i, "_Feature_AMP_Markers_Annoatation_V02132025.pdf"), plot =FeaturePlots, height =4, width =5)
+  
+
+    #SingleCellObj @meta.data %>% head()
+    #FeaturePlot(object = SingleCellObj, features = j,split.by = "DataSet")
+     # generate the distribution from the single cells
+    skip_to_next_sc <-FALSE
+    tryCatch(
+      print(UROcells@assays$SCT@data[i, ]),
+      error = function(e) {
+        skip_to_next_sc <<- TRUE
+      }
+    )
+    
+    if (skip_to_next_sc) {
+      next
+    }
+    
+      # use other figure to genreate the feature plot
+    ScMaxvalue <- ceiling(max(UROcells@assays$SCT@data[i, ]))
+    ScMinvalue <- floor(min(UROcells@assays$SCT@data[i, ]))
+    GenesInGOtermMouseSingleCellFeatureDate <-
+      # FeaturePlot(object = SingleCellObj,
+      #             features = j,
+      #             split.by = "DataSet")
+     FeaturePlot_scCustom(seurat_object = UROcells, features = i,split.by = "DataSet",
+colors_use = viridis_plasma_dark_high, na_color = "lightgray")
+    # save the figure into the folder
+    ggsave(
+      filename = paste0(AMPdir, "/", "AMP_Markers_Annoatation_Date_", i, ".pdf"),
+      plot = GenesInGOtermMouseSingleCellFeatureDate,
+      height = 3,
+      width = 12
+    )
+     GenesInGOtermMouseSingleCellFeature <-
+      # FeaturePlot(object = SingleCellObj,
+      #             features = j, cols.use = c("gray","red")) # +  scale_color_viridis_c(limits = c(ScMinvalue, ScMaxvalue))
+     
+     FeaturePlot_scCustom(seurat_object = UROcells, features = i,
+colors_use = viridis_plasma_dark_high, na_color = "lightgray")
+
+         ggsave(
+      filename = paste0(AMPdir, "/", "SingleCell_AMP_",i, ".pdf"),
+      plot = GenesInGOtermMouseSingleCellFeature,
+      height = 3,
+      width = 4
+    )
+  
+  
+}
+
+# we then check the expression profile for the infected date
+
+```
+
+
+
+# The specific pathway and top pathway for the different cell types
+```{r}
+setwd(GOenrichDir)
+# here we used the compared GO to check the specific function
+#ClusterSpecificGenes
+library(clusterProfiler)
+ClusterSpecificGenesCompareCluster <-  compareCluster(geneClusters = ClusterSpecificGenes, fun = "enrichGO", OrgDb = "org.Mm.eg.db",ont="BP",keyType = 'SYMBOL', pvalueCutoff=1)
+
+# ClusterSpecificGenesCompareClustertersim <- clusterProfiler::pairwise_termsim(ClusterSpecificGenesCompareCluster)
+# 
+ClusterSpecificGenesCompareCluster_Dotplot<- dotplot(ClusterSpecificGenesCompareCluster, showCategory = 10,font.size = 10,label_format = 80,by = "geneRatio")+RotatedAxis() +coord_flip()
+
+ggsave(filename = "ClusterSpecificGenesCompareCluster_Dotplot_V02132025.pdf", plot = ClusterSpecificGenesCompareCluster_Dotplot, width = 8, height = 6)
+
+# write the cluster into the GO terms
+write.csv(file = "ClusterSpecificGenesCompareClusterGO__V02132025.csv", ClusterSpecificGenesCompareCluster)
+
+# For the selected GO terms
+SelectedGOterms <- c("regulation of inflammatory response","chemokine production","phagocytosis","neutrophil activation","macrophage chemotaxis","granulocyte migration","Fc receptor mediated stimulatory signaling pathway","insulin receptor signaling pathway","leukocyte cell−cell adhesion","fibroblast migration","fibroblast growth factor receptor signaling pathway","regulation of fibroblast proliferation","cellular respiration","response to hypoxia","NADP metabolic process","hydrogen peroxide catabolic process","reactive oxygen species metabolic process","hydrogen peroxide metabolic process","generation of precursor metabolites and energy","fatty acid metabolic process","organic acid catabolic process","carboxylic acid catabolic process","regulation of cellular pH","intrinsic apoptotic signaling pathway","collecting duct development")
+ClusterSpecificGenesCompareCluster_Dotplot_Selected<- dotplot(ClusterSpecificGenesCompareCluster, showCategory = SelectedGOterms,font.size = 12,label_format = 80,by = "geneRatio") +theme_few()+RotatedAxis() +coord_flip() 
+ClusterSpecificGenesCompareCluster_Dotplot_Selected
+
+ggsave(filename = "ClusterSpecificGenesCompareCluster_Dotplot_Selected_V02132025.pdf", plot = ClusterSpecificGenesCompareCluster_Dotplot_Selected, width = 12, height = 5)
+?dotplot
+# Identification of the specific GO terms in the Comparecluster
+
+ClusterSpecificGenesCompareCluster %>% as_tibble()  %>%  dplyr::distinct(Description, .keep_all=TRUE )
+
+ClusterSpecificGenesCompareCluster %>% as_tibble()  %>% group_by(Cluster) %>% dplyr::distinct(Description, .keep_all=TRUE )
+
+# add the duplicated 
+ClusterSpecificGenesCompareClusterWithUniq<- ClusterSpecificGenesCompareCluster %>% as_tibble() %>% group_by( Description) %>% mutate(is_duplicated = n()>1) 
+
+
+ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE) %>% head()
+UniqueGroupPathway<- ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE)%>% arrange(qvalue) %>% group_by(Cluster) %>% slice_head(n=8) %>% pull(Description)
+
+#ClusterSpecificGenesCompareClusterWithUniq %>% filter(is_duplicated == FALSE)%>% arrange(qvalue) %>% group_by(Cluster)%>% slice_head(n = 5)
+
+UniqueGroupPathwayCompareCluster_Dotplot<- dotplot(ClusterSpecificGenesCompareCluster, showCategory = UniqueGroupPathway,font.size = 12,label_format = 80,by = "geneRatio")
+ggsave(filename = "UniqueGroupPathwayCompareCluster_Dotplot_V02132025.pdf", plot = UniqueGroupPathwayCompareCluster_Dotplot, width = 8, height = 10)
+
+# we specific concentrated on the Phagocytosis genes
+RegulationofPhagocytosisMarkers <- c("Calr","Cyba","Plscr2","Sod1","Rack1")
+
+for (i in RegulationofPhagocytosisMarkers){
+# 
+  FeaturePlots<-FeaturePlot(UROcells, features =  i, split.by = "DataSet" ) +RotatedAxis()
+  ggsave(paste0(Outdir,"/Biomarkers/", i, "_RegulationofPhagocytosisMarkers_V02132025.pdf"), plot =FeaturePlots, height =4, width = 14)
+}
+
+
+TopListCDMarkers <- AllClustermarkers %>% filter(cluster == "CD") %>% head(n=10) %>% pull(gene)
+
+CDMarkerGenesDotPlot<- DotPlot(UROcells, features =TopListCDMarkers) +RotatedAxis()
+
+ggsave(filename = "CDMarkerGenesDotPlot_V02132025.pdf", plot = CDMarkerGenesDotPlot, width = 8, height = 4)
+
+# 
+```
+
 
 
 
