@@ -2,7 +2,7 @@
 title: "Principal/Intecalated Cells Sucluter Analyses"
 author: "Xin Wang"
 date: "2024-02-23"
-description: Principal/Intecalated subclusters analyses:
+description: This script is for Principal/Intecalated subclusters analyses:
   - Recluster of the Principal/Intecalated cells
   - Annotation of subclusters using the candidate markers
   - Psudotime of Principal/Intecalated
@@ -103,7 +103,7 @@ library("scCustomize")
 
 ## Step 2: Set up the workspace environment:
 ```{r}
-rm(list=ls())
+#rm(list=ls())
 Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/OutputRDS/")
 Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/ICPC_Subclusters/Laura_ASN/")
 
@@ -138,7 +138,7 @@ set.seed(10000)
 ```
 
 
-# generate the health cluster of PT cells
+# generate the health cluster of collecting ducts cells
 
 ```{r}
 setwd(Outdir)
@@ -150,8 +150,6 @@ scrna <- readRDS(file = paste0(Indir,"PIPSeq_Annotated_v0823.rds"))
 
 # We only collect the PT cells
 #CellType[CellType$cluster %in% c("1_1","0", "9","12","18", "19","3"),2] <- "PT" # "Proximal tubule"
-
-scrna @meta.data
 
 ICPCcells <- subset(scrna, subset = (Raw_cell_type == "PC" |Raw_cell_type == "IC"))
 

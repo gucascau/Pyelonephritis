@@ -103,7 +103,7 @@ library("scCustomize")
 
 ## Step 2: Set up the workspace environment:
 ```{r}
-rm(list=ls())
+#rm(list=ls())
 Indir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/OutputRDS/")
 Outdir =c("/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/ICPC_Subclusters_v102425/")
 
