@@ -159,12 +159,10 @@ ICPCcells <- subset(scrna, subset = (Raw_cell_type == "PC" |Raw_cell_type == "IC
 nrow(ICPCcells@meta.data)
 
 
-# We then recluster the Immune cells
+# We then recluster the collecting ducts
 # recluster the cells
 ICPCcells <- SCTransform(ICPCcells, verbose = TRUE)
 ICPCcells <- RunPCA(ICPCcells,npcs = 10, verbose = TRUE)
-
-# Run harmony for the Immune cells
 ICPCcells <- RunHarmony(ICPCcells, 
 				group.by.vars = c("DataSet"), 
 				reduction = "pca", assay.use = "SCT", reduction.save = "harmony")
