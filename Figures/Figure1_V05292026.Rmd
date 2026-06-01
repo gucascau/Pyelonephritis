@@ -51,7 +51,11 @@ library(dplyr)
 Indir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
 Outdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure1/"
 dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+setwd(Outdir)
+
+
 ```
+
 
 ## Load data
 
@@ -99,12 +103,9 @@ fig1c_panels <- lapply(available_images, function(sl) {
     pt.size.factor = pt_sz,
     crop           = TRUE,
     label          = TRUE,
-    label.size     = 2,
+    label.size     = 3,
   )
-  # coord_cartesian() replaces the internal coord_fixed() that SpatialDimPlot
-  # sets based on tissue dimensions, allowing cowplot to stretch each panel to
-  # exactly the same size
-  p + theme(legend.position = "none")
+  p + theme(legend.position = "none") + coord_cartesian()
 })
 
 # Extract a shared legend from the first panel (with legend visible)
@@ -128,7 +129,7 @@ Fig1cSpatialDimPlot <- cowplot::plot_grid(
 ggsave(
   filename = paste0(Outdir, "Figure1C_SpatialDimPlot.pdf"),
   plot     = Fig1cSpatialDimPlot,
-  width    = 16,
+  width    = 24,
   height   = 4
 )
 
@@ -231,10 +232,14 @@ Fig1FProgenyHeatmap <- pheatmap(
   treeheight_row = 0
 )
 
-pdf(file = paste0(Outdir, "Figure1F_PROGENy_Heatmap.pdf"), width = 6, height = 4)
+pdf(file = paste0(Outdir, "Figure1F_PROGENy_Heatmap.pdf"), width = 4.5, height = 4)
 print(Fig1FProgenyHeatmap)
 dev.off()
+# save the object
+saveRDS(Pyelonephritis_Infection, file = paste0(Indir, "Pyelonephritis_Infection_Decovoluted_with_PROGENy_v05292026.rds"))
+
 ```
+
 
 
 # Figure 1G: Heatmap of infection-associated pathway enrichment across the 17 niches
@@ -335,8 +340,13 @@ Pyelonephritis_Infection <- AddModuleScore(
     "Apoptosis"
   )
 )
-ColumnOrders<- colnames(Pyelonephritis_Infection@meta.data)[20:36]
-ColumnOrders
+ColumnOrders<- colnames(Pyelonephritis_Infection@meta.data)[41:57]
+paletteLength <- length(ColumnOrders)
+
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+# Pyelonephritis_Infection@meta.data %>% head()
 # create a data frame for dotplot from metadata
 df<- Pyelonephritis_Infection@meta.data %>% 
   dplyr::select(Annotation, ColumnOrders) %>% pivot_longer(cols = starts_with("Amp"):starts_with("Apopto"), 
@@ -369,8 +379,6 @@ FinalPathwayAvergeExp<-df %>% dplyr::select(Annotation, Pathway, avg_score)%>% p
 FinalPathwayAvergeExpTable<- FinalPathwayAvergeExp[,-1] %>% as.data.frame()
 rownames(FinalPathwayAvergeExpTable) <-FinalPathwayAvergeExp$Annotation
 FinalPathwayAvergeExpTable
-myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
-
 
 FinalPathwayAvergeExpTable <- FinalPathwayAvergeExpTable[,ColumnOrders]
 FinalPathwayAvergeExpTable
@@ -382,7 +390,7 @@ FinalPathwayAvergepheatmap<-pheatmap(t(FinalPathwayAvergeExpTable),fontsize=12,
                         treeheight_col = 0,  border_color = NA, treeheight_row=0) 
 
 ggsave(
-      filename = "FinalPathwayAvergepheatmap.pdf",
+      filename = "Figure1G_1gFinalPathwayAvergepheatmap.pdf",
       plot = FinalPathwayAvergepheatmap,
       height = 4,
       width = 6
@@ -412,7 +420,7 @@ for (m in ColumnOrders) {
       ) &
       ggplot2::scale_fill_gradientn(colours = myPalette(4),
                                     limits = c(Minvalue, Maxvalue))
-    GenesInGOtermMouseSpatialFeature
+    
     # save the figure into the folder
     ggsave(
       filename = paste0("Spatial",m,"PathwayscoreFeaturePlot.pdf"),
@@ -423,7 +431,6 @@ for (m in ColumnOrders) {
   
 }
 
-
 ```
 
 Fig1H: SpatailFeaturePlots for the TNF-α, NF-κB, hypoxia, antimicrobial peptide, inflammatory response, and apoptotic pathways across timepoints (Day 0, 1, 3, 5, 7, and 28)
@@ -433,7 +440,7 @@ Fig1H: SpatailFeaturePlots for the TNF-α, NF-κB, hypoxia, antimicrobial peptid
 ProgenyFeatures <- levels(factor(acts$source))
 ProgenyFeatures
 for (i in ProgenyFeatures ){
-  p2 <-SpatialFeaturePlot(Pyelonephritis_Infection, features = i) +
+  p2 <-SpatialFeaturePlot(Pyelonephritis_Infection, features = i, pt.size.factor = 1600) +
   ggtitle(paste0(i," activity")) &
           ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
   
@@ -441,3 +448,9 @@ for (i in ProgenyFeatures ){
 }
 
 ```
+
+ 
+ ```{r}
+ # save the object that contain progeny
+saveRDS(Pyelonephritis_Infection, file = paste0(Indir, "Pyelonephritis_Infection_Decovoluted_with_PROGENyCandidatePath_v05292026.rds"))
+ ```
