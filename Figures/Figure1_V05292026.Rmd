@@ -1,0 +1,443 @@
+---
+title: "Figure 1 murine multi-omics spatial atlas of acute pyelonephritis"
+author: "Xin Wang"
+date: "2026-05-29"
+output: html_document
+description: "Code to generate Figure 1 panels C-H for the murine multi-omics spatial atlas of acute pyelonephritis manuscript."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Overview
+
+Figure 1C: 
+(C) Seventeen molecular niches (N1–N17) identified by unsupervised clustering of spatial transcriptomic spots, projected onto representative tissue sections across timepoints.
+(D) UMAP visualization of the spatial distribution of the 17 molecular niches. 
+(E) UMAP highlighting infection-associated niches (IANs), which expand over the course of infection. 
+(F) Heatmap of PROGENy pathway activity scores across the 17 molecular niches. 
+(G) Heatmap of infection-associated pathway enrichment (e.g., AMPs, TLR signaling, complement, neutrophil recruitment, interferon-γ response, TNF signaling, inflammatory response, angiogenesis, EMT, myogenesis, epithelial–mesenchymal transition, ROS, apoptosis) across the 17 niches. (H) Spatial feature plots showing tissue-level activation of the TNF-α, NF-κB, hypoxia, antimicrobial peptide, inflammatory response, and apoptotic pathways across timepoints (Day 0, 1, 3, 5, 7, and 28).
+
+Input:  Deconvolution_Six_V01262026/Pyelonephritis_Infection_Decovoluted_v01262026.rds
+Output: Results/Figures/Figure1/
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(RColorBrewer)
+library(cowplot)
+library(decoupleR)
+library(pheatmap)
+# BiocManager::install("GSVA")
+# BiocManager::install("GSEABase")
+library(GSVA)
+library(GSEABase)
+# Using msigdbr to pull hallmark angiogenesis genes
+library(msigdbr)
+library(dplyr)
+
+```
+
+## Directories
+
+```{r directories}
+Indir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
+Outdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure1/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Load data
+
+```{r load-data}
+Pyelonephritis_Infection <- readRDS(file = paste0(Indir, "Pyelonephritis_Infection_Decovoluted_v01262026.rds"))
+Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
+
+# Set identity to niche annotation
+Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$Annotation
+
+# Verify niche labels
+levels(as.factor(Pyelonephritis_Infection@meta.data$Annotation))
+```
+
+## Representative slices and timepoint labels
+```{r slice-setup}
+# Six representative sections, one per timepoint
+# slice1=D0, slice3=D1, slice4=D3, slice7=D5, slice8=D7, slice9=D28
+selected_slices  <- c("slice1", "slice3", "slice4", "slice7", "slice8", "slice9")
+timepoint_labels <- c("Day 0", "Day 1", "Day 3", "Day 5", "Day 7", "Day 28")
+names(timepoint_labels) <- selected_slices
+
+# Confirm images exist in the object
+available_images <- Images(Pyelonephritis_Infection)
+cat("Available images:", paste(available_images, collapse = ", "), "\n")
+cat("Requested slices:", paste(selected_slices, collapse = ", "), "\n")
+```
+
+## Figure 1C-E: SpatialDimPlot for each section, DimPlot for UMAP visualization and infection-associated niches (IANs)
+
+```{r fig1-E-individual-panels-setup}
+# Figure 1C: SpatialDimPlot for representative sections across timepoints
+
+pt_size_map <- c(
+  slice1 = 1800, slice3 = 1800, slice4 = 1600,
+  slice7 = 1600, slice8 = 1800, slice9 = 1800
+)
+
+fig1c_panels <- lapply(available_images, function(sl) {
+  pt_sz <- if (sl %in% names(pt_size_map)) pt_size_map[[sl]] else 1800
+  p <- SpatialDimPlot(
+    Pyelonephritis_Infection,
+    images         = sl,
+    #cols          = niche_colors,
+    pt.size.factor = pt_sz,
+    crop           = TRUE,
+    label          = TRUE,
+    label.size     = 2,
+  )
+  # coord_cartesian() replaces the internal coord_fixed() that SpatialDimPlot
+  # sets based on tissue dimensions, allowing cowplot to stretch each panel to
+  # exactly the same size
+  p + theme(legend.position = "none")
+})
+
+# Extract a shared legend from the first panel (with legend visible)
+legend_plot <- SpatialDimPlot(
+  Pyelonephritis_Infection,
+  images         = available_images[1],
+  pt.size.factor = 1800,
+  crop           = TRUE,
+  label          = FALSE,
+) + theme(legend.position = "right")
+shared_legend <- cowplot::get_legend(legend_plot)
+
+# cowplot::plot_grid forces every panel into equal-sized slots regardless
+# of the coord_fixed() that SpatialDimPlot sets internally
+panels_row <- cowplot::plot_grid(plotlist = fig1c_panels, nrow = 1)
+
+Fig1cSpatialDimPlot <- cowplot::plot_grid(
+  panels_row, shared_legend,
+  nrow = 1, rel_widths = c(length(fig1c_panels), 0.8)
+)
+ggsave(
+  filename = paste0(Outdir, "Figure1C_SpatialDimPlot.pdf"),
+  plot     = Fig1cSpatialDimPlot,
+  width    = 16,
+  height   = 4
+)
+
+# Figure 1D: UMAP visualization of the 17 molecular niches
+Fig1DDimPlot<- DimPlot(
+  Pyelonephritis_Infection,
+  reduction = "umap",
+  #cols      = niche_colors,
+  label     = TRUE,
+  repel     = TRUE) 
+
+ggsave (
+  filename = paste0(Outdir, "Figure1D_UMAP.pdf"),
+  plot     = Fig1DDimPlot,
+  width    = 5,
+  height   = 4
+)
+
+# Figure 1E: Highlighting infection-associated niches (IANs) in the UMAP. Based on the spatial distribution and temporal dynamics,
+# we only select N12, N13, N14, N15, N16, and N17 as infection-associated niches (IANs)
+# 
+Selected_niches <- paste0("N", c(8,10:17))
+Idents(Pyelonephritis_Infection)
+Pyelonephritis_InfectionSub <- subset(Pyelonephritis_Infection, idents = Selected_niches)
+
+Fig1EDimPlot<- DimPlot(Pyelonephritis_InfectionSub, label     = TRUE, repel     = TRUE)
+ggsave (
+  filename = paste0(Outdir, "Figure1E_UMAP_IANs.pdf"),
+  plot     = Fig1EDimPlot,
+  width    = 5,
+  height   = 4
+)
+
+```
+
+
+## Figure 1F: Heatmap of PROGENy pathway activity scores across the 17 molecular niches
+
+```{r fig1f-progeny-heatmap}
+# Reset assay and identities in case a previous chunk changed them
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$Annotation
+
+# Fetch PROGENy model (mouse, top 500 footprint genes)
+net <- decoupleR::get_progeny(organism = "mouse", top = 500)
+
+# Extract SCT normalized counts and run MLM activity inference
+mat  <- as.matrix(GetAssayData(Pyelonephritis_Infection, assay = "SCT", layer = "data"))
+acts <- run_mlm(mat = mat, net = net, .source = "source", .target = "target",
+                .mor = "weight", minsize = 5)
+
+# Store scores as a new assay and scale
+Pyelonephritis_Infection[["pathwaysmlm"]] <- acts %>%
+  pivot_wider(id_cols = "source", names_from = "condition", values_from = "score") %>%
+  column_to_rownames("source") %>%
+  Seurat::CreateAssayObject(.)
+DefaultAssay(Pyelonephritis_Infection) <- "pathwaysmlm"
+Pyelonephritis_Infection <- ScaleData(Pyelonephritis_Infection)
+
+# Average scaled activity per niche × pathway
+df <- t(as.matrix(GetAssayData(Pyelonephritis_Infection, assay = "pathwaysmlm",
+                                layer = "scale.data"))) %>%
+  as.data.frame() %>%
+  mutate(cluster = Idents(Pyelonephritis_Infection)) %>%
+  pivot_longer(cols = -cluster, names_to = "source", values_to = "score") %>%
+  group_by(cluster, source) %>%
+  summarise(mean = mean(score), .groups = "drop")
+
+# Wide matrix rows = niches, cols = pathways; transpose for heatmap
+top_acts_mat <- df %>%
+  pivot_wider(id_cols = "cluster", names_from = "source", values_from = "mean") %>%
+  column_to_rownames("cluster") %>%
+  as.matrix()
+
+# Order pathways (rows) and niches (columns)
+PathwayOrder      <- c("TNFa", "NFkB", "JAK-STAT", "p53", "Hypoxia", "Trail",
+                       "PI3K", "EGFR", "MAPK", "WNT", "TGFb", "VEGF", "Estrogen")
+NichesOrder       <- paste0("N", 1:17)
+ProgenyHeatmapMat <- t(top_acts_mat)[PathwayOrder, NichesOrder]
+
+# Symmetric color scale centered on 0 (activity z-scores range ≈ −2 to 2)
+palette_length <- 100
+my_color  <- colorRampPalette(c("royalblue", "white", "firebrick3"))(palette_length)
+my_breaks <- c(seq(-2, 0,    length.out = ceiling(palette_length / 2) + 1),
+               seq(0.05, 2,  length.out = floor(palette_length / 2)))
+
+Fig1FProgenyHeatmap <- pheatmap(
+  ProgenyHeatmapMat,
+  fontsize       = 8,
+  fontsize_row   = 8,
+  show_rownames  = TRUE,
+  cluster_cols   = FALSE,
+  cluster_rows   = FALSE,
+  color          = my_color,
+  breaks         = my_breaks,
+  main           = "PROGENy (500)",
+  angle_col      = 45,
+  border_color   = NA,
+  treeheight_col = 0,
+  treeheight_row = 0
+)
+
+pdf(file = paste0(Outdir, "Figure1F_PROGENy_Heatmap.pdf"), width = 6, height = 4)
+print(Fig1FProgenyHeatmap)
+dev.off()
+```
+
+
+# Figure 1G: Heatmap of infection-associated pathway enrichment across the 17 niches
+```{r fig1g-infectedCandidatePathways-heatmap}
+# Here we curated the pathways based on the literature, including antimicrobial peptides (AMPs), TLR signaling, complement, neutrophil recruitment, interferon-γ response, TNF signaling, inflammatory response, angiogenesis, EMT, myogenesis, epithelial–mesenchymal transition, ROS, apoptosis, and necroptosis. We also included hallmark gene sets for angiogenesis, TGF-β signaling, epithelial–mesenchymal transition (EMT), and myogenesis from the MSigDB database.
+
+# Query hallmark gene sets for mouse using msigdbr
+msig <- msigdbr(species = "Mus musculus", category = "H")  # H = Hallmark
+msig %>% pull(gs_name) %>% table()
+hallmark_angiogenesis <- msig %>% filter(gs_name == "HALLMARK_ANGIOGENESIS") %>% pull(gene_symbol)
+hallmark_tgfb <- msig %>% filter(gs_name == "HALLMARK_TGF_BETA_SIGNALING") %>% pull(gene_symbol)
+hallmark_em <- msig %>% filter(gs_name == "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION") %>% pull(gene_symbol)
+hallmark_myogenesis <- msig %>% filter(gs_name == "HALLMARK_MYOGENESIS") %>% pull(gene_symbol)
+# Examples:
+hallmark_inflam <- msig %>% filter(gs_name == "HALLMARK_INFLAMMATORY_RESPONSE") %>% pull(gene_symbol)
+hallmark_ifn_gamma <- msig %>% filter(gs_name == "HALLMARK_INTERFERON_GAMMA_RESPONSE") %>% pull(gene_symbol)
+hallmark_tnfa <- msig %>% filter(gs_name == "HALLMARK_TNFA_SIGNALING_VIA_NFKB") %>% pull(gene_symbol)
+hallmark_ros <- msig %>% filter(gs_name == "HALLMARK_REACTIVE_OXYGEN_SPECIES_PATHWAY") %>% pull(gene_symbol)
+hallmark_hypoxia <- msig %>% filter(gs_name == "HALLMARK_HYPOXIA") %>% pull(gene_symbol)
+hallmark_Apoptosis <- msig %>% filter(gs_name == "HALLMARK_APOPTOSIS") %>% pull(gene_symbol)
+
+ifn_response <- c("Irf7", "Stat1", "Ifit1", "Ifit2", "Ifit3", "Isg15", "Oas1a", "Mx1") # Type I Interferon Response Response to viral and some bacterial PAMPs
+nfkb_pathway <- c("Nfkb1", "Nfkb2", "Rel", "Relb", "Ikbkb", "Ikbkg", "Chuk", "Traf6", "Myd88", "Il1b", "Tnfa") # Master regulator of cytokine production and immune activation
+amp_genes <- c("Lcn2", "Defb1", "Defb4", "Camp", "S100a8", "S100a9", "Slpi", "Reg3g", "Nos2")
+neutrophil_recruitment <- c("Cxcl1", "Cxcl2", "Cxcr2", "Il1b", "Tnf", "S100a8", "S100a9", "Nlrp3", "Ptx3")
+complement_pathway <- c("C1qa", "C1qb", "C1qc", "C3", "C5", "Cfb", "Cfh", "Cfd", "Cd55", "Cd59a")
+# Query mouse necroptosis pathway
+necroptosispathway_id <- "mmu04217"
+library(KEGGREST)
+Necropathway_info <- keggGet(necroptosispathway_id)
+# Extract gene symbols
+necroptosisgene_entries <- Necropathway_info[[1]]$GENE
+necroptosismouse_genes <- necroptosisgene_entries[seq(2, length(necroptosisgene_entries), 2)]  # Every 2nd entry is the gene symbol
+necroptosismouse_genes
+necroptosismouse_genessymbol <- unique(sub("; .*", "", necroptosismouse_genes))  # Clean extra annotation
+# 
+tlr_id <- "mmu04620"
+tlrpathway_info <- keggGet(tlr_id)
+# Extract gene symbols
+tlrgene_entries <- tlrpathway_info[[1]]$GENE
+tlrmouse_genes <- tlrgene_entries[seq(2, length(tlrgene_entries), 2)]  # Every 2nd entry is the gene symbol
+tlrmouse_genes
+tlr_pathway <- unique(sub("; .*", "", tlrmouse_genes))  # 
+tlr_pathway
+
+cytokine_id <- "mmu04060"
+cytokinepathway_info <- keggGet(cytokine_id)
+# Extract gene symbols
+cytokinegene_entries <-cytokinepathway_info[[1]]$GENE
+cytokinemouse_genes <- cytokinegene_entries[seq(2, length(cytokinegene_entries), 2)]  # Every 2nd entry is the gene symbol
+cytokinemouse_genes
+cytokine_pathway <- unique(sub("; .*", "", cytokinemouse_genes))  # 
+cytokine_pathway
+#cytokine_pathway <- c("Cxcl1", "Cxcl2", "Cxcl10", "Il6", "Il1b", "Tnf", "Ccl2", "Ccl5", "Il10ra", "Il18r1") ## KEGG pathway: mmu04060
+
+# Add module scores for each pathway
+
+DefaultAssay(Pyelonephritis_Infection) <-"SCT"
+
+Pyelonephritis_Infection <- AddModuleScore(
+  Pyelonephritis_Infection,
+  features = list(
+    amp_genes,
+    tlr_pathway,
+    nfkb_pathway,
+    neutrophil_recruitment,
+    cytokine_pathway,
+    complement_pathway,
+    necroptosismouse_genessymbol,
+    hallmark_tnfa,
+    hallmark_ifn_gamma,
+    hallmark_inflam,
+    hallmark_angiogenesis,
+    hallmark_tgfb,
+    hallmark_em,
+    hallmark_myogenesis,
+    hallmark_ros,
+    hallmark_hypoxia,
+    hallmark_Apoptosis
+  ),
+  name = c(
+    "Amp",
+    "TLRSignaling",
+    "NFKB",
+    "Cytokine",
+    "NeutrophilRecruitment",
+    "ComplementPathway",
+    "Necroptosis",
+    "TNFASignaling",
+    "InterferonGammaResponse",
+    "InflammatoryResponse",
+    "angiogenesis",
+    "tgfbsignal",
+    "epithelialmesenchymaltransition",
+    "myogenesis",
+    "ROS",
+    "Hypoxia",
+    "Apoptosis"
+  )
+)
+ColumnOrders<- colnames(Pyelonephritis_Infection@meta.data)[20:36]
+ColumnOrders
+# create a data frame for dotplot from metadata
+df<- Pyelonephritis_Infection@meta.data %>% 
+  dplyr::select(Annotation, ColumnOrders) %>% pivot_longer(cols = starts_with("Amp"):starts_with("Apopto"), 
+               names_to = "Pathway", values_to = "Score") %>% 
+  group_by(Annotation, Pathway) %>%
+  dplyr::summarize(
+    avg_score = mean(Score),
+    pct_expr = sum(Score > 0) / n() * 100
+  )
+
+# plot 
+df$avg_score <- as.numeric(df$avg_score)
+df$pct_expr <- as.numeric(df$pct_expr)
+dev.off()
+FinalPathwayAvergeDotPlot<-ggplot(df, aes(x = Pathway, y = Annotation)) +
+  geom_point(aes(size = pct_expr, color = avg_score)) +
+ scale_color_viridis_c(option = "rocket") +
+  geom_tile() +
+  #scale_fill_distiller(palette = "Spectral", direction = -1) +
+  theme_minimal() +
+  labs(title = "Pathway Scores", x = "Pathway", y = "Cluster") +RotatedAxis() +coord_flip()
+ggsave(
+      filename = "FinalPathwayAvergeDotplots.pdf",
+      plot = FinalPathwayAvergeDotPlot,
+      height = 4,
+      width = 6
+    )
+# using the pheatmap
+FinalPathwayAvergeExp<-df %>% dplyr::select(Annotation, Pathway, avg_score)%>% pivot_wider(names_from = Pathway, values_from = avg_score) 
+FinalPathwayAvergeExpTable<- FinalPathwayAvergeExp[,-1] %>% as.data.frame()
+rownames(FinalPathwayAvergeExpTable) <-FinalPathwayAvergeExp$Annotation
+FinalPathwayAvergeExpTable
+myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
+
+
+FinalPathwayAvergeExpTable <- FinalPathwayAvergeExpTable[,ColumnOrders]
+FinalPathwayAvergeExpTable
+FinalPathwayAvergepheatmap<-pheatmap(t(FinalPathwayAvergeExpTable),fontsize=12, 
+                        fontsize_row = 10, scale="row",cluster_rows = F, cluster_cols = F,
+                        color=myColor,  
+                        #main = "PROGENy signaling", 
+                        #angle_col = 45,
+                        treeheight_col = 0,  border_color = NA, treeheight_row=0) 
+
+ggsave(
+      filename = "FinalPathwayAvergepheatmap.pdf",
+      plot = FinalPathwayAvergepheatmap,
+      height = 4,
+      width = 6
+    )
+
+
+# then generate the pathway featuremap
+# Generate the feature Plots
+for (m in ColumnOrders) {
+    # Generate DimPlot or SpatialDimPlot based on user's choice
+    # Function to generate DimPlot plot
+    #  j="Calr"
+   # ColumnOrders
+  #i=  "Apoptosis17"
+  # we use this details to escape the figures that did not show up in spatial
+
+    # get the maxium and minvalue of the pathway
+   Maxvalue <- max(Pyelonephritis_Infection[[m]])
+    Minvalue <- min(Pyelonephritis_Infection[[m]])
+
+       PathwayMouseSpatialFeature <-
+      SpatialFeaturePlot(
+        Pyelonephritis_Infection,
+        features = m,
+        pt.size.factor = 1600,
+        crop = TRUE
+      ) &
+      ggplot2::scale_fill_gradientn(colours = myPalette(4),
+                                    limits = c(Minvalue, Maxvalue))
+    GenesInGOtermMouseSpatialFeature
+    # save the figure into the folder
+    ggsave(
+      filename = paste0("Spatial",m,"PathwayscoreFeaturePlot.pdf"),
+      plot = PathwayMouseSpatialFeature,
+      height = 3,
+      width = 15
+    )
+  
+}
+
+
+```
+
+Fig1H: SpatailFeaturePlots for the TNF-α, NF-κB, hypoxia, antimicrobial peptide, inflammatory response, and apoptotic pathways across timepoints (Day 0, 1, 3, 5, 7, and 28)
+```{r}
+# Figure 1G: Heatmap of infection-associated pathway enrichment across the 17 niches
+# run the source of pathways 
+ProgenyFeatures <- levels(factor(acts$source))
+ProgenyFeatures
+for (i in ProgenyFeatures ){
+  p2 <-SpatialFeaturePlot(Pyelonephritis_Infection, features = i) +
+  ggtitle(paste0(i," activity")) &
+          ggplot2::scale_fill_gradientn(colours = myPalette(4), limits=c(-1,5))
+  
+  ggsave(paste0(i, "_Pyelonephritis_Infection_cluster_featurePlot_DecoupleR.pdf"), plot = p2, width = 20, height = 4)
+}
+
+```

@@ -402,6 +402,7 @@ DotPlot(Subcluster2,features = RenalBiomarkers) +RotatedAxis()
 ```
 
 ### due to the integration take a long time, we ignore the previous and rea accordingly
+```{r}
 Pyelonephritis.integrated<-readRDS(file = "PreliminaryIntegratedSptatil_Pyelonephritis.RDS")
 ## save the integrated 
 ## change the order:
@@ -498,10 +499,12 @@ dev.off()
 # 
 # Pyelonephritis<-readRDS(file = "PreliminaryMergedSptatil_Pyelonephritis.RDS")
 # 
+```
 
 #######################################################
 ##  2. basical details
 #######################################################
+```{r}
 #2.1 dimension of the activae assay here is the number of features (genes) by samples (spots)
 # dim(P31)
 # dim(P32)
@@ -572,13 +575,13 @@ Pyelonephritis.integrated@assays$Spatial ##
 Pyelonephritis.integrated[['Spatial']]@counts[5:10,1:3]
 Pyelonephritis.integrated[['Spatial']]@counts[5:10,1:3]
 # Feature level metadata is associated with each individual assay
-
+```
 
 
 #####################################################################################################################
 ### 3. Generated a matrix for the control datasets to evaluate the number of spatial counts and number of features
 #####################################################################################################################
-
+```{r}
 #Then we run dimensionality reduction and clustering as before.
 DefaultAssay(Pyelonephritis.integrated) <- "SCT"
 
@@ -653,7 +656,10 @@ PSpatialFeature
 dev.off()
 
 ?SpatialFeaturePlot
+```
 
+
+```{r}
 ################################################################
 # Fig S. the cell-type cluster proportion across different time points
 ################################################################
@@ -709,10 +715,11 @@ dev.off()
 # VariableFeatures(Pyelonephritis.integrated) <-c(VariableFeatures(P0), VariableFeatures(P31),VariableFeatures(P32),VariableFeatures(P33),VariableFeatures(P34),VariableFeatures(P41),VariableFeatures(P42), VariableFeatures(P43),VariableFeatures(P11),VariableFeatures(P12),VariableFeatures(P28))
 # #VariableFeatures(Pyelonephritis.integrated) 
 # 
-
+```
 #####################################################################################################################
 ### 4. Normalization the variance of molecular counts expresses, dimension reduction
 #####################################################################################################################
+```{r}
 ### without the reference
 ## normalized bu SCTranform and check the structure
 ## SCTransform returns the Seurat object with a new assay called SCT, where its counts slot stores the corrected UMI counts, the data slot stores the log-normalized version of the corrected UMI counts, and scale.data slot stores the pearson residuals (normalized values) and is used as PCA input.
@@ -762,3 +769,4 @@ saveRDS(Pyelonephritis.integrated, file = "Pyelonephritis.integrated_Beforedecon
 # read the rds file
 
 Pyelonephritis.integrated<- readRDS(file = "Pyelonephritis.integrated_Beforedeconvolution_V0325.rds")
+```

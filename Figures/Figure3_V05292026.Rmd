@@ -1,0 +1,235 @@
+---
+title: "Figure 3 – Niche 8 spatial distribution and marker expression across timepoints"
+author: "Xin Wang"
+date: "2026-05-29"
+output: html_document
+description: "Figure 3A: Spatial location of N8 across six timepoints. Figure 3B: DotPlot of N8 differentiation and proliferation markers per timepoint."
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Overview
+
+(A) Spatial distribution of Niche 8 (N8) spots projected onto representative tissue sections at Day 0, 1, 3, 5, 7, and 28 post-infection.
+(B) DotPlot of differentiation and proliferation marker genes in N8 spots, grouped by timepoint.
+
+Input:  Deconvolution_Six_V01262026/Pyelonephritis_Infection_Decovoluted_v01262026.rds
+Output: Results/Figures/Figure3/
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(cowplot)
+library(RColorBrewer)
+```
+
+## Directories
+
+```{r directories}
+Indir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
+Outdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure3/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Load data
+
+```{r load-data}
+Pyelonephritis_Infection <- readRDS(file = paste0(Indir, "Pyelonephritis_Infection_Decovoluted_v01262026.rds"))
+Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
+
+Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$Annotation
+levels(as.factor(Pyelonephritis_Infection@meta.data$Annotation))
+```
+
+## Shared setup
+
+```{r shared-setup}
+# Six representative sections, one per timepoint
+selected_slices  <- c("slice1", "slice3", "slice4", "slice7", "slice8", "slice9")
+timepoint_labels <- c("Day 0", "Day 1", "Day 3", "Day 5", "Day 7", "Day 28")
+names(timepoint_labels) <- selected_slices
+
+pt_size_map <- c(
+  slice1 = 1800, slice3 = 1800, slice4 = 1600,
+  slice7 = 1600, slice8 = 1800, slice9 = 1800
+)
+
+# All N8 spot barcodes across the entire object
+n8_cells <- WhichCells(Pyelonephritis_Infection, idents = "N8")
+cat("Total N8 spots:", length(n8_cells), "\n")
+```
+
+## Figure 3A: Spatial location of N8 across timepoints
+
+```{r fig3a-spatial, fig.width=16, fig.height=4}
+fig3a_panels <- lapply(selected_slices, function(sl) {
+  pt_sz <- if (sl %in% names(pt_size_map)) pt_size_map[[sl]] else 1800
+  SpatialDimPlot(
+    Pyelonephritis_Infection,
+    images          = sl,
+    cells.highlight = n8_cells,
+    cols.highlight  = c("#E31A1C", "grey85"),  # N8 = red, other = light grey
+    pt.size.factor  = pt_sz,
+    crop            = TRUE,
+    label           = FALSE
+  ) +
+    ggtitle(timepoint_labels[sl]) +
+    coord_cartesian() +
+    theme(
+      legend.position = "none",
+      plot.title      = element_text(hjust = 0.5, size = 10, face = "bold")
+    )
+})
+
+Fig3aSpatial <- cowplot::plot_grid(plotlist = fig3a_panels, nrow = 1)
+
+ggsave(
+  filename = paste0(Outdir, "Figure3A_N8_SpatialLocation.pdf"),
+  plot     = Fig3aSpatial,
+  width    = 16,
+  height   = 4
+)
+
+Fig3aSpatial
+```
+
+## Figure 3B: N8 differentiation and proliferation markers by timepoint
+
+```{r fig3b-dotplot, fig.width=10, fig.height=6}
+# Subset to N8 spots only
+N8_obj <- subset(Pyelonephritis_Infection, idents = "N8")
+
+# Set identity to timepoint (orig.ident expected to encode DPI, e.g. "0DPI", "1DPI")
+# Verify: table(N8_obj@meta.data$orig.ident)
+Idents(N8_obj) <- N8_obj@meta.data$orig.ident
+
+# Reorder identities from earliest to latest timepoint
+timepoint_order <- c("0DPI", "1DPI", "3DPI", "5DPI", "7DPI", "28DPI")
+timepoint_order <- timepoint_order[timepoint_order %in% levels(factor(Idents(N8_obj)))]
+Idents(N8_obj)  <- factor(Idents(N8_obj), levels = timepoint_order)
+
+# Urothelial differentiation hierarchy: basal → intermediate → superficial
+proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Ccna2", "Cdk1", "Cdc20")
+differentiation_markers <- c(
+  # Basal / progenitor (least differentiated)
+  "Krt5", "Krt14", "Tp63", "Cd44",
+  # Intermediate
+  "Krt7", "Krt8", "Krt18", "Krt19",
+  # Superficial / umbrella cells (fully differentiated)
+  "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
+  # Transcription factors driving urothelial differentiation
+  "Foxa1", "Gata3", "Pparg",
+  # Tight junction / barrier function
+  "Cldn3", "Cldn4", "Cldn7"
+)
+markers_all <- c(proliferation_markers, differentiation_markers)
+
+DefaultAssay(N8_obj) <- "SCT"
+
+Fig3bDotPlot <- DotPlot(
+  N8_obj,
+  features = markers_all,
+  cols     = c("lightgrey", "#E31A1C"),
+  dot.scale = 6
+) +
+  coord_flip() +
+  RotatedAxis() +
+  labs(
+    title = "N8 differentiation and proliferation markers by timepoint",
+    x     = NULL,
+    y     = "Timepoint"
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure3B_N8_DotPlot_Timepoints.pdf"),
+  plot     = Fig3bDotPlot,
+  width    = 10,
+  height   = 6
+)
+Fig3bDotPlot
+```
+
+## Figure 3G: PROGENy pathway activity in N8 across timepoints
+```{r fig3g-progeny, fig.width=6, fig.height=4}
+library(pheatmap)
+library(tidyr)
+library(tibble)
+
+# Use the pathwaysmlm assay already computed in Figure 1F / Figure 3B session
+# Restore Annotation identity before subsetting
+Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$Annotation
+
+# Subset to N8 spots only (pathwaysmlm assay travels with the object)
+N8_progeny <- subset(Pyelonephritis_Infection, idents = "N8")
+
+# Group N8 spots by timepoint
+Idents(N8_progeny) <- N8_progeny@meta.data$orig.ident
+timepoint_order <- c("0DPI", "1DPI", "3DPI", "5DPI", "7DPI", "28DPI")
+timepoint_order <- timepoint_order[timepoint_order %in% levels(factor(Idents(N8_progeny)))]
+Idents(N8_progeny) <- factor(Idents(N8_progeny), levels = timepoint_order)
+
+# Average scaled pathway activity per timepoint
+df_n8 <- t(as.matrix(GetAssayData(N8_progeny, assay = "pathwaysmlm",
+                                   layer = "scale.data"))) %>%
+  as.data.frame() %>%
+  mutate(timepoint = Idents(N8_progeny)) %>%
+  pivot_longer(cols = -timepoint, names_to = "source", values_to = "score") %>%
+  group_by(timepoint, source) %>%
+  summarise(mean = mean(score), .groups = "drop")
+
+# Wide matrix: rows = timepoints, cols = pathways; transpose for heatmap
+n8_acts_mat <- df_n8 %>%
+  pivot_wider(id_cols = "timepoint", names_from = "source", values_from = "mean") %>%
+  column_to_rownames("timepoint") %>%
+  as.matrix()
+
+# Order pathways and timepoints
+PathwayOrder <- c("TNFa", "NFkB", "JAK-STAT", "p53", "Hypoxia", "Trail",
+                  "PI3K", "EGFR", "MAPK", "WNT", "TGFb", "VEGF", "Estrogen")
+PathwayOrder <- PathwayOrder[PathwayOrder %in% colnames(n8_acts_mat)]
+
+N8HeatmapMat <- t(n8_acts_mat)[PathwayOrder, timepoint_order[timepoint_order %in% rownames(n8_acts_mat)]]
+
+# Symmetric color scale centered on 0
+palette_length <- 100
+my_color  <- colorRampPalette(c("royalblue", "white", "firebrick3"))(palette_length)
+my_breaks <- c(seq(-2, 0,   length.out = ceiling(palette_length / 2) + 1),
+               seq(0.05, 2, length.out = floor(palette_length / 2)))
+
+Fig3GProgenyHeatmap <- pheatmap(
+  N8HeatmapMat,
+  fontsize       = 8,
+  fontsize_row   = 8,
+  show_rownames  = TRUE,
+  cluster_cols   = FALSE,
+  cluster_rows   = FALSE,
+  color          = my_color,
+  breaks         = my_breaks,
+  main           = "PROGENy pathway activity – N8 across timepoints",
+  angle_col      = 45,
+  border_color   = NA,
+  treeheight_col = 0,
+  treeheight_row = 0
+)
+
+pdf(file = paste0(Outdir, "Figure3G_N8_PROGENy_Timepoints.pdf"), width = 6, height = 4)
+print(Fig3GProgenyHeatmap)
+dev.off()
+```
+
+
+
+```{r}
+
+```

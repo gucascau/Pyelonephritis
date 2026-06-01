@@ -185,8 +185,8 @@ GenesInGOtermMouseSpatialFeature <-
 # Detection all the DEGs for all the regions and only show the top 10 for N8, N10-N17
 
 # In this analyses, we considered the DEGs for all the infected dates comparing to controls as those have 
-    #1)increased expressed after the infection, p_val_adj <= 0.05 & avg_log2FC > 1 
-    #2)Sufficient expression after the infection, pct.2 > 0.25  & average expression in infected dates > 0.3
+#1)increased expressed after the infection, p_val_adj <= 0.05 & avg_log2FC > 1 
+#2)Sufficient expression after the infection, pct.2 > 0.25  & average expression in infected dates > 0.3
     
 ```{r}
 setwd(BioMarkerDir)
@@ -276,6 +276,7 @@ for (i in InfectedDates) {
 
 saveRDS(Pyelonephritis_Infection_subDEGsList, file = "Pyelonephritis_Infection_subDEGsList.rds")
 
+Pyelonephritis_Infection_subDEGsList<-readRDS("Pyelonephritis_Infection_subDEGsList.rds")
 names(Pyelonephritis_Infection_subDEGsList)
 
 # We integrated the DEGs from the all the DEGs comparing between infected days to controls
@@ -300,7 +301,7 @@ write.csv(AllCategories_Clustermarkers_infectedvsnoninfected, "AllCategories_Clu
  AllCategories_Clustermarkers_infectedvsnoninfected <- read.csv("AllCategories_Clustermarkers_MAST_infectedvsnoninfected.csv")
 # draw the figure for the top 40 DEGs
 Top30MarkerGeneInfected<-AllCategories_Clustermarkers_infectedvsnoninfected %>% as.data.frame() %>% group_by(cluster) %>% slice_min(order_by = p_val_adj, n=100) %>% slice_max(order_by = avg_log2FC, n=20)
-
+Top20UpMarkerGeneInfected<-AllCategories_Clustermarkers_infectedvsnoninfected %>% as.data.frame() %>% filter(avg_log2FC >0 & cluster == "InfectedNiches")%>% group_by(cluster) %>% slice_min(order_by = p_val_adj, n=100) %>% slice_max(order_by = avg_log2FC, n=20)
 # we added the average expression of genes
 avg_exp_niches <- AverageExpression(Pyelonephritis_Infection)
   # avg_exp <- AggregateExpression(
@@ -343,6 +344,13 @@ Top_InfectedrmarkersComparingAllGenesheatmap<- DoHeatmap(Pyelonephritis_Infectio
 
 Top_InfectedrmarkersComparingAllGenesheatmap
 ggsave("Top_InfectedrmarkersComparingAllGenesheatmap.pdf", plot =Top_InfectedrmarkersComparingAllGenesheatmap, height = 8, width = 7 )
+
+tail (Top30UpMarkerGeneInfected)
+Top_UpInfectedrmarkersComparingAllGenesheatmap<- DoHeatmap(Pyelonephritis_Infection, features = Top20UpMarkerGeneInfected$gene, size = 2.5)  + scale_fill_gradientn(colors = c("lightblue", "white", "FireBrick")) +  theme(legend.position="bottom") 
+
+Top_UpInfectedrmarkersComparingAllGenesheatmap
+ggsave("Top_UpInfectedrmarkersComparingAllGenesheatmap.pdf", plot =Top_UpInfectedrmarkersComparingAllGenesheatmap, height = 8, width = 7 )
+
 
 # Please note that we did not profile the DEGs using the following datasets:
 # we then find DEGs for each cluster comparing infected and non infected date
@@ -437,7 +445,7 @@ barplot(FinalDownregulatedGenesGOSimplified)
 ```{r}
 Top30FinalDEGs
 # microarray, we should use day 1 vs day 0, day 3 vs day 0 , day7 vs day 0.
-MicroDir = "/Users/XXW004/Documents/Projects/BrianBecknell/RishilTwoMice/"
+MicroDir = "/Users/XXW004/Documents/Projects/BrianBecknell/RishilTwoMice/Results/TwoMouseComparion/"
 
 # read the openxlsx (contains the sheets )
 #install.packages("openxlsx")
@@ -754,22 +762,29 @@ FinalExpDEGsOriginal<- rbind(SpatialNichesComparison,SpatialDateComparisonD1,Spa
 FinalExpDEGsOriginal
 table(FinalExpDEGsOriginal$Group)
 
+write.csv(FinalExpDEGsOriginal, file = "FinalExpDEGsOriginal_Spatial_Microarry_Comp.csv" )
 FinalOverallapping
 # we only overlapping genes : FinalOverallapping
 # "F13a1"  "Timp1"  "Apom"   "Ccl6"   "Lyz1"   "Col5a1" "Napsa"  "Fgl2"   "Vcam1"  "Ctss"   "Lcn2"   "Clu"    "B2m"    "Lmnb1"
 BioMarkerDir
 PathwayName <- "Conserved Biomarkers"
 dir.create(paste0(BioMarkerDir,"ConservedMarkers/"))
+
 RequestedGenes <- FinalOverallapping
 setwd(paste0(BioMarkerDir,"ConservedMarkers/"))
 
+
 write.csv(RequestedGenes,file = paste0(PathwayName, ".csv"))
+# FinalOverallapping <- read.csv(paste0(PathwayName, ".csv"))
+# RequestedGenes <- FinalOverallapping$x
+
 PathwayName <- "Biomarkers in Secreted not Urine"
 RequestedGenes <- intersect_sud_insecreted_noturine
 dir.create(paste0(BioMarkerDir,"ConservedInSecretedNotUrine/"))
 setwd(paste0(BioMarkerDir,"ConservedInSecretedNotUrine/"))
 write.csv(RequestedGenes,file = paste0(PathwayName, ".csv"))
-
+# intersect_sud_insecreted_noturine<- read.csv(paste0(PathwayName, ".csv"))
+#RequestedGenes <- intersect_sud_insecreted_noturine$x
 PathwayName <- "Biomarkers in Urine not Secreted"
 RequestedGenes <- intersect_sud_inurine_notsecreted
 dir.create(paste0(BioMarkerDir,"ConservedInUrineNotSecreted/"))
@@ -777,6 +792,8 @@ setwd(paste0(BioMarkerDir,"ConservedInUrineNotSecreted/"))
 write.csv(RequestedGenes,file = paste0(PathwayName, ".csv"))
 #setwd(paste0(BioMarkerDir,"ConservedInUrineNotSecreted/"))
 #
+# intersect_sud_inurine_notsecreted <- read.csv(paste0(PathwayName, ".csv"))
+# RequestedGenes <- intersect_sud_inurine_notsecreted$x
 #PathwayName <- "Biomarkers in Secreted not Urine"
 length(RequestedGenes)
 FinalExpDEGs<- FinalExpDEGsOriginal %>% filter(Gene %in% RequestedGenes)
@@ -829,6 +846,41 @@ RequestedGenes_sorted<- c(
   "Lmnb1"
 )
 
+RequestedGenes_sorted <- c(
+
+  # 1. Cytokines / Cytokine Signaling
+  "Il1r2","Il1rn","Csf1r","Crlf1","Pdgfa","Fstl1",
+
+  # 2. Chemokines / Immune Recruitment
+  "Ccl6","Ccl9","Pf4",
+
+  # 3. Injury / Inflammation Markers
+  "C3","C3ar1","Cfp","Cd14","Cd33","Ly86","Tlr2",
+  "Cybb","S100a9","Lgals9","Lgals3bp","B2m",
+  "Lyz1","Olr1","Lcn2","Hp","F7","F10","F13a1",
+
+  # 4. ECM Remodeling / Fibrosis
+  "Adamts2","Col5a1","Emilin2","Dcn","Lox",
+  "Mmp7","Mmp9","Timp1","Qsox1","Fgl2",
+
+  # 5. Stress Response / Acute Phase
+  "Anxa1","Anxa2","Clu","Sprr2d",
+  "Sh3bgrl3","Smpdl3b","Clic1","Srgn",
+
+  # 6. Cytoskeleton / Adhesion / Motility
+  "Itgb2","Itgb3","Vcam1","Flna","Msn",
+  "Marcks","Pfn1","Arpc1b","Iqgap1",
+  "Lcp1","Nrp2","Tmsb4x","Plek","Arhgdib","Unc13d",
+
+  # 7. Proteases / Lysosomal / Secretory
+  "Ctss","Ctsz","Gusb","Rnase6","Padi4","Golm1",
+
+  # 8. Structural / Nuclear Components
+  "Lmnb1"
+)
+
+
+length(RequestedGenes_sorted)
 # for secreted but not in the urine
 RequestedGenes_sorted <- c(
   # 1. Innate & Adaptive Immune Response
@@ -896,12 +948,11 @@ RequestedGenesHeatmap<-ggplot(FinalExpDEGs, aes(x = Group, y = Gene, fill = log2
 RequestedGenesHeatmap
 
 ggsave(paste0(PathwayName, "_FC_HeatMap_inCollecDuct_TwoData.pdf"),plot =RequestedGenesHeatmap, height = 14, width =4.5 )
-
 FinalExpDEGs$Group <- factor(FinalExpDEGs$Group, levels = rev(c("SpatialNiches", "SpatialDay1","SpatialDay3","SpatialDay5","SpatialDay7","SpatialDay28", "MicroArray_D1","MicroArray_D3","MicroArray_D7")))  
 FinalExpDEGs$Gene <- factor(FinalExpDEGs$Gene, levels = (RequestedGenes_sorted))
 
 
-RequestedGenesHeatmapflip<-ggplot(FinalExpDEGs, aes(x = Group, y = Gene, fill = log2FoldChange)) +
+RequestedGenesHeatmapflip<-ggplot(FinalExpDEGs, aes(x = (factor(Group)), y =  (factor(Gene)), fill = log2FoldChange)) +
   geom_tile(color = "white") +  # Heatmap tiles with borders
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)+
                        #limits = c(-2, 2)) +  # Color scale
@@ -909,8 +960,8 @@ RequestedGenesHeatmapflip<-ggplot(FinalExpDEGs, aes(x = Group, y = Gene, fill = 
   theme_minimal() +  # Clean theme
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotate x-axis labels
   labs(title = PathwayName, fill = "logFC") +
-  theme(legend.key.size = unit(0.4, "cm"), legend.title = element_text(size = 8)) + coord_flip()
-ggsave(paste0(PathwayName, "_FC_HeatMap_inCollecDuct_TwoData_flips.pdf"),plot =RequestedGenesHeatmapflip, height = 4, width =14 )
+  theme(legend.key.size = unit(0.4, "cm"), legend.title = element_text(size = 8)) + coord_flip() 
+ggsave(paste0(PathwayName, "_FC_HeatMap_inCollecDuct_TwoData_flips.pdf"),plot =RequestedGenesHeatmapflip, height = 4, width =16 )
 
 getwd()
 RequestedGenesDotPlot<-ggplot(FinalExpDEGs, aes(x = Group, y = Gene)) +
@@ -948,14 +999,14 @@ FinalOverallappingDotPlot<-
 ggsave("FinalOverallappingOrderedGeneDotPlot.pdf", plot =FinalOverallappingDotPlot, height = 5, width = 20 )
 ggsave("FinalConservedInUrineNotSecretedDotPlot.pdf", plot =FinalOverallappingDotPlot, height = 5, width = 24 )
 FinalUrineSpecificDotPlot<- 
-   DotPlot(Pyelonephritis_Infection, features = intersect_sud_inurine_notsecreted,cols="RdBu") +
+   DotPlot(Pyelonephritis_Infection, features = intersect_sud_inurine_notsecreted$x,cols="RdBu") +
   theme(legend.text = element_text(size = 12), legend.title = element_text(size = 12))+RotatedAxis() + guides(color = guide_colorbar(title = 'AverExp'),
          size = guide_legend(title = "PercExp")) 
   #DotPlot(Pyelonephritis_Infection, features = top_InfectedrmarkersGenes)+RotatedAxis() 
 
 ggsave("FinalUrineSpecificDotPlot.pdf", plot =FinalUrineSpecificDotPlot, height = 5, width = 30 )
 
-intersect_sud_insecreted_noturine_top20<-intersect_sud_insecreted_noturine_sorted[1:20]
+intersect_sud_insecreted_noturine_top20<-intersect_sud_insecreted_noturine_sorted$x[1:20]
 FinalSecretedSpecificTop20DotPlot<- 
    DotPlot(Pyelonephritis_Infection, features = intersect_sud_insecreted_noturine_top20,cols="RdBu") +
   theme(legend.text = element_text(size = 12), legend.title = element_text(size = 12))+RotatedAxis() + guides(color = guide_colorbar(title = 'AverExp'),
