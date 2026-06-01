@@ -1,0 +1,627 @@
+---
+title: "Figure 4 – Collecting Duct cell analysis across timepoints"
+author: "Xin Wang"
+date: "2026-06-01"
+output: html_document
+description: >
+  (B) UMAP of CD subsets (ICA, ICB, PC, DegCD).
+  (C) Proportion of CD subsets across timepoints (0, 3, 7, 28 dpi).
+  (D) DotPlot of canonical CD subset markers.
+  (E) UMAPs of CD cells split by timepoint.
+  (G) Spatial feature plots of representative CD markers (Atp6v1g3, Slc4a1, Slc26a4, Aqp2) across timepoints.
+  (H–I) DotPlots of subset-by-timepoint expression for additional CD markers.
+  (J) PROGENy pathway activity heatmap across CD subsets and timepoints.
+  (K) DotPlot of AMP gene expression across CD subsets and timepoints.
+  (L) GO Biological Process enrichment dotplot for each CD subset.
+
+Input:
+  Single-cell: ICPC_Subclusters/ICPCcells_DegCD_v02142025.RDS
+  Spatial:     Deconvolution_Six_V01262026/Pyelonephritis_Infection_Decovoluted_with_PROGENyCandidatePath_v05292026.rds
+
+Output: Results/Figures/Figure4/
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(cowplot)
+library(RColorBrewer)
+library(pheatmap)
+library(tidyr)
+library(tibble)
+library(scales)
+library(decoupleR)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+```
+
+## Directories
+
+```{r directories}
+SCIndir      <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/ICPC_Subclusters/"
+SpatialIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
+Outdir       <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure4/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Load data
+
+```{r load-data}
+# Single-cell CD object (ICA / ICB / PC / DegCD annotated)
+CDcells <- readRDS(paste0(SCIndir, "ICPCcells_DegCD_v02142025.RDS"))
+CDcells <- UpdateSeuratObject(CDcells)
+
+# Ordered CD subset levels
+subset_order    <- c("ICA", "ICB", "PC", "DegCD")
+timepoint_order <- c("0DPI", "3DPI", "7DPI", "28DPI")
+
+# Set identity to CD subset annotation
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+
+cat("CD subset counts:\n")
+print(table(CDcells@meta.data$ICPCAnnot))
+cat("Timepoints:\n")
+print(table(CDcells@meta.data$DataSet))
+```
+
+## Shared setup
+
+```{r shared-setup}
+# Combined subset × timepoint identity (used in H, I, J, K)
+CDcells@meta.data$SubsetTimepoint <- paste(
+  CDcells@meta.data$ICPCAnnot,
+  CDcells@meta.data$DataSet,
+  sep = "_"
+)
+
+combined_order <- paste(
+  rep(subset_order, each = length(timepoint_order)),
+  timepoint_order,
+  sep = "_"
+)
+combined_order <- combined_order[combined_order %in% unique(CDcells@meta.data$SubsetTimepoint)]
+
+# Canonical CD marker gene sets
+ICA_markers  <- c("Atp6v1g3", "Aqp6", "Slc4a1", "Slc26a7", "Kit")
+ICB_markers  <- c("Slc26a4", "Spink8", "Hmx2")
+PC_markers   <- c("Aqp2", "Hsd11b2", "Scnn1g", "Syt7")
+canonical_cd <- c(ICA_markers, ICB_markers, PC_markers)
+```
+
+---
+
+## Figure 4B: UMAP of CD subsets
+
+```{r fig4b-umap, fig.width=5, fig.height=4}
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+
+Fig4B_UMAP <- DimPlot(
+  CDcells,
+  label    = TRUE,
+  repel    = TRUE,
+  pt.size  = 0.5
+) +
+  labs(title = "Collecting Duct subsets") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.text = element_text(size = 9)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4B_CD_UMAP.pdf"),
+  plot     = Fig4B_UMAP,
+  width    = 5, height = 4
+)
+Fig4B_UMAP
+```
+
+---
+
+## Figure 4C: Proportion of CD subsets across timepoints
+
+```{r fig4c-proportion, fig.width=5, fig.height=4}
+prop_df <- table(CDcells@meta.data$DataSet, CDcells@meta.data$ICPCAnnot) %>%
+  as.data.frame() %>%
+  dplyr::rename(Timepoint = Var1, Subset = Var2) %>%
+  group_by(Timepoint) %>%
+  mutate(pct = prop.table(Freq)) %>%
+  ungroup() %>%
+  mutate(
+    Timepoint = factor(Timepoint, levels = timepoint_order),
+    Subset    = factor(Subset,    levels = subset_order)
+  )
+
+Fig4C_Prop <- ggplot(prop_df, aes(x = Timepoint, y = pct, fill = Subset)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Timepoint", y = "Proportion", title = "CD subset proportions across timepoints") +
+  theme_classic() +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4C_CD_Proportion.pdf"),
+  plot     = Fig4C_Prop,
+  width    = 4, height = 4
+)
+Fig4C_Prop
+```
+
+---
+
+## Figure 4D: DotPlot of canonical CD subset markers
+
+```{r fig4d-dotplot-canonical, fig.width=8, fig.height=4}
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+DefaultAssay(CDcells) <- "RNA"
+
+Fig4D_DotPlot <- DotPlot(
+  CDcells,
+  features  = canonical_cd,
+  #cols      = c("lightgrey", "#E31A1C"),
+  dot.scale = 6
+) +
+  RotatedAxis() +
+  labs(
+    title = "Canonical CD subset markers",
+    x     = NULL,
+    y     = "CD subset"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4D_CD_CanonicalMarkers_DotPlot.pdf"),
+  plot     = Fig4D_DotPlot,
+  width    = 7, height = 3.5
+)
+Fig4D_DotPlot
+```
+
+---
+
+## Figure 4E: UMAP split by timepoint
+
+```{r fig4e-umap-split, fig.width=14, fig.height=4}
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+
+Fig4E_UMAPSplit <- DimPlot(
+  CDcells,
+  split.by = "DataSet",
+  label    = TRUE,
+  repel    = TRUE,
+  pt.size  = 0.3,
+  ncol     = 2
+) +
+  labs(title = "CD subsets split by timepoint") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.text = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4E_CD_UMAP_SplitByTimepoint.pdf"),
+  plot     = Fig4E_UMAPSplit,
+  width    = 5, height = 5
+)
+Fig4E_UMAPSplit
+```
+
+---
+
+## Load spatial object (for Figure 4G)
+
+```{r load-spatial}
+Pyelonephritis_Infection <- readRDS(
+  paste0(SpatialIndir, "Pyelonephritis_Infection_Decovoluted_with_PROGENyCandidatePath_v05292026.rds")
+)
+Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+
+# for selected slices
+spatial_slices  <- c("slice1", "slice3", "slice4", "slice7", "slice8", "slice9")
+timepoint_labels <- c("Day 0", "Day 1", "Day 3", "Day 5", "Day 7", "Day 28")
+names(timepoint_labels) <- spatial_slices
+
+pt_size_map <- c(
+  slice1 = 1800, slice3 = 1800, slice4 = 1600,
+  slice7 = 1600, slice8 = 1800, slice9 = 1800
+)
+
+
+```
+
+---
+
+## Figure 4G: Spatial feature plots of representative CD markers across timepoints
+
+```{r fig4g-spatial-features, fig.width=15, fig.height=3}
+spatial_cd_markers <- c("Atp6v1g3", "Slc4a1", "Slc26a4", "Aqp2")
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+for (m in spatial_cd_markers) {
+  skip_to_next <- FALSE
+  tryCatch(
+    print(Pyelonephritis_Infection@assays$SCT@data[m, ]),
+    error = function(e) { skip_to_next <<- TRUE }
+  )
+  if (skip_to_next) next
+
+  Maxvalue <- ceiling(max(Pyelonephritis_Infection@assays$SCT@data[m, ]))
+  Minvalue <- floor(min(Pyelonephritis_Infection@assays$SCT@data[m, ]))
+
+  CDMarkerSpatialFeature <- SpatialFeaturePlot(
+    Pyelonephritis_Infection,
+    features       = m,
+    pt.size.factor = 1600,
+    crop           = TRUE
+  ) &
+    ggplot2::scale_fill_gradientn(
+      colours = myPalette(4),
+      limits  = c(Minvalue, Maxvalue)
+    )
+
+  ggsave(
+    filename = paste0(Outdir, "Figure4G_Spatial_", m, "_CDMarker.pdf"),
+    plot     = CDMarkerSpatialFeature,
+    height   = 3,
+    width    = 15
+  )
+}
+```
+
+---
+
+## Figure 4H: DotPlot of CD subset markers by timepoint (differentiation & transport)
+
+```{r fig4h-dotplot-subset-timepoint, fig.width=10, fig.height=5}
+Idents(CDcells) <- factor(CDcells@meta.data$SubsetTimepoint, levels = combined_order)
+DefaultAssay(CDcells) <- "RNA"
+
+transport_stress_markers <- c(
+  # ICA identity / v-ATPase
+  "Atp6v1g3", "Atp6v0d2", "Atp6v1b1", "Aqp6", "Slc4a1", "Slc26a7", "Foxi1",
+  # ICB identity
+  "Slc26a4", "Spink8", "Hmx2",
+  # PC identity / water channel
+  "Aqp2", "Aqp3", "Hsd11b2", "Scnn1g", "Avpr2"
+  # Renal injury / stress
+ # "Havcr1", "Vcam1", "Lcn2", "Vim", "Umod", "Igfbp7","C3","Il18","S100a8","S100a9"
+)
+transport_stress_markers <- transport_stress_markers[transport_stress_markers %in% rownames(CDcells)]
+
+Fig4H_DotPlot <- DotPlot(
+  CDcells,
+  features  = transport_stress_markers,
+  #cols      = c("lightgrey", "#E31A1C"),
+  cols = "RdBu",
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "CD differentiation and transport markers by subset × timepoint",
+    x     = NULL,
+    y     = "Subset × Timepoint"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 7)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4H_CD_TransportStress_DotPlot.pdf"),
+  plot     = Fig4H_DotPlot,
+  width    = 5, height = 4
+)
+Fig4H_DotPlot
+```
+
+---
+
+## Figure 4I: DotPlot of inflammatory markers by subset × timepoint
+
+```{r fig4i-dotplot-inflammatory, fig.width=10, fig.height=5}
+inflammatory_markers <- c(
+  # Cytokines
+  "Il1b", "Il6", "Il18", "Tnf", "Ifng", "Tgfb1", "Il10",
+  # Chemokines
+  "Cxcl1", "Cxcl2", "Cxcl5", "Cxcl10", "Ccl2", "Ccl5",
+  # NF-kB / signaling
+  "Nfkb1", "Rela", "Nlrp3",
+  # Injury / inflammation
+  "S100a8", "S100a9", "C3", "Nos2"
+)
+
+
+# cytokines <- c(
+#   "Tnf",
+#   "Il1b",
+#   "Il6",
+#   "Il17a",
+#   "Il17f",
+#   "Ifng",
+#   "Csf2",
+#   "Il12a",
+#   "Il12b",
+#   "Il18",
+#   "Il23a"
+# )
+
+# # Inflammatory chemokines (mouse)
+# chemokines <- c(
+#   "Ccl2",
+#   "Ccl3",
+#   "Ccl4",
+#   "Ccl5",
+#   "Ccl7",
+#   "Ccl12",
+#   "Cxcl1",
+#   "Cxcl2",
+#   "Cxcl5",
+#   "Cxcl9",
+#   "Cxcl10",
+#   "Cxcl11"
+# )
+
+# Combined inflammatory cytokine + chemokine gene set
+# inflammatory_markers <- c(
+#   cytokines,
+#   chemokines
+# )
+ 
+
+Fig4I_DotPlot <- DotPlot(
+  CDcells,
+  features  = inflammatory_markers,
+ #cols      = c("lightgrey", "#E31A1C"),
+  cols      = c("RdBu"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "Inflammatory markers by CD subset × timepoint",
+    x     = NULL,
+    y     = "Subset × Timepoint"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 7)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4I_CD_Inflammatory_DotPlot.pdf"),
+  plot     = Fig4I_DotPlot,
+  width    = 5, height = 4
+)
+Fig4I_DotPlot
+```
+
+---
+
+## Figure 4J: PROGENy pathway activity heatmap across CD subsets and timepoints
+
+```{r fig4j-progeny, fig.width=6, fig.height=5}
+Idents(CDcells) <- factor(CDcells@meta.data$SubsetTimepoint, levels = combined_order)
+DefaultAssay(CDcells) <- "RNA"
+
+# Run PROGENy via decoupleR MLM
+net_cd  <- decoupleR::get_progeny(organism = "mouse", top = 500)
+mat_cd  <- as.matrix(GetAssayData(CDcells, assay = "RNA", layer = "data"))
+
+acts_cd <- run_mlm(
+  mat     = mat_cd,
+  net     = net_cd,
+  .source = "source",
+  .target = "target",
+  .mor    = "weight",
+  minsize = 5
+)
+
+CDcells[["pathwaysmlm_cd"]] <- acts_cd %>%
+  pivot_wider(id_cols = "source", names_from = "condition", values_from = "score") %>%
+  column_to_rownames("source") %>%
+  Seurat::CreateAssayObject(.)
+
+DefaultAssay(CDcells) <- "pathwaysmlm_cd"
+CDcells <- ScaleData(CDcells)
+
+# Average scaled activity per subset × timepoint
+df_cd <- t(as.matrix(GetAssayData(CDcells, assay = "pathwaysmlm_cd", layer = "scale.data"))) %>%
+  as.data.frame() %>%
+  mutate(group = Idents(CDcells)) %>%
+  pivot_longer(cols = -group, names_to = "source", values_to = "score") %>%
+  group_by(group, source) %>%
+  summarise(mean = mean(score), .groups = "drop")
+
+cd_acts_mat <- df_cd %>%
+  pivot_wider(id_cols = "group", names_from = "source", values_from = "mean") %>%
+  column_to_rownames("group") %>%
+  as.matrix()
+
+PathwayOrder_cd <- c(
+  "NFkB", "TNFa", "Hypoxia", "JAK-STAT",
+  "Trail", "p53",
+  "MAPK", "EGFR", "PI3K", "VEGF",
+  "TGFb", "WNT", "Estrogen"
+)
+PathwayOrder_cd <- PathwayOrder_cd[PathwayOrder_cd %in% colnames(cd_acts_mat)]
+groups_present  <- combined_order[combined_order %in% rownames(cd_acts_mat)]
+
+CDHeatmapMat <- t(cd_acts_mat)[PathwayOrder_cd, groups_present]
+
+palette_length <- 100
+cd_color  <- colorRampPalette(c("royalblue", "white", "firebrick3"))(palette_length)
+cd_breaks <- c(seq(-2, 0,   length.out = ceiling(palette_length / 2) + 1),
+               seq(0.05, 2, length.out = floor(palette_length / 2)))
+
+Fig4J_Progeny <- pheatmap(
+  CDHeatmapMat,
+  fontsize       = 7,
+  fontsize_row   = 8,
+  show_rownames  = TRUE,
+  cluster_cols   = FALSE,
+  cluster_rows   = FALSE,
+  color          = cd_color,
+  breaks         = cd_breaks,
+  main           = "PROGENy pathway activity – CD subsets × timepoints",
+  angle_col      = 45,
+  border_color   = NA,
+  treeheight_col = 0,
+  treeheight_row = 0
+)
+
+pdf(file = paste0(Outdir, "Figure4J_CD_PROGENy_Heatmap.pdf"), width = 7, height = 5)
+print(Fig4J_Progeny)
+dev.off()
+```
+
+---
+
+## Figure 4K: AMP and stress-response gene expression across CD subsets and timepoints
+
+```{r fig4k-amp-dotplot, fig.width=10, fig.height=5}
+Idents(CDcells) <- factor(CDcells@meta.data$SubsetTimepoint, levels = combined_order)
+DefaultAssay(CDcells) <- "RNA"
+
+amp_genes <- c(
+  "Camp", "Defa1", "Defa2", "Defb1", "Defb2", "Defb3", "Defb4",
+  "Defb14", "Defb24", "Reg3g", "Reg3b",
+  "S100a7", "S100a8", "S100a9",
+  "Ltf", "Lyz1", "Ctsg", "Ctsb", "Lcn2", "Pi3",
+  "Hamp", "Sftpa1", "Sftpd", "Pla2g2a",
+  "Mpo", "Elane", "Rnase2", "Rnase4",
+  "Umod", "Mbd1", "Mbd2", "Ear2", "Ear11", "Ear6"
+)
+amp_genes <- amp_genes[amp_genes %in% rownames(CDcells)]
+
+Fig4K_AMP_DotPlot <- DotPlot(
+  CDcells,
+  features  = amp_genes,
+  #cols      = c("lightgrey", "#E31A1C"),
+  cols      = c("RdBu"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "AMP and stress-response gene expression – CD subsets × timepoints",
+    x     = NULL,
+    y     = "Subset × Timepoint"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 7)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4K_CD_AMP_DotPlot.pdf"),
+  plot     = Fig4K_AMP_DotPlot,
+  width    = 6, height = 4
+)
+Fig4K_AMP_DotPlot
+```
+
+---
+
+## Figure 4L: GO Biological Process enrichment dotplot for each CD subset
+
+```{r fig4l-go-enrichment, fig.width=11, fig.height=5}
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+DefaultAssay(CDcells) <- "SCT"
+
+AllMarkers_cd <- FindAllMarkers(
+  CDcells,
+  min.pct         = 0.25,
+  #logfc.threshold = 0.25,
+  test.use        = "MAST",
+  only.pos        = TRUE
+)
+
+write.csv( 
+  AllMarkers_cd,
+  file      = paste0(Outdir, "Figure4L_CD_DEGs.csv"),
+  row.names = FALSE
+)
+
+ClusterGenes_cd <- list(
+  ICA   = AllMarkers_cd %>% filter(cluster == "ICA",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
+  ICB   = AllMarkers_cd %>% filter(cluster == "ICB",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
+  PC    = AllMarkers_cd %>% filter(cluster == "PC",    p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
+  DegCD = AllMarkers_cd %>% filter(cluster == "DegCD", p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene)
+)
+# Remove empty groups
+ClusterGenes_cd <- ClusterGenes_cd[sapply(ClusterGenes_cd, length) > 0]
+
+GO_cd <- compareCluster(
+  geneClusters = ClusterGenes_cd,
+  fun          = "enrichGO",
+  OrgDb        = "org.Mm.eg.db",
+  ont          = "BP",
+  keyType      = "SYMBOL",
+  pvalueCutoff = 1
+)
+
+write.csv(
+  as.data.frame(GO_cd),
+  file      = paste0(Outdir, "Figure4L_CD_GO_BP.csv"),
+  row.names = FALSE
+)
+
+selected_go_cd <- c(
+"regulation of inflammatory response","chemokine production","phagocytosis","neutrophil activation","macrophage chemotaxis","granulocyte migration","Fc receptor mediated stimulatory signaling pathway","insulin receptor signaling pathway","leukocyte cell−cell adhesion","fibroblast migration","fibroblast growth factor receptor signaling pathway","regulation of fibroblast proliferation","cellular respiration","response to hypoxia","NADP metabolic process","hydrogen peroxide catabolic process","reactive oxygen species metabolic process","hydrogen peroxide metabolic process","generation of precursor metabolites and energy","fatty acid metabolic process","organic acid catabolic process","carboxylic acid catabolic process","regulation of cellular pH","intrinsic apoptotic signaling pathway","collecting duct development"
+)
+
+Fig4L_GO <- dotplot(
+  GO_cd,
+  showCategory = selected_go_cd,
+  font.size    = 9,
+  label_format = 60,
+  by           = "geneRatio"
+) +
+  coord_flip() +
+  RotatedAxis() +
+  labs(title = "GO Biological Process – CD subset DEGs") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4L_CD_GO_Dotplot.pdf"),
+  plot     = Fig4L_GO,
+  width    = 10, height = 4.5
+)
+Fig4L_GO
+```
