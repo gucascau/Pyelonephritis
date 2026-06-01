@@ -479,7 +479,7 @@ CDHeatmapMat <- t(cd_acts_mat)[PathwayOrder_cd, groups_present]
 palette_length <- 100
 cd_color  <- colorRampPalette(c("royalblue", "white", "firebrick3"))(palette_length)
 cd_breaks <- c(seq(-2, 0,   length.out = ceiling(palette_length / 2) + 1),
-               seq(0.05, 2, length.out = floor(palette_length / 2)))
+               seq(0.05, 1, length.out = floor(palette_length / 2)))
 
 Fig4J_Progeny <- pheatmap(
   CDHeatmapMat,

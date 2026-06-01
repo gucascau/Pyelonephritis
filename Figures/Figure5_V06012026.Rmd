@@ -1,0 +1,545 @@
+---
+title: "Figure 5 – Proximal Tubule cell analysis across timepoints"
+author: "Xin Wang"
+date: "2026-06-01"
+output: html_document
+description: >
+  (A) UMAP of PT cells re-clustered into seven subpopulations (0–6).
+  (B) Dot plot of subset markers grouped into S1/S2, adaptive S1/S2, and S3-injured identities.
+  (C) Stacked bar chart of PT subset composition across timepoints (0, 3, 7, 28 dpi).
+  (D) UMAPs split by timepoint.
+  (E) Feature plots for the stress/injury markers Hspd1 (Hsp60) and Havcr1 (Kim-1).
+  (F) Dot plot of subset-defining genes highlighting injury (cluster 4) and inflammatory markers.
+
+Input:
+  Single-cell: PT_Subclusters/PIPSeq_Annotated_OnlyPT_v0823.rds
+
+Output: Results/Figures/Figure5/
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(cowplot)
+library(RColorBrewer)
+library(pheatmap)
+library(tidyr)
+library(tibble)
+library(scales)
+library(decoupleR)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+```
+
+## Directories
+
+```{r directories}
+SCIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/PT_Subclusters/"
+Outdir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure5/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Load data
+
+```{r load-data}
+PTcells <- readRDS(paste0(SCIndir, "PIPSeq_Annotated_OnlyPT_v0823.rds"))
+PTcells <- UpdateSeuratObject(PTcells)
+
+timepoint_order <- c("0DPI", "3DPI", "7DPI", "28DPI")
+
+# Cluster order 0–6 (numeric, as produced by re-clustering)
+cluster_order <- as.character(0:6)
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
+
+cat("Cluster counts:\n")
+print(table(PTcells@meta.data$seurat_clusters))
+cat("Timepoints:\n")
+print(table(PTcells@meta.data$DataSet))
+```
+
+## Shared setup – PT subset annotation
+
+```{r shared-setup}
+# Biological annotation of the 7 clusters.
+# Verify with DotPlot output; adjust case_when if cluster numbers differ.
+PTcells@meta.data <- PTcells@meta.data %>%
+  mutate(PTAnnot = case_when(
+    seurat_clusters == 0 ~ "S1",
+    seurat_clusters == 1 ~ "S2",
+    seurat_clusters == 2 ~ "S3",
+    seurat_clusters == 3 ~ "Adaptive S1/S2",
+    seurat_clusters == 4 ~ "Inflammatory PT",
+    seurat_clusters == 5 ~ "S3-Injured",
+    seurat_clusters == 6 ~ "Proliferating PT",
+    TRUE ~ "Unknown"
+  ))
+
+annot_order <- c("S1", "S2", "S3", "Adaptive S1/S2", "S3-Injured", "Inflammatory PT", "Proliferating PT")
+annot_order <- annot_order[annot_order %in% unique(PTcells@meta.data$PTAnnot)]
+
+# Combined annotation × timepoint identity
+PTcells@meta.data$AnnotTimepoint <- paste(
+  PTcells@meta.data$PTAnnot,
+  PTcells@meta.data$DataSet,
+  sep = "_"
+)
+combined_order <- paste(
+  rep(annot_order, each = length(timepoint_order)),
+  timepoint_order,
+  sep = "_"
+)
+combined_order <- combined_order[combined_order %in% unique(PTcells@meta.data$AnnotTimepoint)]
+```
+
+---
+
+## Figure 5A: UMAP of PT subpopulations (numeric clusters 0–6)
+
+```{r fig5a-umap-clusters, fig.width=5, fig.height=4}
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
+
+Fig5A_UMAP <- DimPlot(
+  PTcells,
+  label   = TRUE,
+  repel   = TRUE,
+  pt.size = 0.5
+) +
+  labs(title = "Proximal tubule subpopulations") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.text = element_text(size = 9)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5A_PT_UMAP_Clusters.pdf"),
+  plot     = Fig5A_UMAP,
+  width    = 5, height = 4
+)
+Fig5A_UMAP
+```
+
+---
+
+## Figure 5B: Dot plot of PT subset markers (S1/S2, adaptive, S3-injured)
+
+```{r fig5b-dotplot-markers, fig.width=11, fig.height=4}
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
+DefaultAssay(PTcells) <- "RNA"
+
+# Markers grouped by PT segment identity
+PT_Panmarkers <- c(
+"Lrp2","Cubn","Aqp1","Slc34a1",
+"Ggt1","Slc4a4"
+)
+S1_biased_markers <- c("Lrp2","Cubn","Slc34a1","Slc5a12")
+
+S2_biased_markers <- c("Slc5a2","Slc22a6","Slc22a8","Slc13a2","Slc22a2")
+
+S2_biased__markers <- c("Aqp7","Slc7a13","Slc7a12","Inmt")
+
+all_pt_markers <- c(S1_markers, S2_markers, S3_markers)
+all_pt_markers <- all_pt_markers[all_pt_markers %in% rownames(PTcells)]
+
+Fig5B_DotPlot <- DotPlot(
+  PTcells,
+  features  = all_pt_markers,
+  cols      = c("RdBu"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "PT subset marker expression (clusters 0–6)",
+    x     = NULL,
+    y     = "Cluster"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5B_PT_MarkerDotPlot.pdf"),
+  plot     = Fig5B_DotPlot,
+  width    = 5, height = 3
+)
+Fig5B_DotPlot
+```
+
+---
+
+## Figure 5C: Stacked bar chart of PT subset composition across timepoints
+
+```{r fig5c-proportion, fig.width=5, fig.height=4}
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
+prop_df <- table(PTcells@meta.data$DataSet, PTcells@meta.data$seurat_clusters) %>%
+  as.data.frame() %>%
+  dplyr::rename(Timepoint = Var1, Subset = Var2) %>%
+  group_by(Timepoint) %>%
+  mutate(pct = prop.table(Freq)) %>%
+  ungroup() %>%
+  mutate(
+    Timepoint = factor(Timepoint, levels = timepoint_order),
+    Subset    = factor(Subset,    levels = cluster_order)
+  )
+
+Fig5C_Prop <- ggplot(prop_df, aes(x = Timepoint, y = pct, fill = Subset)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Timepoint", y = "Proportion", title = "PT subset composition across timepoints") +
+  theme_classic() +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5C_PT_Proportion.pdf"),
+  plot     = Fig5C_Prop,
+  width    = 4.5, height = 4
+)
+Fig5C_Prop
+```
+
+---
+
+## Figure 5D: UMAPs split by timepoint
+
+```{r fig5d-umap-split, fig.width=14, fig.height=4}
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
+
+Fig5D_UMAPSplit <- DimPlot(
+  PTcells,
+  split.by = "DataSet",
+  label    = TRUE,
+  repel    = TRUE,
+  pt.size  = 0.3,
+  ncol     = 4
+) +
+  labs(title = "PT subsets split by timepoint") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.text = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5D_PT_UMAP_SplitByTimepoint.pdf"),
+  plot     = Fig5D_UMAPSplit,
+  width    = 14, height = 4
+)
+Fig5D_UMAPSplit
+```
+
+---
+
+## Figure 5E: Feature plots for Hspd1 (Hsp60) and Havcr1 (Kim-1)
+
+```{r fig5e-feature-plots, fig.width=10, fig.height=4}
+DefaultAssay(PTcells) <- "RNA"
+
+Fig5E_Hspd1 <- FeaturePlot(
+  PTcells,
+  features = "Hspd1",
+  #order    = TRUE,
+  pt.size  = 0.3,
+  #cols     =c("RdBu")
+) +
+  labs(title = "Hspd1 (Hsp60)") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+
+Fig5E_Havcr1 <- FeaturePlot(
+  PTcells,
+  features = "Havcr1",
+  #order    = TRUE,
+  pt.size  = 0.3,
+  #cols     = c("RdBu")
+) +
+  labs(title = "Havcr1 (Kim-1)") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+
+Fig5E <- cowplot::plot_grid(Fig5E_Hspd1, Fig5E_Havcr1, nrow = 1)
+
+ggsave(
+  filename = paste0(Outdir, "Figure5E_PT_Hspd1_Havcr1_FeaturePlots.pdf"),
+  plot     = Fig5E,
+  width    = 8, height = 4
+)
+Fig5E
+```
+
+---
+
+## Figure 5F: Dot plot of injury and inflammatory markers highlighting cluster 4
+
+```{r fig5f-injury-inflam-dotplot, fig.width=10, fig.height=4}
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
+DefaultAssay(PTcells) <- "RNA"
+
+# Injury, stress, and inflammatory gene set
+injury_inflam_markers <- c(
+  # Stress / heat-shock response
+  "Hspd1", "Hsp90aa1", "Hsp90ab1", "Hmox1", "Hif1a",
+  # Early tubular injury (Kim-1, Lcn2)
+  "Havcr1", "Lcn2", "Dab2", "Clu",
+  # Maladaptive / failed repair
+  "Vcam1", "Icam1", "Prom1", "Spp1", "Igfbp7", "Cst3",
+  # Pro-fibrotic
+  "Fn1", "C3", "Agt",
+  # Inflammatory
+  "Il1b", "Nfkbia", "Nlrp3", "S100a8", "S100a9",
+  "Cxcl1", "Cxcl2", "Ccl2"
+)
+injury_inflam_markers <- injury_inflam_markers[injury_inflam_markers %in% rownames(PTcells)]
+
+Fig5F_DotPlot <- DotPlot(
+  PTcells,
+  features  = injury_inflam_markers,
+  cols      = c("lightgrey", "#E31A1C"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "Injury and inflammatory markers across PT clusters (cluster 4 = Inflammatory PT)",
+    x     = NULL,
+    y     = "Cluster"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 9, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5F_PT_InjuryInflam_DotPlot.pdf"),
+  plot     = Fig5F_DotPlot,
+  width    = 10, height = 4
+)
+Fig5F_DotPlot
+```
+
+---
+
+## Figure 5I: GO Biological Process enrichment dotplot per PT subset
+
+```{r fig5i-go-enrichment, fig.width=12, fig.height=5}
+Idents(PTcells) <- factor(PTcells@meta.data$PTAnnot, levels = annot_order)
+DefaultAssay(PTcells) <- "SCT"
+
+AllMarkers_pt <- FindAllMarkers(
+  PTcells,
+  min.pct         = 0.25,
+  #logfc.threshold = 0.25,
+  test.use        = "MAST",
+  #only.pos        = TRUE
+)
+
+write.csv(
+  AllMarkers_pt,
+  file      = paste0(Outdir, "Figure5I_PT_DEGs.csv"),
+  row.names = FALSE
+)
+
+ClusterGenes_pt <- lapply(annot_order, function(cl) {
+  AllMarkers_pt %>%
+    filter(cluster == cl, p_val_adj <= 0.05, avg_log2FC >= 0.25) %>%
+    pull(gene)
+})
+names(ClusterGenes_pt) <- annot_order
+ClusterGenes_pt <- ClusterGenes_pt[sapply(ClusterGenes_pt, length) > 0]
+
+GO_pt <- compareCluster(
+  geneClusters = ClusterGenes_pt,
+  fun          = "enrichGO",
+  OrgDb        = "org.Mm.eg.db",
+  ont          = "BP",
+  keyType      = "SYMBOL",
+  pvalueCutoff = 1
+)
+
+write.csv(
+  as.data.frame(GO_pt),
+  file      = paste0(Outdir, "Figure5I_PT_GO_BP.csv"),
+  row.names = FALSE
+)
+
+selected_go_pt <- c(
+  # ROS / oxidative stress
+  "reactive oxygen species metabolic process",
+  "hydrogen peroxide metabolic process",
+  "hydrogen peroxide catabolic process",
+  "response to oxidative stress",
+  "cellular response to oxidative stress",
+  # Metabolic / energetics
+  "cellular respiration",
+  "generation of precursor metabolites and energy",
+  "fatty acid metabolic process",
+  "carboxylic acid catabolic process",
+  "organic acid catabolic process",
+  "NADP metabolic process",
+  # Transport
+  "ion transport",
+  "organic anion transport",
+  "amino acid transport",
+  "sodium ion transport",
+  "transmembrane transport",
+  # Regulation
+  "regulation of cellular pH",
+  "intrinsic apoptotic signaling pathway",
+  "regulation of apoptotic process",
+  "response to hypoxia",
+  # Inflammation
+  "inflammatory response",
+  "defense response to bacterium",
+  "innate immune response",
+  "neutrophil activation",
+  "chemokine production",
+  "cytokine production",
+  "response to lipopolysaccharide"
+)
+
+Fig5I_GO <- dotplot(
+  GO_pt,
+  showCategory = selected_go_pt,
+  font.size    = 9,
+  label_format = 55,
+  by           = "geneRatio"
+) +
+  coord_flip() +
+  RotatedAxis() +
+  labs(title = "GO Biological Process – PT subsets") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5I_PT_GO_Dotplot.pdf"),
+  plot     = Fig5I_GO,
+  width    = 12, height = 5
+)
+Fig5I_GO
+```
+
+---
+
+## Figure 5J: Monocle2 pseudotime trajectory of PT cells
+
+```{r fig5j-monocle2-pseudotime, fig.width=5, fig.height=4}
+library(monocle)
+
+# Build CDS from PTcells count matrix
+pt_counts <- as.matrix(LayerData(PTcells, layer = "counts"))
+p_data    <- PTcells@meta.data
+f_data    <- data.frame(gene_short_name = rownames(pt_counts),
+                        row.names       = rownames(pt_counts))
+
+pd  <- new("AnnotatedDataFrame", data = p_data)
+fd  <- new("AnnotatedDataFrame", data = f_data)
+
+CDS <- monocle::newCellDataSet(
+  pt_counts,
+  phenoData            = pd,
+  featureData          = fd,
+  lowerDetectionLimit  = 0.1,
+  expressionFamily     = negbinomial.size()
+)
+
+CDS <- estimateSizeFactors(CDS)
+CDS <- estimateDispersions(CDS)
+
+# Filter genes expressed in >= 10 cells
+CDS         <- detectGenes(CDS, min_expr = 0.1)
+expressed_genes <- row.names(subset(CDS@featureData@data, num_cells_expressed >= 10))
+
+# Select ordering genes: differentially expressed across timepoints × high dispersion
+diff_test_res <- differentialGeneTest(
+  CDS[expressed_genes, ],
+  fullModelFormulaStr = "~DataSet",
+  cores               = 1
+)
+ordering_genes_de <- row.names(subset(diff_test_res, qval < 0.01))
+
+disp_table        <- dispersionTable(CDS)
+ordering_genes_disp <- subset(
+  disp_table,
+  mean_expression >= 0.05 & dispersion_empirical >= 0.05 * dispersion_fit
+)$gene_id
+
+final_ordering_genes <- intersect(ordering_genes_de, ordering_genes_disp)
+cat("Final ordering genes:", length(final_ordering_genes), "\n")
+
+CDS <- setOrderingFilter(CDS, final_ordering_genes)
+
+# Reduce dimensions with DDRTree and order cells
+CDS <- reduceDimension(CDS, max_components = 2, method = "DDRTree")
+CDS <- monocle::orderCells(CDS)
+
+# Root the trajectory at the State enriched for 0DPI cells in clusters 0 and 1
+root_state_fn <- function(cds) {
+  origin_cells <- which(
+    cds@phenoData@data$DataSet == "0DPI" &
+    cds@phenoData@data$seurat_clusters %in% c(0, 1)
+  )
+  state_counts <- table(cds@phenoData@data$State[origin_cells])
+  as.integer(names(state_counts)[which.max(state_counts)])
+}
+root_st <- root_state_fn(CDS)
+CDS     <- monocle::orderCells(CDS, root_state = root_st)
+
+# Panel J1: trajectory colored by cluster
+Fig5J_Cluster <- plot_cell_trajectory(
+  CDS,
+  color_by  = "seurat_clusters",
+  cell_size = 0.5,
+  show_branch_points = TRUE
+) +
+  labs(title = "PT pseudotime – colored by cluster") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+# Panel J2: trajectory colored by pseudotime
+Fig5J_Pseudo <- plot_cell_trajectory(
+  CDS,
+  color_by  = "Pseudotime",
+  cell_size = 0.5,
+  show_branch_points = TRUE
+) +
+  scale_color_viridis_c(option = "plasma") +
+  labs(title = "PT pseudotime – pseudotime score") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+# Panel J3: trajectory colored by timepoint
+Fig5J_Time <- plot_cell_trajectory(
+  CDS,
+  color_by  = "DataSet",
+  cell_size = 0.5,
+  show_branch_points = TRUE
+) +
+  labs(title = "PT pseudotime – colored by timepoint") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+Fig5J <- cowplot::plot_grid(Fig5J_Cluster, Fig5J_Pseudo, Fig5J_Time, nrow = 1)
+
+ggsave(
+  filename = paste0(Outdir, "Figure5J_PT_Monocle2_Pseudotime.pdf"),
+  plot     = Fig5J,
+  width    = 14, height = 4
+)
+Fig5J
+```
