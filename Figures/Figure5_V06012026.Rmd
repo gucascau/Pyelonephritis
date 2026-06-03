@@ -36,7 +36,9 @@ library(tibble)
 library(scales)
 library(decoupleR)
 library(clusterProfiler)
-library(org.Mm.eg.db)
+library(org.Mm.eg.db)#
+# devtools::install_github("gunsagargulati/CytoTRACE")
+library(CytoTRACE)
 ```
 
 ## Directories
@@ -70,33 +72,33 @@ print(table(PTcells@meta.data$DataSet))
 ```{r shared-setup}
 # Biological annotation of the 7 clusters.
 # Verify with DotPlot output; adjust case_when if cluster numbers differ.
-PTcells@meta.data <- PTcells@meta.data %>%
-  mutate(PTAnnot = case_when(
-    seurat_clusters == 0 ~ "S1",
-    seurat_clusters == 1 ~ "S2",
-    seurat_clusters == 2 ~ "S3",
-    seurat_clusters == 3 ~ "Adaptive S1/S2",
-    seurat_clusters == 4 ~ "Inflammatory PT",
-    seurat_clusters == 5 ~ "S3-Injured",
-    seurat_clusters == 6 ~ "Proliferating PT",
-    TRUE ~ "Unknown"
-  ))
+# PTcells@meta.data <- PTcells@meta.data %>%
+#   mutate(PTAnnot = case_when(
+#     seurat_clusters == 0 ~ "S1/2",
+#     seurat_clusters == 1 ~ "S1/2",
+#     seurat_clusters == 2 ~ "SAT-PTCs",
+#     seurat_clusters == 3 ~ "Kim1NegInjuryPTC",
+#     seurat_clusters == 4 ~ "Kim1NegInjuryPTC",
+#     seurat_clusters == 5 ~ "Kim1PosInjuryPTC",
+#     seurat_clusters == 6 ~ "Kim1PosInjuryPTC",
+#     TRUE ~ "Unknown"
+#   ))
 
-annot_order <- c("S1", "S2", "S3", "Adaptive S1/S2", "S3-Injured", "Inflammatory PT", "Proliferating PT")
-annot_order <- annot_order[annot_order %in% unique(PTcells@meta.data$PTAnnot)]
+# annot_order <- c("S1", "S2", "S3", "Adaptive S1/S2", "S3-Injured", "Inflammatory PT", "Proliferating PT")
+# annot_order <- annot_order[annot_order %in% unique(PTcells@meta.data$PTAnnot)]
 
-# Combined annotation × timepoint identity
-PTcells@meta.data$AnnotTimepoint <- paste(
-  PTcells@meta.data$PTAnnot,
-  PTcells@meta.data$DataSet,
-  sep = "_"
-)
-combined_order <- paste(
-  rep(annot_order, each = length(timepoint_order)),
-  timepoint_order,
-  sep = "_"
-)
-combined_order <- combined_order[combined_order %in% unique(PTcells@meta.data$AnnotTimepoint)]
+# # Combined annotation × timepoint identity
+# PTcells@meta.data$AnnotTimepoint <- paste(
+#   PTcells@meta.data$PTAnnot,
+#   PTcells@meta.data$DataSet,
+#   sep = "_"
+# )
+# combined_order <- paste(
+#   rep(annot_order, each = length(timepoint_order)),
+#   timepoint_order,
+#   sep = "_"
+# )
+# combined_order <- combined_order[combined_order %in% unique(PTcells@meta.data$AnnotTimepoint)]
 ```
 
 ---
@@ -145,7 +147,7 @@ S2_biased_markers <- c("Slc5a2","Slc22a6","Slc22a8","Slc13a2","Slc22a2")
 
 S2_biased__markers <- c("Aqp7","Slc7a13","Slc7a12","Inmt")
 
-all_pt_markers <- c(S1_markers, S2_markers, S3_markers)
+all_pt_markers <- c(S1_biased_markers, S2_biased_markers, S2_biased__markers)
 all_pt_markers <- all_pt_markers[all_pt_markers %in% rownames(PTcells)]
 
 Fig5B_DotPlot <- DotPlot(
@@ -156,7 +158,7 @@ Fig5B_DotPlot <- DotPlot(
 ) +
   RotatedAxis() +
   labs(
-    title = "PT subset marker expression (clusters 0–6)",
+    title = "PT subset marker expression (clusters 0-6)",
     x     = NULL,
     y     = "Cluster"
   ) +
@@ -284,7 +286,7 @@ Fig5E
 ## Figure 5F: Dot plot of injury and inflammatory markers highlighting cluster 4
 
 ```{r fig5f-injury-inflam-dotplot, fig.width=10, fig.height=4}
-Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
 DefaultAssay(PTcells) <- "RNA"
 
 # Injury, stress, and inflammatory gene set
@@ -292,21 +294,27 @@ injury_inflam_markers <- c(
   # Stress / heat-shock response
   "Hspd1", "Hsp90aa1", "Hsp90ab1", "Hmox1", "Hif1a",
   # Early tubular injury (Kim-1, Lcn2)
-  "Havcr1", "Lcn2", "Dab2", "Clu",
+  "Havcr1", "Lcn2", "Clu","Dab2","Nrg1",
   # Maladaptive / failed repair
   "Vcam1", "Icam1", "Prom1", "Spp1", "Igfbp7", "Cst3",
   # Pro-fibrotic
-  "Fn1", "C3", "Agt",
+  "Fn1", "C3", "Agt","Tgfb1","Col1a1","Col3a1",
   # Inflammatory
   "Il1b", "Nfkbia", "Nlrp3", "S100a8", "S100a9",
-  "Cxcl1", "Cxcl2", "Ccl2"
+  "Cxcl1", "Cxcl2", "Ccl2","Ccl5","Tnfaip3",
+  # chronic injury
+  "Cdkn1a","Cdkn2a", "Serpine1", "Gdf15",
+  # Cycling
+  "Mki67", "Foxm1","Top2a", "Pcna", "Ccna2","Ccnb1", "Cdk1"
+
 )
 injury_inflam_markers <- injury_inflam_markers[injury_inflam_markers %in% rownames(PTcells)]
+
 
 Fig5F_DotPlot <- DotPlot(
   PTcells,
   features  = injury_inflam_markers,
-  cols      = c("lightgrey", "#E31A1C"),
+  cols      = c("RdBu"),
   dot.scale = 5
 ) +
   RotatedAxis() +
@@ -328,9 +336,181 @@ Fig5F_DotPlot <- DotPlot(
 ggsave(
   filename = paste0(Outdir, "Figure5F_PT_InjuryInflam_DotPlot.pdf"),
   plot     = Fig5F_DotPlot,
-  width    = 10, height = 4
+  width    = 8.5, height = 4
 )
 Fig5F_DotPlot
+```
+
+---
+
+## Figure 5G: DotPlot of PT transport function, dedifferentiation, and proliferation markers
+
+```{r fig5g-transport-dediff-prolif, fig.width=11, fig.height=4}
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
+DefaultAssay(PTcells) <- "RNA"
+
+# S1 identity / endocytic complex and ATPase subunits
+s1_transport <- c("Lrp2", "Aqp1", "Slc34a1", "Ggt1", "Atp1a1", "Atp1b1")
+
+# Solute transporter functions
+organic_anion <- c("Slc22a6", "Slc22a8")   # OAT1, OAT3 – organic anion transport
+amino_acid    <- c("Slc6a19")              # B0AT1 – neutral amino acid transport
+uric_acid     <- c("Slc22a12")             # URAT1 – uric acid reabsorption
+dicarboxylate <- c("Slc13a3")              # NaDC3 – dicarboxylate reabsorption
+na_h_exchange <- c("Slc9a3")              # NHE3 – sodium-hydrogen exchange
+glutamate     <- c("Slc1a1")              # EAAT3 – glutamate transport
+
+#Common injured PT
+#Common_injury_markers <- c("Havcr1", "Lcn2", "Clu","Dab2","Nrg1","Sox9","Krt8","Krt18","Krt19","Spp1")
+
+# Cell proliferation -- Repairing PT
+prolif_markers_g <- c("Mki67", "Foxm1","Top2a", "Pcna", "Ccna2","Ccnb1", "Cdk1")
+
+# Dedifferentiation (loss of PT identity / maladaptive repair)
+dediff_markers <- c("Vcam1", "Prom1", "Vim", "Cdh6", "Fn1", "Hif1a","Spp1", "Clu","Dab2","Nrg1","Havcr1")
+# fatty acid oxidation
+FAO_markers <- c(
+"Ppara",
+"Ppargc1a",
+"Cpt1a",
+"Ehhadh",
+"Acsm3",
+"Ldhd"
+)
+# Glycolysis
+Glycolysis_markers <- c(
+"Ldha",
+"Gapdh",
+"Ldhd",
+"Hk2",
+"Pfkp",
+"Pkm"
+)
+
+all_g_markers <- c(
+  s1_transport, organic_anion, amino_acid, uric_acid,
+  dicarboxylate, na_h_exchange, glutamate,
+  dediff_markers, prolif_markers_g, FAO_markers, Glycolysis_markers
+)
+all_g_markers <- unique(all_g_markers[all_g_markers %in% rownames(PTcells)])
+
+Fig5G_DotPlot <- DotPlot(
+  PTcells,
+  features  = all_g_markers,
+  cols      = c("RdBu"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "PT transport function, dedifferentiation, and proliferation markers",
+    x     = NULL,
+    y     = "Cluster"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 9, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5G_PT_Transport_Dediff_Prolif_DotPlot.pdf"),
+  plot     = Fig5G_DotPlot,
+  width    = 10, height = 4
+)
+Fig5G_DotPlot
+```
+
+---
+
+## Figure 5H: CytoTRACE differentiation state analysis
+
+```{r fig5h-cytotrace, fig.width=12, fig.height=4}
+# CytoTRACE scores transcriptional diversity per cell as a proxy for
+# differentiation state: score ~1 = stem-like/undifferentiated, ~0 = fully differentiated
+# Install if needed: devtools::install_github("gunsagargulati/CytoTRACE")
+library(CytoTRACE)
+
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
+DefaultAssay(PTcells) <- "RNA"
+
+# CytoTRACE expects a genes × cells raw count matrix
+ct_mat     <- as.matrix(GetAssayData(PTcells, assay = "RNA", layer = "counts"))
+ct_results <- CytoTRACE(ct_mat)
+
+# Add score to metadata (align by cell barcode)
+PTcells$CytoTRACE_score <- ct_results$CytoTRACE[colnames(PTcells)]
+
+# Panel H1: UMAP colored by CytoTRACE score
+Fig5H_UMAP <- FeaturePlot(
+  PTcells,
+  features = "CytoTRACE_score",
+  pt.size  = 0.4,
+  cols     = rev(brewer.pal(11, "RdBu"))
+) +
+  labs(title = "CytoTRACE differentiation score") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+
+ggsave(
+  filename = paste0(Outdir, "Figure5H_PT_CytoTRACE_UMAP.pdf"),
+  plot     = Fig5H_UMAP,
+  width    = 5, height = 4
+)
+
+# Panel H2: Violin plot of CytoTRACE score per cluster
+Fig5H_Vln_Cluster <- VlnPlot(
+  PTcells,
+  features = "CytoTRACE_score",
+  pt.size  = 0,
+  cols     = brewer.pal(max(7, length(cluster_order)), "Set2")[seq_along(cluster_order)]
+) +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", alpha = 0.6) +
+  labs(title = "CytoTRACE score by cluster", x = "Cluster", y = "CytoTRACE score") +
+  theme(
+    plot.title   = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.position = "none"
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5H_PT_CytoTRACE_VlnCluster.pdf"),
+  plot     = Fig5H_Vln_Cluster,
+  width    = 5, height = 4
+)
+
+# Panel H3: Violin plot of CytoTRACE score per timepoint
+PTcells$DataSet <- factor(PTcells$DataSet, levels = timepoint_order)
+Fig5H_Vln_Time <- VlnPlot(
+  PTcells,
+  features = "CytoTRACE_score",
+  group.by = "DataSet",
+  pt.size  = 0,
+  cols     = brewer.pal(4, "Blues")
+) +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", alpha = 0.6) +
+  labs(title = "CytoTRACE score by timepoint", x = "Timepoint", y = "CytoTRACE score") +
+  theme(
+    plot.title   = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.position = "none",
+    axis.text.x  = element_text(angle = 45, hjust = 1)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5H_PT_CytoTRACE_VlnTimepoint.pdf"),
+  plot     = Fig5H_Vln_Time,
+  width    = 4, height = 4
+)
+
+Fig5H <- cowplot::plot_grid(Fig5H_UMAP, Fig5H_Vln_Cluster, Fig5H_Vln_Time, nrow = 1, rel_widths = c(1.2, 1, 0.8))
+
+ggsave(
+  filename = paste0(Outdir, "Figure5H_PT_CytoTRACE_Combined.pdf"),
+  plot     = Fig5H,
+  width    = 12, height = 4
+)
+Fig5H
 ```
 
 ---
@@ -338,7 +518,7 @@ Fig5F_DotPlot
 ## Figure 5I: GO Biological Process enrichment dotplot per PT subset
 
 ```{r fig5i-go-enrichment, fig.width=12, fig.height=5}
-Idents(PTcells) <- factor(PTcells@meta.data$PTAnnot, levels = annot_order)
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
 DefaultAssay(PTcells) <- "SCT"
 
 AllMarkers_pt <- FindAllMarkers(
@@ -355,12 +535,13 @@ write.csv(
   row.names = FALSE
 )
 
-ClusterGenes_pt <- lapply(annot_order, function(cl) {
+AllMarkers_pt %>% head()
+ClusterGenes_pt <- lapply(cluster_order, function(cl) {
   AllMarkers_pt %>%
     filter(cluster == cl, p_val_adj <= 0.05, avg_log2FC >= 0.25) %>%
     pull(gene)
 })
-names(ClusterGenes_pt) <- annot_order
+names(ClusterGenes_pt) <- cluster_order
 ClusterGenes_pt <- ClusterGenes_pt[sapply(ClusterGenes_pt, length) > 0]
 
 GO_pt <- compareCluster(
@@ -379,54 +560,94 @@ write.csv(
 )
 
 selected_go_pt <- c(
-  # ROS / oxidative stress
-  "reactive oxygen species metabolic process",
-  "hydrogen peroxide metabolic process",
-  "hydrogen peroxide catabolic process",
+
+  # 1. PT Metabolism & Homeostasis
+  "lipid oxidation",
+  "fatty acid oxidation",
+  "oxidative phosphorylation",
+  "regulation of fatty acid oxidation",  
+  "NADPH regeneration",
+
+  # 2. Oxidative Stress Response
   "response to oxidative stress",
   "cellular response to oxidative stress",
-  # Metabolic / energetics
-  "cellular respiration",
-  "generation of precursor metabolites and energy",
-  "fatty acid metabolic process",
-  "carboxylic acid catabolic process",
-  "organic acid catabolic process",
-  "NADP metabolic process",
-  # Transport
-  "ion transport",
-  "organic anion transport",
-  "amino acid transport",
-  "sodium ion transport",
-  "transmembrane transport",
-  # Regulation
-  "regulation of cellular pH",
-  "intrinsic apoptotic signaling pathway",
-  "regulation of apoptotic process",
   "response to hypoxia",
-  # Inflammation
-  "inflammatory response",
-  "defense response to bacterium",
-  "innate immune response",
-  "neutrophil activation",
-  "chemokine production",
-  "cytokine production",
-  "response to lipopolysaccharide"
+  "cellular response to superoxide",
+  "cellular response to hydrogen peroxide",
+
+  # 3. Metabolic Reprogramming
+  "canonical glycolysis",
+  "glycolytic process",
+  "glycogen metabolic process",
+  "regulation of glycogen catabolic process",
+
+  # 4. Inflammation & Immune Recruitment
+  "regulation of inflammatory response",
+  "inflammatory response to antigenic stimulus",
+  "acute inflammatory response",
+  "respiratory burst involved in inflammatory response",
+  "cytokine production involved in immune response",
+  "tumor necrosis factor superfamily cytokine production",
+  "neutrophil chemotaxis",
+
+  # 5. Repair & Regeneration
+  "regulation of cell cycle G1/S phase transition",
+  "regulation of cell cycle phase transition",
+  "cell cycle G2/M phase transition",
+  "mitotic nuclear division",
+  "regulation of meiotic cell cycle",
+
+  # 6. Plasticity & Dedifferentiation
+  "regulation of epithelial cell differentiation",
+  "stem cell differentiation",
+  "mesenchymal cell differentiation",
+  "epithelial to mesenchymal transition",
+
+  # 7. Fibrosis & Matrix Remodeling
+  "extracellular matrix organization",
+  "regulation of extracellular matrix assembly",
+  "extracellular matrix disassembly",
+
+  # 8. Senescence
+  "cellular senescence",
+  "replicative senescence",
+
+  # 9. Cell Death
+  "regulation of apoptotic signaling pathway",
+  "intrinsic apoptotic signaling pathway",
+  "intrinsic apoptotic signaling pathway in response to DNA damage",
+  "regulation of intrinsic apoptotic signaling pathway",
+
+  # 10. Tissue Remodeling
+  "regulation of angiogenesis"
 )
 
-Fig5I_GO <- dotplot(
-  GO_pt,
-  showCategory = selected_go_pt,
-  font.size    = 9,
-  label_format = 55,
-  by           = "geneRatio"
-) +
-  coord_flip() +
-  RotatedAxis() +
-  labs(title = "GO Biological Process – PT subsets") +
+# clusterProfiler's dotplot() re-orders internally and ignores factor levels.
+# Build directly from the data with ggplot2 for exact control.
+terms_present <- selected_go_pt[selected_go_pt %in% as.data.frame(GO_pt)$Description]
+
+df_go <- as.data.frame(GO_pt) %>%
+  filter(Description %in% terms_present) %>%
+  mutate(
+    GeneRatio   = sapply(GeneRatio, function(x) {
+                    v <- as.numeric(strsplit(x, "/")[[1]]); v[1] / v[2]
+                  }),
+    Description = factor(Description, levels = terms_present), 
+    Cluster     = factor(Cluster,     levels = rev(cluster_order))       
+  )
+
+# x = Cluster (bottom), y = Description (left) -> GO terms appear on the left side
+Fig5I_GO <- ggplot(df_go, aes(x = Description, y = Cluster,
+                               size = GeneRatio, color = p.adjust)) +
+  geom_point() +
+  scale_color_gradient(low = "#E31A1C", high = "steelblue", name = "p.adjust") +
+  scale_size_continuous(range = c(1, 6), name = "GeneRatio") +
+  labs(title = "GO Biological Process - PT subsets", x = NULL, y = NULL) +
+  theme_bw() +
   theme(
     plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
-    axis.text.x = element_text(size = 8),
-    axis.text.y = element_text(size = 8)
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8, hjust = 1)
   )
 
 ggsave(
@@ -439,107 +660,297 @@ Fig5I_GO
 
 ---
 
-## Figure 5J: Monocle2 pseudotime trajectory of PT cells
+## Figure 5J: Monocle3 pseudotime trajectory of PT cells
 
-```{r fig5j-monocle2-pseudotime, fig.width=5, fig.height=4}
-library(monocle)
+```{r fig5j-monocle3-pseudotime, fig.width=14, fig.height=4}
+# Monocle2 is incompatible with modern dplyr (group_by_() removed in dplyr 0.8+).
+# We use Monocle3 via SeuratWrappers instead — same biological result, fully compatible.
+# Install if needed:
+#   BiocManager::install("monocle3")
+#   remotes::install_github("satijalab/seurat-wrappers")
+library(monocle3)
+library(SeuratWrappers)
 
-# Build CDS from PTcells count matrix
-pt_counts <- as.matrix(LayerData(PTcells, layer = "counts"))
-p_data    <- PTcells@meta.data
-f_data    <- data.frame(gene_short_name = rownames(pt_counts),
-                        row.names       = rownames(pt_counts))
+Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
+DefaultAssay(PTcells) <- "RNA"
 
-pd  <- new("AnnotatedDataFrame", data = p_data)
-fd  <- new("AnnotatedDataFrame", data = f_data)
+# Convert Seurat → Monocle3 CellDataSet (reuses Seurat UMAP embedding)
+cds <- as.cell_data_set(PTcells)
 
-CDS <- monocle::newCellDataSet(
-  pt_counts,
-  phenoData            = pd,
-  featureData          = fd,
-  lowerDetectionLimit  = 0.1,
-  expressionFamily     = negbinomial.size()
-)
+# Re-use the existing Seurat UMAP so trajectory is overlaid on the same layout
+cds@int_colData$reducedDims$UMAP <- Embeddings(PTcells, "umap")[colnames(cds), ]
 
-CDS <- estimateSizeFactors(CDS)
-CDS <- estimateDispersions(CDS)
+# Cluster cells (uses Seurat partition) and learn trajectory graph
+cds <- cluster_cells(cds, reduction_method = "UMAP")
+cds <- learn_graph(cds, use_partition = FALSE)
 
-# Filter genes expressed in >= 10 cells
-CDS         <- detectGenes(CDS, min_expr = 0.1)
-expressed_genes <- row.names(subset(CDS@featureData@data, num_cells_expressed >= 10))
-
-# Select ordering genes: differentially expressed across timepoints × high dispersion
-diff_test_res <- differentialGeneTest(
-  CDS[expressed_genes, ],
-  fullModelFormulaStr = "~DataSet",
-  cores               = 1
-)
-ordering_genes_de <- row.names(subset(diff_test_res, qval < 0.01))
-
-disp_table        <- dispersionTable(CDS)
-ordering_genes_disp <- subset(
-  disp_table,
-  mean_expression >= 0.05 & dispersion_empirical >= 0.05 * dispersion_fit
-)$gene_id
-
-final_ordering_genes <- intersect(ordering_genes_de, ordering_genes_disp)
-cat("Final ordering genes:", length(final_ordering_genes), "\n")
-
-CDS <- setOrderingFilter(CDS, final_ordering_genes)
-
-# Reduce dimensions with DDRTree and order cells
-CDS <- reduceDimension(CDS, max_components = 2, method = "DDRTree")
-CDS <- monocle::orderCells(CDS)
-
-# Root the trajectory at the State enriched for 0DPI cells in clusters 0 and 1
-root_state_fn <- function(cds) {
-  origin_cells <- which(
-    cds@phenoData@data$DataSet == "0DPI" &
-    cds@phenoData@data$seurat_clusters %in% c(0, 1)
+# Root the trajectory at cells from clusters 0 and 1 at 0DPI
+get_root_nodes <- function(cds_obj) {
+  origin_cell_ids <- which(
+    colData(cds_obj)$DataSet         == "0DPI" &
+    colData(cds_obj)$seurat_clusters %in% c("0", "1")
   )
-  state_counts <- table(cds@phenoData@data$State[origin_cells])
-  as.integer(names(state_counts)[which.max(state_counts)])
+  closest_vertex <- cds_obj@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds_obj), ])
+  root_nodes <- igraph::V(principal_graph(cds_obj)[["UMAP"]])$name[
+    as.numeric(names(which.max(table(closest_vertex[origin_cell_ids, ]))))
+  ]
+  root_nodes
 }
-root_st <- root_state_fn(CDS)
-CDS     <- monocle::orderCells(CDS, root_state = root_st)
+cds <- order_cells(cds, root_pr_nodes = get_root_nodes(cds))
 
-# Panel J1: trajectory colored by cluster
-Fig5J_Cluster <- plot_cell_trajectory(
-  CDS,
-  color_by  = "seurat_clusters",
-  cell_size = 0.5,
-  show_branch_points = TRUE
+# Store pseudotime in Seurat metadata for downstream plotting
+PTcells$Pseudotime <- pseudotime(cds)[colnames(PTcells)]
+
+# Panel J1: UMAP colored by cluster with trajectory graph
+Fig5J_Cluster <- plot_cells(
+  cds,
+  color_cells_by        = "seurat_clusters",
+  label_cell_groups     = TRUE,
+  label_leaves          = TRUE,
+  label_branch_points   = TRUE,
+  graph_label_size      = 1.5,
+  cell_size             = 0.5
 ) +
-  labs(title = "PT pseudotime – colored by cluster") +
+  labs(title = "PT trajectory - cluster") +
   theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
 
-# Panel J2: trajectory colored by pseudotime
-Fig5J_Pseudo <- plot_cell_trajectory(
-  CDS,
-  color_by  = "Pseudotime",
-  cell_size = 0.5,
-  show_branch_points = TRUE
+# Panel J2: UMAP colored by pseudotime
+Fig5J_Pseudo <- plot_cells(
+  cds,
+  color_cells_by        = "pseudotime",
+  label_cell_groups     = FALSE,
+  label_leaves          = FALSE,
+  label_branch_points   = FALSE,
+  cell_size             = 0.5
 ) +
-  scale_color_viridis_c(option = "plasma") +
-  labs(title = "PT pseudotime – pseudotime score") +
+  labs(title = "PT trajectory - pseudotime") +
   theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
 
-# Panel J3: trajectory colored by timepoint
-Fig5J_Time <- plot_cell_trajectory(
-  CDS,
-  color_by  = "DataSet",
-  cell_size = 0.5,
-  show_branch_points = TRUE
+# Panel J3: UMAP colored by timepoint
+Fig5J_Time <- plot_cells(
+  cds,
+  color_cells_by        = "DataSet",
+  label_cell_groups     = FALSE,
+  label_leaves          = FALSE,
+  label_branch_points   = FALSE,
+  cell_size             = 0.5
 ) +
-  labs(title = "PT pseudotime – colored by timepoint") +
+  labs(title = "PT trajectory - timepoint") +
   theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
 
 Fig5J <- cowplot::plot_grid(Fig5J_Cluster, Fig5J_Pseudo, Fig5J_Time, nrow = 1)
 
 ggsave(
-  filename = paste0(Outdir, "Figure5J_PT_Monocle2_Pseudotime.pdf"),
+  filename = paste0(Outdir, "Figure5J_PT_Monocle3_Pseudotime.pdf"),
   plot     = Fig5J,
   width    = 14, height = 4
 )
 Fig5J
+```
+
+---
+
+## Figure 5K: PT state module scores projected onto spatial ATLAS
+### Logic: A spot is shown only if it passes both thresholds:
+
+#         PT_Identity score > 0 → spot is PT-positive
+#         Status score > 0 → spot also expresses the stress/injury signature
+
+```{r fig5k-spatial-pt-states, fig.width=15, fig.height=3}
+# Load spatial ATLAS
+SpatialIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
+Pyelonephritis_Infection <- readRDS(paste0(
+  SpatialIndir,
+  "Pyelonephritis_Infection_Decovoluted_with_PROGENyCandidatePath_v05292026.rds"
+))
+Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+
+# PT state gene signatures derived directly from single-cell cluster markers
+
+# Anchor: canonical PT identity (used to mask non-PT spots)
+PT_Identity <- c("Lrp2", "Slc34a1", "Slc22a6", "Slc22a8", "Slc5a12", "Ggt1", "Dab2")
+
+# Cluster 2: Adaptive Stress PT
+# Most differentiated; S1/S2 transporters + low-level stress markers
+C2_Adaptive_Stress <- c("Slc34a1", "Slc5a12", "Slc22a6", "Slc22a8", "Slc22a2",
+                         "Igfbp7", "Cst3", "Hspd1", "Hsp90aa1")
+
+# Cluster 3: Hmox1+ Oxidative Stress PT
+# Cytoprotective oxidative stress / heat-shock; maintains epithelial identity
+C3_Oxidative_Stress <- c("Hmox1", "Hspd1", "Hsp90aa1", "Hsp90ab1", "Dab2")
+
+# Cluster 4: Metabolic Stress PT
+# Glycolytic reprogramming + proteotoxic stress; reduced transporter expression
+C4_Metabolic_Stress <- c("Ldha", "Gapdh", "Hspd1", "Hsp90aa1", "Hsp90ab1")
+
+# Cluster 5: Kim1+ Injured/Repairing PT
+# Active regeneration: tubular injury + robust cell-cycle activation
+C5_Repairing_PT <- c("Havcr1", "Foxm1", "Top2a", "Pcna", "Ccna2", "Ccnb1")
+
+# Cluster 1: Spp1+ VCAM1+ Maladaptive Repair PT
+# EMT, inflammation, profibrotic; still retains some transport genes
+C1_Maladaptive_Repair <- c("Vcam1", "Vim", "Prom1", "Clu", "Spp1", "Cxcl1", "Cxcl2", "Ccl5")
+
+# Cluster 6: Kim1+ Igfbp7+ Maladaptive PT
+# Severe injury; profibrotic + senescence markers
+C6_Kim1_Maladaptive <- c("Havcr1", "Igfbp7", "Lcn2", "Spp1", "Tgfb1", "Agt", "Gdf15", "Cdkn2a")
+
+# Cluster 0: Spp1+ Chronic Injury PT
+# Persistent chronic injury; senescence without active repair
+C0_Chronic_Injury <- c("Spp1", "Igfbp7", "Serpine1", "Cdkn2a")
+
+# Nephron segment identity markers
+# S1: outer cortex; megalin-high, SGLT2, OAT1
+S1_Segment <-  c("Lrp2","Cubn","Slc34a1","Slc5a12")
+
+# S2: mid-cortex; 
+S2_Segment <- c("Slc5a2","Slc22a6","Slc22a8","Slc13a2","Slc22a2")
+
+# S3: corticomedullary junction; Kim1-prone zone
+S3_Segment <- c("Aqp7","Slc7a13","Slc7a12","Inmt")
+
+
+# S1_biased_markers <- c("Lrp2","Cubn","Slc34a1","Slc5a12")
+
+# S2_biased_markers <- c("Slc5a2","Slc22a6","Slc22a8","Slc13a2","Slc22a2")
+
+# S2_biased__markers <- c("Aqp7","Slc7a13","Slc7a12","Inmt")
+
+# Filter each signature to genes present in the spatial object
+pt_signatures <- list(
+  PT_Identity        = PT_Identity[PT_Identity %in% rownames(Pyelonephritis_Infection)],
+  C2_Adaptive_Stress = C2_Adaptive_Stress[C2_Adaptive_Stress %in% rownames(Pyelonephritis_Infection)],
+  C3_Oxidative_Stress = C3_Oxidative_Stress[C3_Oxidative_Stress %in% rownames(Pyelonephritis_Infection)],
+  C4_Metabolic_Stress = C4_Metabolic_Stress[C4_Metabolic_Stress %in% rownames(Pyelonephritis_Infection)],
+  C5_Repairing_PT    = C5_Repairing_PT[C5_Repairing_PT %in% rownames(Pyelonephritis_Infection)],
+  C1_Maladaptive_Repair = C1_Maladaptive_Repair[C1_Maladaptive_Repair %in% rownames(Pyelonephritis_Infection)],
+  C6_Kim1_Maladaptive = C6_Kim1_Maladaptive[C6_Kim1_Maladaptive %in% rownames(Pyelonephritis_Infection)],
+  C0_Chronic_Injury  = C0_Chronic_Injury[C0_Chronic_Injury %in% rownames(Pyelonephritis_Infection)],
+  S1_Segment         = S1_Segment[S1_Segment %in% rownames(Pyelonephritis_Infection)],
+  S2_Segment         = S2_Segment[S2_Segment %in% rownames(Pyelonephritis_Infection)],
+  S3_Segment         = S3_Segment[S3_Segment %in% rownames(Pyelonephritis_Infection)]
+)
+
+cat("Genes retained per signature:\n")
+print(sapply(pt_signatures, length))
+
+# Compute module scores (AddModuleScore uses ctrl genes for background correction)
+Pyelonephritis_Infection <- AddModuleScore(
+  Pyelonephritis_Infection,
+  features = pt_signatures,
+  name     = names(pt_signatures),
+  seed     = 42
+)
+
+# Column names are appended with 1,2,3... by AddModuleScore
+score_cols <- paste0(names(pt_signatures), seq_along(pt_signatures))
+cat("Score columns added:", paste(score_cols, collapse = ", "), "\n")
+
+# Spatial feature plots for each signature across all 6 timepoints
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+for (i in seq_along(score_cols)) {
+  col   <- score_cols[i]
+  label <- names(pt_signatures)[i]
+
+  Maxvalue <- ceiling(max(Pyelonephritis_Infection[[col]][, 1]))
+  Minvalue <- floor(min(Pyelonephritis_Infection[[col]][, 1]))
+
+  p <- SpatialFeaturePlot(
+    Pyelonephritis_Infection,
+    features       = col,
+    pt.size.factor = 1600,
+    crop           = TRUE
+  ) &
+    ggplot2::scale_fill_gradientn(
+      colours = myPalette(4),
+      limits  = c(Minvalue, Maxvalue),
+      name    = label
+    )
+
+  ggsave(
+    filename = paste0(Outdir, "Figure5K_Spatial_", label, "_Score.pdf"),
+    plot     = p,
+    height   = 3,
+    width    = 15
+  )
+}
+```
+
+---
+
+## Figure 5L: PT-positive spots only – status score spatial feature plots
+
+```{r fig5l-spatial-pt-masked, fig.width=15, fig.height=3}
+# PT_Identity score column is the first one added (PT_Identity1)
+pt_score_col <- score_cols[1]   # "PT_Identity1"
+
+# Threshold: spots with PT_Identity score > 0 are considered PT-positive.
+# AddModuleScore centers scores around 0, so >0 = above background expression.
+pt_positive <- Pyelonephritis_Infection[[pt_score_col]][, 1] > 0
+cat("PT-positive spots:", sum(pt_positive), "/", ncol(Pyelonephritis_Infection), "\n")
+
+# For each STATUS signature (all except PT_Identity), create a masked column:
+# score is kept for spots that are PT+ AND status+; set to NA otherwise.
+status_score_cols  <- score_cols[-1]                       # drop PT_Identity1
+status_score_names <- names(pt_signatures)[-1]
+
+masked_cols <- character(length(status_score_cols))
+
+for (i in seq_along(status_score_cols)) {
+  col    <- status_score_cols[i]
+  label  <- status_score_names[i]
+  scores <- Pyelonephritis_Infection[[col]][, 1]
+
+  status_positive <- scores > 0
+  co_positive     <- pt_positive & status_positive
+
+  cat(label, "– co-positive spots:", sum(co_positive), "\n")
+
+  masked_scores        <- ifelse(co_positive, scores, NA)
+  masked_col           <- paste0(col, "_PTmasked")
+  masked_cols[i]       <- masked_col
+  Pyelonephritis_Infection[[masked_col]] <- masked_scores
+}
+
+# Plot each masked score – non-PT / non-status spots render as light grey (na.value)
+myPalette_status <-  colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+for (i in seq_along(masked_cols)) {
+  masked_col <- masked_cols[i]
+  label      <- status_score_names[i]
+
+  valid_scores <- Pyelonephritis_Infection[[masked_col]][, 1]
+  valid_scores <- valid_scores[!is.na(valid_scores)]
+
+  if (length(valid_scores) == 0) {
+    message("No co-positive spots for ", label, " – skipping.")
+    next
+  }
+
+  Maxvalue <- ceiling(max(valid_scores)-0.05)
+  Minvalue <- floor(min(valid_scores))
+
+  p <- SpatialFeaturePlot(
+    Pyelonephritis_Infection,
+    features       = masked_col,
+    pt.size.factor = 1600,
+    crop           = TRUE
+  ) &
+    ggplot2::scale_fill_gradientn(
+      colours  = myPalette_status(8),
+      limits   = c(Minvalue, Maxvalue),
+      na.value = "lightgrey",
+      name     = label
+    )
+
+  ggsave(
+    filename = paste0(Outdir, "Figure5L_Spatial_", label, "_PTposOnly.pdf"),
+    plot     = p,
+    height   = 3,
+    width    = 20
+  )
+}
 ```

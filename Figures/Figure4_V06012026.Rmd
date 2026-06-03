@@ -519,6 +519,8 @@ amp_genes <- c(
   "Mpo", "Elane", "Rnase2", "Rnase4",
   "Umod", "Mbd1", "Mbd2", "Ear2", "Ear11", "Ear6"
 )
+# amp_genes <- c("Lcn2", "Defb1", "Defb4", "Camp", "S100a8", "S100a9", "Slpi", "Reg3g", "Nos2")
+
 amp_genes <- amp_genes[amp_genes %in% rownames(CDcells)]
 
 Fig4K_AMP_DotPlot <- DotPlot(

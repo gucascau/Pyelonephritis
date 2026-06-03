@@ -340,9 +340,12 @@ Pyelonephritis_Infection <- AddModuleScore(
     "Apoptosis"
   )
 )
+
+# please make sure the order of the pathways is consistent with the order in the dotplot and heatmap
 ColumnOrders<- colnames(Pyelonephritis_Infection@meta.data)[41:57]
 paletteLength <- length(ColumnOrders)
 
+length(colnames(Pyelonephritis_Infection@meta.data))
 myColor = colorRampPalette(c("royalblue", "white","lightcoral"))(paletteLength)
 myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 
@@ -382,12 +385,14 @@ FinalPathwayAvergeExpTable
 
 FinalPathwayAvergeExpTable <- FinalPathwayAvergeExpTable[,ColumnOrders]
 FinalPathwayAvergeExpTable
-FinalPathwayAvergepheatmap<-pheatmap(t(FinalPathwayAvergeExpTable),fontsize=12, 
+FinalPathwayAvergepheatmap<-pheatmap(t(FinalPathwayAvergeExpTable),fontsize=12,
+
+
                         fontsize_row = 10, scale="row",cluster_rows = F, cluster_cols = F,
-                        color=myColor,  
-                        #main = "PROGENy signaling", 
-                        #angle_col = 45,
-                        treeheight_col = 0,  border_color = NA, treeheight_row=0) 
+                        color=myColor,
+                        # main = "Infected associated signaling",
+                        angle_col = 45,
+                        treeheight_col = 0,  border_color = NA, treeheight_row=0)
 
 ggsave(
       filename = "Figure1G_1gFinalPathwayAvergepheatmap.pdf",
