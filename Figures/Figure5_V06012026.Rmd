@@ -256,7 +256,7 @@ Fig5E_Hspd1 <- FeaturePlot(
   features = "Hspd1",
   #order    = TRUE,
   pt.size  = 0.3,
-  #cols     =c("RdBu")
+  cols = c("grey90", "#D73027")
 ) +
   labs(title = "Hspd1 (Hsp60)") +
   theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
@@ -266,17 +266,66 @@ Fig5E_Havcr1 <- FeaturePlot(
   features = "Havcr1",
   #order    = TRUE,
   pt.size  = 0.3,
-  #cols     = c("RdBu")
+  cols = c("grey90", "#D73027")
 ) +
   labs(title = "Havcr1 (Kim-1)") +
   theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
 
-Fig5E <- cowplot::plot_grid(Fig5E_Hspd1, Fig5E_Havcr1, nrow = 1)
+Fig5E_Spp1 <- FeaturePlot(
+  PTcells,
+  features = "Spp1",
+  #order    = TRUE,
+  pt.size  = 0.3,
+  cols = c("grey90", "#D73027")
+) +
+  labs(title = "Spp1") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+
+Fig5E_Ldha <- FeaturePlot(
+  PTcells,
+  features = "Ldha",
+  #order    = TRUE,
+  pt.size  = 0.3,
+  cols = c("grey90", "#D73027")
+) +
+  labs(title = "Ldha") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+
+
+
+Fig5E <- cowplot::plot_grid(Fig5E_Hspd1, Fig5E_Havcr1, Fig5E_Spp1, Fig5E_Ldha, nrow = 2)
+
+CandiateGenes<-  c(
+  "Lrp2",     # Differentiated PT
+  "Hspd1",    # Oxidative stress
+  "Ldha",     # Metabolic rewiring
+  "Havcr1",   # Injury/Kim1
+  "Igfbp7",    # Maladaptive repair
+  "Clu",   # Maladaptive repair
+  "Agt",     # Severe injury
+  "Lcn2",    # Injury
+  "Spp1"      # Chronic remodeling
+)
+
+Fig5E_Ldha <- FeaturePlot(
+  PTcells,
+  features = CandiateGenes,
+  #order    = TRUE,
+  pt.size  = 0.3,
+  cols = c("grey90", "#D73027")
+) &
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
 
 ggsave(
-  filename = paste0(Outdir, "Figure5E_PT_Hspd1_Havcr1_FeaturePlots.pdf"),
+  filename = paste0(Outdir, "Figure5E_CandidateGenes_FeaturePlots.pdf"),
+  plot     = Fig5E_Ldha,
+  width    = 8, height = 8
+)
+
+ggsave(
+  filename = paste0(Outdir, "Figure5E_PT_Hspd1_Havcr1_Spp1_Ldha_FeaturePlots.pdf"),
   plot     = Fig5E,
-  width    = 8, height = 4
+  width    = 6, height = 6
 )
 Fig5E
 ```
@@ -663,7 +712,7 @@ Fig5I_GO <- ggplot(df_go, aes(x = Description, y = Cluster,
 ggsave(
   filename = paste0(Outdir, "Figure5I_PT_GO_Dotplot.pdf"),
   plot     = Fig5I_GO,
-  width    = 12, height = 5
+  width    = 9, height = 5
 )
 Fig5I_GO
 ```
