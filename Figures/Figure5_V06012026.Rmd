@@ -519,7 +519,7 @@ Fig5H
 
 ```{r fig5i-go-enrichment, fig.width=12, fig.height=5}
 Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = rev(cluster_order))
-DefaultAssay(PTcells) <- "SCT"
+DefaultAssay(PTcells) <- "RNA"
 
 AllMarkers_pt <- FindAllMarkers(
   PTcells,
@@ -535,6 +535,7 @@ write.csv(
   row.names = FALSE
 )
 
+#AllMarkers_pt <- read.csv(paste0(Outdir, "Figure5I_PT_DEGs.csv"))
 AllMarkers_pt %>% head()
 ClusterGenes_pt <- lapply(cluster_order, function(cl) {
   AllMarkers_pt %>%
@@ -552,6 +553,7 @@ GO_pt <- compareCluster(
   keyType      = "SYMBOL",
   pvalueCutoff = 1
 )
+saveRDS(GO_pt, paste0(Outdir, "Figure5I_PT_GO_BP.rds"))
 
 write.csv(
   as.data.frame(GO_pt),
@@ -559,69 +561,77 @@ write.csv(
   row.names = FALSE
 )
 
+
+
 selected_go_pt <- c(
+# PT Identity / Homeostasis
+  "organic anion transport",
+  "organic acid transport",
+  "carboxylic acid transport",
+  "sodium ion transport",
+  "potassium ion transport",
+  "fatty acid transport",
+  "fatty acid metabolic process",
+  "small molecule catabolic process",
+  "steroid metabolic process",
 
-  # 1. PT Metabolism & Homeostasis
-  "lipid oxidation",
-  "fatty acid oxidation",
+# Mitochondrial Fitness
+  "cellular respiration",
+  "aerobic respiration",
   "oxidative phosphorylation",
-  "regulation of fatty acid oxidation",  
-  "NADPH regeneration",
+  "electron transport chain",
+  "ATP metabolic process",
 
-  # 2. Oxidative Stress Response
+# Oxidative Stress Adaptation
+  "NADPH regeneration",
   "response to oxidative stress",
   "cellular response to oxidative stress",
-  "response to hypoxia",
-  "cellular response to superoxide",
+  "response to reactive oxygen species",
   "cellular response to hydrogen peroxide",
+  "response to hypoxia",
 
-  # 3. Metabolic Reprogramming
+# Metabolic Reprogramming
   "canonical glycolysis",
   "glycolytic process",
   "glycogen metabolic process",
   "regulation of glycogen catabolic process",
 
-  # 4. Inflammation & Immune Recruitment
+# Inflammation
   "regulation of inflammatory response",
-  "inflammatory response to antigenic stimulus",
-  "acute inflammatory response",
-  "respiratory burst involved in inflammatory response",
   "cytokine production involved in immune response",
   "tumor necrosis factor superfamily cytokine production",
   "neutrophil chemotaxis",
+  "leukocyte migration",
 
-  # 5. Repair & Regeneration
-  "regulation of cell cycle G1/S phase transition",
-  "regulation of cell cycle phase transition",
+# Regenerative Repair
+  "DNA replication",
+  "mitotic cell cycle",
+  "cell division",
+  "cell cycle G1/S phase transition",
   "cell cycle G2/M phase transition",
   "mitotic nuclear division",
-  "regulation of meiotic cell cycle",
 
-  # 6. Plasticity & Dedifferentiation
+# Plasticity / Dedifferentiation
+  "regulation of epithelial cell proliferation",
   "regulation of epithelial cell differentiation",
-  "stem cell differentiation",
+  "epithelial cell development",
   "mesenchymal cell differentiation",
   "epithelial to mesenchymal transition",
 
-  # 7. Fibrosis & Matrix Remodeling
+# Fibrosis / Matrix Remodeling
   "extracellular matrix organization",
-  "regulation of extracellular matrix assembly",
-  "extracellular matrix disassembly",
+  "extracellular structure organization",
+  "collagen fibril organization",
+  "wound healing",
+  "transforming growth factor beta receptor signaling pathway",
 
-  # 8. Senescence
+# Senescence/Cell death
   "cellular senescence",
   "replicative senescence",
-
-  # 9. Cell Death
+  "response to DNA damage stimulus",
   "regulation of apoptotic signaling pathway",
-  "intrinsic apoptotic signaling pathway",
-  "intrinsic apoptotic signaling pathway in response to DNA damage",
-  "regulation of intrinsic apoptotic signaling pathway",
-
-  # 10. Tissue Remodeling
-  "regulation of angiogenesis"
+  "defense response to bacterium"
 )
-
 # clusterProfiler's dotplot() re-orders internally and ignores factor levels.
 # Build directly from the data with ggplot2 for exact control.
 terms_present <- selected_go_pt[selected_go_pt %in% as.data.frame(GO_pt)$Description]
@@ -954,3 +964,4 @@ for (i in seq_along(masked_cols)) {
   )
 }
 ```
+

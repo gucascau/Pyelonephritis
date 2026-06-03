@@ -41,6 +41,10 @@ library(scales)
 library(decoupleR)
 library(clusterProfiler)
 library(org.Mm.eg.db)
+# devtools::install_github("gunsagargulati/CytoTRACE")
+library(CytoTRACE)
+library(monocle3)
+library(SeuratWrappers)
 ```
 
 ## Directories
@@ -626,4 +630,180 @@ ggsave(
   width    = 10, height = 4.5
 )
 Fig4L_GO
+```
+
+---
+
+## Figure 4M: CytoTRACE differentiation state analysis
+
+```{r fig4m-cytotrace, fig.width=12, fig.height=4}
+# CytoTRACE scores transcriptional diversity per cell as a proxy for
+# differentiation state: score ~1 = stem-like/undifferentiated, ~0 = fully differentiated
+library(CytoTRACE)
+
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+DefaultAssay(CDcells) <- "RNA"
+
+# CytoTRACE expects a genes × cells raw count matrix
+ct_mat     <- as.matrix(GetAssayData(CDcells, assay = "RNA", layer = "counts"))
+ct_results <- CytoTRACE(ct_mat)
+
+# Add score to metadata (align by cell barcode)
+CDcells$CytoTRACE_score <- ct_results$CytoTRACE[colnames(CDcells)]
+
+# Panel M1: UMAP colored by CytoTRACE score
+Fig4M_UMAP <- FeaturePlot(
+  CDcells,
+  features = "CytoTRACE_score",
+  pt.size  = 0.4,
+  cols     = rev(brewer.pal(11, "RdBu"))
+) +
+  labs(title = "CytoTRACE differentiation score") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10, face = "bold"))
+
+ggsave(
+  filename = paste0(Outdir, "Figure4M_CD_CytoTRACE_UMAP.pdf"),
+  plot     = Fig4M_UMAP,
+  width    = 5, height = 4
+)
+
+# Panel M2: Violin plot of CytoTRACE score per CD subset
+Fig4M_Vln_Subset <- VlnPlot(
+  CDcells,
+  features = "CytoTRACE_score",
+  pt.size  = 0,
+  cols     = brewer.pal(max(4, length(subset_order)), "Set2")[seq_along(subset_order)]
+) +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", alpha = 0.6) +
+  labs(title = "CytoTRACE score by CD subset", x = "Subset", y = "CytoTRACE score") +
+  theme(
+    plot.title       = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.position  = "none",
+    axis.text.x      = element_text(angle = 45, hjust = 1)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4M_CD_CytoTRACE_VlnSubset.pdf"),
+  plot     = Fig4M_Vln_Subset,
+  width    = 5, height = 4
+)
+
+# Panel M3: Violin plot of CytoTRACE score per timepoint
+CDcells$DataSet <- factor(CDcells$DataSet, levels = timepoint_order)
+Fig4M_Vln_Time <- VlnPlot(
+  CDcells,
+  features = "CytoTRACE_score",
+  group.by = "DataSet",
+  pt.size  = 0,
+  cols     = brewer.pal(4, "Blues")
+) +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", alpha = 0.6) +
+  labs(title = "CytoTRACE score by timepoint", x = "Timepoint", y = "CytoTRACE score") +
+  theme(
+    plot.title       = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.position  = "none",
+    axis.text.x      = element_text(angle = 45, hjust = 1)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure4M_CD_CytoTRACE_VlnTimepoint.pdf"),
+  plot     = Fig4M_Vln_Time,
+  width    = 4, height = 4
+)
+
+Fig4M <- cowplot::plot_grid(Fig4M_UMAP, Fig4M_Vln_Subset, Fig4M_Vln_Time,
+                             nrow = 1, rel_widths = c(1.2, 1, 0.8))
+
+ggsave(
+  filename = paste0(Outdir, "Figure4M_CD_CytoTRACE_Combined.pdf"),
+  plot     = Fig4M,
+  width    = 12, height = 4
+)
+Fig4M
+```
+
+---
+
+## Figure 4N: Monocle3 pseudotime trajectory of CD cells
+
+```{r fig4n-monocle3-pseudotime, fig.width=14, fig.height=4}
+library(monocle3)
+library(SeuratWrappers)
+
+Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
+DefaultAssay(CDcells) <- "RNA"
+
+# Convert Seurat → Monocle3 CellDataSet (reuses Seurat UMAP embedding)
+cds_cd <- as.cell_data_set(CDcells)
+
+# Re-use the existing Seurat UMAP so trajectory overlays the same layout
+cds_cd@int_colData$reducedDims$UMAP <- Embeddings(CDcells, "umap")[colnames(cds_cd), ]
+
+# Cluster cells and learn trajectory graph across all CD subsets
+cds_cd <- cluster_cells(cds_cd, reduction_method = "UMAP")
+cds_cd <- learn_graph(cds_cd, use_partition = FALSE)
+
+# Root trajectory at PC cells at 0DPI (most differentiated, homeostatic CD state)
+get_cd_root_nodes <- function(cds_obj) {
+  origin_cell_ids <- which(
+    colData(cds_obj)$DataSet    == "0DPI" &
+    colData(cds_obj)$ICPCAnnot %in% c("PC", "ICA")
+  )
+  closest_vertex <- cds_obj@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds_obj), ])
+  root_nodes <- igraph::V(principal_graph(cds_obj)[["UMAP"]])$name[
+    as.numeric(names(which.max(table(closest_vertex[origin_cell_ids, ]))))
+  ]
+  root_nodes
+}
+cds_cd <- order_cells(cds_cd, root_pr_nodes = get_cd_root_nodes(cds_cd))
+
+# Store pseudotime in Seurat metadata for downstream plotting
+CDcells$Pseudotime <- pseudotime(cds_cd)[colnames(CDcells)]
+
+# Panel N1: UMAP colored by CD subset with trajectory graph
+Fig4N_Subset <- plot_cells(
+  cds_cd,
+  color_cells_by      = "ICPCAnnot",
+  label_cell_groups   = TRUE,
+  label_leaves        = TRUE,
+  label_branch_points = TRUE,
+  graph_label_size    = 1.5,
+  cell_size           = 0.5
+) +
+  labs(title = "CD trajectory – subset") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+# Panel N2: UMAP colored by pseudotime
+Fig4N_Pseudo <- plot_cells(
+  cds_cd,
+  color_cells_by      = "pseudotime",
+  label_cell_groups   = FALSE,
+  label_leaves        = FALSE,
+  label_branch_points = FALSE,
+  cell_size           = 0.5
+) +
+  labs(title = "CD trajectory – pseudotime") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+# Panel N3: UMAP colored by timepoint
+Fig4N_Time <- plot_cells(
+  cds_cd,
+  color_cells_by      = "DataSet",
+  label_cell_groups   = FALSE,
+  label_leaves        = FALSE,
+  label_branch_points = FALSE,
+  cell_size           = 0.5
+) +
+  labs(title = "CD trajectory – timepoint") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+Fig4N <- cowplot::plot_grid(Fig4N_Subset, Fig4N_Pseudo, Fig4N_Time, nrow = 1)
+
+ggsave(
+  filename = paste0(Outdir, "Figure4N_CD_Monocle3_Pseudotime.pdf"),
+  plot     = Fig4N,
+  width    = 14, height = 4
+)
+Fig4N
 ```
