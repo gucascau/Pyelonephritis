@@ -347,7 +347,7 @@ Fig4H_DotPlot
 ## Figure 4I: DotPlot of inflammatory markers by subset × timepoint
 
 ```{r fig4i-dotplot-inflammatory, fig.width=10, fig.height=5}
-inflammatory_markers <- c(
+inflammatory_fibrosisCellCycle_markers <- c(
   # Cytokines
   "Il1b", "Il6", "Il18", "Tnf", "Ifng", "Tgfb1", "Il10",
   # Chemokines
@@ -355,7 +355,11 @@ inflammatory_markers <- c(
   # NF-kB / signaling
   "Nfkb1", "Rela", "Nlrp3",
   # Injury / inflammation
-  "S100a8", "S100a9", "C3", "Nos2"
+  "S100a8", "S100a9", "C3", "Nos2",
+  # Fibrosis / EMT
+  "Vim", "Fn1", "Col1a1", "Col3a1", "Acta2",
+  # Cell cycle
+  "Mki67", "Top2a", "Ccnb1", "Ccnd1"
 )
 
 
@@ -398,7 +402,7 @@ inflammatory_markers <- c(
 
 Fig4I_DotPlot <- DotPlot(
   CDcells,
-  features  = inflammatory_markers,
+  features  = inflammatory_fibrosisCellCycle_markers,
  #cols      = c("lightgrey", "#E31A1C"),
   cols      = c("RdBu"),
   dot.scale = 5
@@ -422,7 +426,7 @@ Fig4I_DotPlot <- DotPlot(
 ggsave(
   filename = paste0(Outdir, "Figure4I_CD_Inflammatory_DotPlot.pdf"),
   plot     = Fig4I_DotPlot,
-  width    = 5, height = 4
+  width    = 6, height = 4
 )
 Fig4I_DotPlot
 ```
@@ -564,7 +568,7 @@ Fig4K_AMP_DotPlot
 
 ```{r fig4l-go-enrichment, fig.width=11, fig.height=5}
 Idents(CDcells) <- factor(CDcells@meta.data$ICPCAnnot, levels = subset_order)
-DefaultAssay(CDcells) <- "SCT"
+DefaultAssay(CDcells) <- "RNA"
 
 AllMarkers_cd <- FindAllMarkers(
   CDcells,
@@ -579,7 +583,10 @@ write.csv(
   file      = paste0(Outdir, "Figure4L_CD_DEGs.csv"),
   row.names = FALSE
 )
-
+saveRDS(
+  AllMarkers_cd,
+  file = paste0(Outdir, "Figure4L_CD_DEGs.rds")
+)
 ClusterGenes_cd <- list(
   ICA   = AllMarkers_cd %>% filter(cluster == "ICA",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
   ICB   = AllMarkers_cd %>% filter(cluster == "ICB",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
@@ -604,8 +611,7 @@ write.csv(
   row.names = FALSE
 )
 
-selected_go_cd <- c(
-"regulation of inflammatory response","chemokine production","phagocytosis","neutrophil activation","macrophage chemotaxis","granulocyte migration","Fc receptor mediated stimulatory signaling pathway","insulin receptor signaling pathway","leukocyte cell−cell adhesion","fibroblast migration","fibroblast growth factor receptor signaling pathway","regulation of fibroblast proliferation","cellular respiration","response to hypoxia","NADP metabolic process","hydrogen peroxide catabolic process","reactive oxygen species metabolic process","hydrogen peroxide metabolic process","generation of precursor metabolites and energy","fatty acid metabolic process","organic acid catabolic process","carboxylic acid catabolic process","regulation of cellular pH","intrinsic apoptotic signaling pathway","collecting duct development"
+selected_go_cd <- c("lipid oxidation","organic acid catabolic process","carboxylic acid catabolic process","monocarboxylic acid catabolic process","fatty acid catabolic process","fatty acid oxidation","fatty acid metabolic process","fatty acid beta-oxidation","lipid catabolic process","regulation of inflammatory response","chemokine production","phagocytosis","neutrophil activation","macrophage chemotaxis","granulocyte migration","Fc receptor mediated stimulatory signaling pathway","insulin receptor signaling pathway","leukocyte cell−cell adhesion","fibroblast migration","fibroblast growth factor receptor signaling pathway","regulation of fibroblast proliferation","cellular respiration","response to hypoxia","NADP metabolic process","hydrogen peroxide catabolic process","reactive oxygen species metabolic process","hydrogen peroxide metabolic process","generation of precursor metabolites and energy","fatty acid metabolic process","organic acid catabolic process","carboxylic acid catabolic process","regulation of cellular pH","intrinsic apoptotic signaling pathway","collecting duct development"
 )
 
 Fig4L_GO <- dotplot(
@@ -627,7 +633,7 @@ Fig4L_GO <- dotplot(
 ggsave(
   filename = paste0(Outdir, "Figure4L_CD_GO_Dotplot.pdf"),
   plot     = Fig4L_GO,
-  width    = 10, height = 4.5
+  width    = 10, height = 5
 )
 Fig4L_GO
 ```
