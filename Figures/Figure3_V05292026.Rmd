@@ -340,18 +340,19 @@ Fig3I_AMP_DoHeatmap
 # Figure 3K – N8 spatial distribution and inflammatory cytokine and chemokein expression across timepoints
 ```{r}
 # Pro-inflammatory cytokines (mouse)
+# we selected the expressed
 cytokines <- c(
   "Tnf",
   "Il1b",
   "Il6",
-  "Il17a",
-  "Il17f",
-  "Ifng",
+  #Il17a",
+  #"Il17f",
+  #"Ifng",
   "Csf2",
-  "Il12a",
-  "Il12b",
-  "Il18",
-  "Il23a"
+  #"Il12a",
+  #"Il12b",
+  "Il18"
+  #"Il23a"
 )
 
 # Inflammatory chemokines (mouse)
@@ -363,11 +364,11 @@ chemokines <- c(
   "Ccl7",
   "Ccl12",
   "Cxcl1",
-  "Cxcl2",
+  #"Cxcl2",
   "Cxcl5",
-  "Cxcl9",
-  "Cxcl10",
-  "Cxcl11"
+  #"Cxcl9",
+  "Cxcl10"
+  #"Cxcl11"
 )
 
 # Combined inflammatory cytokine + chemokine gene set
@@ -403,7 +404,7 @@ Fig3KDotPlot <- DotPlot(
 ggsave(
   filename = paste0(Outdir, "Figure3K_N8_InflamCytoChemoDotPlot_Timepoints.pdf"),
   plot     = Fig3KDotPlot,
-  width    = 6.5,
+  width    = 6,
   height   = 4
 )
 
@@ -415,8 +416,15 @@ ggsave(
 UROIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/URO_Subclusters/"
 UROcells  <- readRDS(paste0(UROIndir, "PIPSeq_UROAnn_v061824.rds"))
 
+# here I need to change the name of URO to hURO to avoid confusion with the URO annotation in the spatial data
+UROcells@meta.data <- UROcells@meta.data %>%
+  mutate(UROAnnotation = case_when(
+    UROAnnotation == "URO" ~ "hURO",
+    TRUE ~ UROAnnotation
+  ))
+
 # Set ordered identity: URO = resting, aURO = activated/inflammatory
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("URO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
 
 # Timepoint order for single-cell data
 timepoint_order_sc <- c("0DPI", "3DPI", "7DPI", "28DPI")
@@ -484,13 +492,13 @@ UROcells@meta.data$TimepointPop <- paste(
 )
 combined_order <- paste(
   rep(timepoint_order_sc, each = 2),
-  c("URO", "aURO"), sep = "_"
+  c("hURO", "aURO"), sep = "_"
 )
 combined_order <- combined_order[combined_order %in% unique(UROcells@meta.data$TimepointPop)]
 Idents(UROcells) <- factor(UROcells@meta.data$TimepointPop, levels = combined_order)
 
 # we use the 
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("URO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
 # Urothelial differentiation hierarchy: basal → intermediate → superficial
 proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Ccna2", "Cdk1", "Cdc20")
 differentiation_markers <- c(
@@ -556,7 +564,7 @@ Fig3E_DotPlot
 
 ```{r fig3c-progeny-heatmap, fig.width=4, fig.height=5}
 # Reset identity to URO annotation for pathway scoring
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("URO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
 DefaultAssay(UROcells) <- "RNA"
 
 net_uro <- decoupleR::get_progeny(organism = "mouse", top = 500)
@@ -599,8 +607,11 @@ PathwayOrder_uro <- c(
 )
 PathwayOrder_uro <- PathwayOrder_uro[PathwayOrder_uro %in% colnames(uro_acts_mat)]
 
-UROHeatmapMat <- t(uro_acts_mat)[PathwayOrder_uro, c("URO", "aURO")]
-
+UROHeatmapMat <- t(uro_acts_mat)[PathwayOrder_uro, c("hURO", "aURO")]
+# use the order of timepoints 
+#combined_order
+UROHeatmapMat <- t(uro_acts_mat)[PathwayOrder_uro, combined_order]
+#
 palette_length <- 100
 uro_color  <- colorRampPalette(c("royalblue", "white", "firebrick3"))(palette_length)
 uro_breaks <- c(seq(-2, 0,   length.out = ceiling(palette_length / 2) + 1),
@@ -621,6 +632,9 @@ Fig3F_Progeny <- pheatmap(
   treeheight_col = 0,
   treeheight_row = 0
 )
+pdf(file = paste0(Outdir, "Figure3F_URO_aURO_Timepoints_PROGENy_Heatmap.pdf"), width = 4, height = 5)
+print(Fig3F_Progeny)
+dev.off()
 
 pdf(file = paste0(Outdir, "Figure3F_URO_aURO_PROGENy_Heatmap.pdf"), width = 3, height = 5)
 print(Fig3F_Progeny)
@@ -630,7 +644,7 @@ dev.off()
 ## Figure 3H: AMP and stress-response gene expression heatmap
 
 ```{r fig3h-amp-heatmap, fig.width=6, fig.height=6}
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("URO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
 DefaultAssay(UROcells) <- "RNA"
 
 amp_genes <- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4","Umod", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
@@ -777,21 +791,34 @@ Fig3L_GO
 ## Figure 3J: Chemokine and cytokine expression in URO vs aURO
 
 ```{r fig3j-cytokine-chemokine-dotplot, fig.width=10, fig.height=4}
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("URO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
 DefaultAssay(UROcells) <- "RNA"
 
+# chemokines_sc <- c(
+#   "Ccl2", "Ccl3", "Ccl4", "Ccl5", "Ccl7", "Ccl9", "Ccl20",
+#   "Cxcl1", "Cxcl2", "Cxcl3", "Cxcl5", "Cxcl9", "Cxcl10", "Cxcl12",
+#   "Cxcl13", "Cxcl16", "Cx3cl1"
+# )
+
+# selected with the expression
 chemokines_sc <- c(
-  "Ccl2", "Ccl3", "Ccl4", "Ccl5", "Ccl7", "Ccl9", "Ccl20",
-  "Cxcl1", "Cxcl2", "Cxcl3", "Cxcl5", "Cxcl9", "Cxcl10", "Cxcl12",
-  "Cxcl13", "Cxcl16", "Cx3cl1"
+  "Ccl2", "Ccl3", "Ccl4", "Ccl5", "Ccl7", "Ccl9", 
+  "Cxcl1", "Cxcl2", "Cxcl3", "Cxcl5", "Cxcl10", "Cxcl16"
 )
 
+# #
+# cytokines_sc <- c(
+#   "Il1a", "Il1b", "Il6", "Il10", "Il12a", "Il12b",
+#   "Il17a", "Il17f", "Il18", "Il23a", "Il33",
+#   "Tnf", "Ifng", "Csf2", "Csf3",
+#   "Tgfb1", "Vegfa"
+# )
+# selected with the expression
 cytokines_sc <- c(
-  "Il1a", "Il1b", "Il6", "Il10", "Il12a", "Il12b",
-  "Il17a", "Il17f", "Il18", "Il23a", "Il33",
-  "Tnf", "Ifng", "Csf2", "Csf3",
-  "Tgfb1", "Vegfa"
+  "Il1b", "Il6",  "Il18",  "Il33",
+  "Tnf",  "Csf2"
 )
+
 
 # Keep only genes present in the object
 chemokines_sc <- chemokines_sc[chemokines_sc %in% rownames(UROcells)]
@@ -805,7 +832,7 @@ Fig3J_DotPlot <- DotPlot(
 ) +
   RotatedAxis() +
   labs(
-    title = "Cytokine and chemokine expression – URO vs aURO",
+    title = "Cytokine and chemokine expression – hURO vs aURO",
     x     = NULL,
     y     = "Population"
   ) +
@@ -822,7 +849,7 @@ Fig3J_DotPlot <- DotPlot(
 ggsave(
   filename = paste0(Outdir, "Figure3J_URO_aURO_CytoChemo_DotPlot.pdf"),
   plot     = Fig3J_DotPlot,
-  width    = 9, height = 3.5
+  width    = 6.5, height = 3.5
 )
 Fig3J_DotPlot
 ```
