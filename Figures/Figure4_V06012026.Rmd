@@ -3,7 +3,7 @@ title: "Figure 4 – Collecting Duct cell analysis across timepoints"
 author: "Xin Wang"
 date: "2026-06-01"
 output: html_document
-description: >
+description: 
   (B) UMAP of CD subsets (ICA, ICB, PC, DegCD).
   (C) Proportion of CD subsets across timepoints (0, 3, 7, 28 dpi).
   (D) DotPlot of canonical CD subset markers.
@@ -13,6 +13,14 @@ description: >
   (J) PROGENy pathway activity heatmap across CD subsets and timepoints.
   (K) DotPlot of AMP gene expression across CD subsets and timepoints.
   (L) GO Biological Process enrichment dotplot for each CD subset.
+
+# suppplementary Fig 5: 
+  (A) Dot plot with novel markers identified for ICs, PCs, and DegCDs. 
+  (B) Feature plots split by timepoint, colored by Atp6v1g3 (IC), Aqp6 (ICA), Slc26a4 (ICB), Aqp2 (PC). 
+  (C) CytoTRACE differentiation state analysis across CD subsets and timepoints.
+  (D) Monocle3 pseudotime trajectory of CD cells.
+  (E) Dotplot of Chemotactic factors (chemokines, cytokines) across CD subsets and timepoints.
+
 
 Input:
   Single-cell: ICPC_Subclusters/ICPCcells_DegCD_v02142025.RDS
@@ -53,6 +61,7 @@ library(SeuratWrappers)
 SCIndir      <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/ICPC_Subclusters/"
 SpatialIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
 Outdir       <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure4/"
+SupOutdir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/SupplementaryFigure5/"
 dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
 ```
 
@@ -587,6 +596,8 @@ saveRDS(
   AllMarkers_cd,
   file = paste0(Outdir, "Figure4L_CD_DEGs.rds")
 )
+
+#AllMarkers_cd <- readRDS(paste0(Outdir, "Figure4L_CD_DEGs.rds"))
 ClusterGenes_cd <- list(
   ICA   = AllMarkers_cd %>% filter(cluster == "ICA",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
   ICB   = AllMarkers_cd %>% filter(cluster == "ICB",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
@@ -812,4 +823,57 @@ ggsave(
   width    = 14, height = 4
 )
 Fig4N
+```
+
+
+
+# Generate the novel CD subset gene markers
+```{r}
+# we have generated the AllMarkers_cd object in the code for Figure 4L, so we can reuse that here
+# 
+
+NovelMarkers<- AllMarkers_cd %>%
+  filter(p_val_adj <= 0.05, avg_log2FC >= 0.25) %>%
+  group_by(cluster) %>%
+  filter(!gene %in% canonical_cd) %>% # ignore the canonical markers that we have already plotted in Figure 4D
+  slice_max(order_by = avg_log2FC, n = 10) %>%
+  ungroup() %>%
+  arrange(cluster, desc(avg_log2FC)) %>%
+  dplyr::select(cluster, gene, avg_log2FC, p_val_adj)
+
+# generate the Supplmentary figure 1 table with the novel markers
+FigS5ANovelMarkerDotPlots<- DotPlot(
+  CDcells,
+  features  = NovelMarkers$gene,
+  #cols      = c("lightgrey", "#E31A1C"),
+  dot.scale = 6
+) +
+  RotatedAxis() +
+  labs(
+    title = "Novel CD subset markers",
+    x     = NULL,
+    y     = "CD subset"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8)
+  )
+
+# save the figure
+ggsave(
+  filename = paste0(Outdir, "FigureS5A_CD_NovelMarkers_DotPlot.pdf"),
+  plot     = FigS5ANovelMarkerDotPlots,
+  width    = 6, height = 3.5
+)
+
+```
+
+# Generate 
+```{r}
+
 ```

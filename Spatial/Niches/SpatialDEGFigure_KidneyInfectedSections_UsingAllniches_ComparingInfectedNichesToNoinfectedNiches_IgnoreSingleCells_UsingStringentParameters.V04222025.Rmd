@@ -1703,7 +1703,7 @@ for (j in FinalAKICKD_Inflammation_Fibrosis_Markers) {
         crop = TRUE
       ) &
       ggplot2::scale_fill_gradientn(colours = myPalette(4),
-                                    limits = c(Minvalue, Maxvalue))
+                                    limits = c(Minvalue-1, Maxvalue+1))
     
     # save the figure into the folder
     ggsave(

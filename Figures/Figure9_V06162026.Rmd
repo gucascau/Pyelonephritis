@@ -1,0 +1,544 @@
+---
+title: "Figure 9 – Identification and validation of candidate APN biomarkers"
+author: "Xin Wang"
+date: "2026-06-16"
+output: html_document
+description: >
+  Figure 9B: Four-way Venn diagram (spatial IAN DEGs × microarray DEGs × secreted proteins × urinary proteins)
+  Figure 9C: UpSet plot of intersection sizes across the four gene sets
+  Figure 9D: Heatmap of candidate biomarkers across spatial niches, spatial timepoints, and microarray cohorts
+  Figure S10A: Dotplot of classical biomarker genes across 17 spatial niches by functional category
+  Figure S10B: Spatial feature plots of classical biomarkers
+  Figure S11D: Spatial feature plots of identified (conserved) biomarkers
+  Figure S11E: Dotplot of cellular sources of identified biomarkers (single-cell MAAP)
+
+Input:
+  Spatial object: Deconvolution_Six_V09062023/Pyelonephritis_Infection_Deconvoluted.RDS
+  Single-cell:    AnnotationValidation/Pyelonephritis_singlecell_v012626.RDS
+  Pre-computed:   NichesDEGs_V04222025/KidneyInfectedVsOther/BiomarkersV3/
+
+Output: Results/Figures/Figure9/
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(cowplot)
+library(RColorBrewer)
+library(pheatmap)
+library(ggvenn)
+library(UpSetR)
+library(openxlsx)
+
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+```
+
+## Directories and shared constants
+
+```{r directories}
+BioMarkerDir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V04222025/KidneyInfectedVsOther/BiomarkersV3/"
+SpatialIndir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V09062023/"
+SCIndir       <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/AnnotationValidation/"
+MicroDir      <- "/Users/XXW004/Documents/Projects/BrianBecknell/RishilTwoMice/Results/TwoMouseComparion/"
+SecretedDir   <- "/Users/XXW004/Documents/Projects/Databases/SecretedProteins/"
+UrinaryDir    <- "/Users/XXW004/Documents/Projects/Databases/UrinaryProteins/"
+MouseHumanDir <- "/Users/XXW004/Documents/Projects/Databases/HumanMouseTransfer/"
+Outdir        <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure9/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+
+selectedslices <- c("slice1", "slice3", "slice4", "slice7", "slice8", "slice9")
+```
+
+---
+
+## Load pre-computed biomarker data
+
+```{r load-precomputed}
+# Niche DEGs (infected vs non-infected niches, all spots)
+AllCategories_Clustermarkers_infectedvsnoninfected <- read.csv(
+  paste0(BioMarkerDir, "AllCategories_Clustermarkers_MAST_infectedvsnoninfected.csv"))
+
+# Spatial timepoint DEG lists (already filtered per timepoint vs D0)
+Pyelonephritis_Infection_subDEGsList <- readRDS(
+  paste0(BioMarkerDir, "Pyelonephritis_Infection_subDEGsList.rds"))
+
+# Combined logFC table (spatial niches + timepoints + microarray)
+FinalExpDEGsOriginal <- read.csv(
+  paste0(BioMarkerDir, "FinalExpDEGsOriginal_Spatial_Microarry_Comp.csv"))
+
+# Final conserved biomarkers (4-way intersection, already computed)
+ConservedBiomarkers <- read.csv(
+  paste0(BioMarkerDir, "ConservedMarkers/ConservedBiomarkers.csv"))
+FinalOverallapping <- ConservedBiomarkers$x
+
+cat("Pre-computed conserved biomarkers:", length(FinalOverallapping), "\n")
+print(FinalOverallapping)
+```
+
+## Reconstruct the four gene sets for Venn / UpSet
+
+```{r gene-sets}
+# --- Set 1: Spatial IAN-derived DEGs ---
+# Upregulated in infected niches, confirmed across timepoints
+DEGsInfectedRegions_base <- AllCategories_Clustermarkers_infectedvsnoninfected %>%
+  filter(cluster == "InfectedNiches" & p_val_adj <= 0.05 & avg_log2FC > 1 & pct.1 > 0.25)
+
+SpatialAcrossDpiDEGs <- unique(c(
+  Pyelonephritis_Infection_subDEGsList$PyeloD1_2$gene,
+  Pyelonephritis_Infection_subDEGsList$PyeloD3_1$gene,
+  Pyelonephritis_Infection_subDEGsList$PyeloD5_2$gene,
+  Pyelonephritis_Infection_subDEGsList$PyeloD7_1$gene,
+  Pyelonephritis_Infection_subDEGsList$PyeloD28_1$gene
+))
+
+SpatialIANdegs <- intersect(DEGsInfectedRegions_base$gene, SpatialAcrossDpiDEGs)
+cat("Spatial IAN DEGs:", length(SpatialIANdegs), "\n")
+
+# --- Set 2: Microarray DEGs (HeOuJ, D1/D3/D7 vs D0) ---
+MicroSheetNames <- getSheetNames(
+  paste0(MicroDir, "Microarray HeN and HeOuJ Kidney DEGs (all genes).xlsx"))
+Microdata_list <- lapply(MicroSheetNames, function(s) {
+  read.xlsx(paste0(MicroDir, "Microarray HeN and HeOuJ Kidney DEGs (all genes).xlsx"), sheet = s)
+})
+names(Microdata_list) <- MicroSheetNames
+
+MouseMicroArrayDEGs <- unique(c(
+  Microdata_list$`HeOuJ - Day 1 vs Day 0` %>% filter(adj.P.Val <= 0.05 & logFC > 1 & AveExpr >= 6) %>% pull(mgi_symbol),
+  Microdata_list$`HeOuJ - Day 3 vs Day 0` %>% filter(adj.P.Val <= 0.05 & logFC > 1 & AveExpr >= 6) %>% pull(mgi_symbol),
+  Microdata_list$`HeOuJ - Day 7 vs Day 0` %>% filter(adj.P.Val <= 0.05 & logFC > 1 & AveExpr >= 6) %>% pull(mgi_symbol)
+))
+cat("Microarray DEGs:", length(MouseMicroArrayDEGs), "\n")
+
+# --- Set 3: Mouse secreted proteins ---
+SecretedMouseProteins   <- read.csv(paste0(SecretedDir, "Mouse.csv"))
+SecretedMousefinalGenes <- unique(SecretedMouseProteins$Gene)
+cat("Secreted proteins:", length(SecretedMousefinalGenes), "\n")
+
+# --- Set 4: Urinary proteins (human → mouse homologs) ---
+# Re-use the saved biomaRt mapping to avoid re-querying Ensembl
+HumanUrinegene_mapping  <- read.csv(paste0(BioMarkerDir, "HumanUrinegene_mapping.csv"))
+mh_data                 <- read.csv(paste0(MouseHumanDir, "HOM_MouseHuman_Symbol.csv"))
+MouseHomo_HumanUrinegene <- mh_data %>%
+  filter(Symbol.y %in% HumanUrinegene_mapping$hgnc_symbol) %>%
+  pull(Symbol.x) %>%
+  unique()
+cat("Urinary proteins (mouse homologs):", length(MouseHomo_HumanUrinegene), "\n")
+
+# Assemble the four-set list
+CandiateDeggene_list <- list(
+  `Spatial IAN DEGs`  = SpatialIANdegs,
+  `Microarray DEGs`   = MouseMicroArrayDEGs,
+  `Secreted proteins` = SecretedMousefinalGenes,
+  `Urinary proteins`  = MouseHomo_HumanUrinegene
+)
+sapply(CandiateDeggene_list, length)
+
+# Confirm 4-way intersection matches saved conserved list
+FinalOverallapping_check <- Reduce(intersect, CandiateDeggene_list)
+cat("4-way intersection:", length(FinalOverallapping_check), "\n")
+print(FinalOverallapping_check)
+```
+
+---
+
+## Figure 9B: Four-way Venn diagram
+
+```{r fig9b-venn, fig.width=6, fig.height=5}
+Fig9B_Venn <- ggvenn(
+  CandiateDeggene_list,
+  fill_color      = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"),
+  stroke_size     = 0.5,
+  set_name_size   = 3.2,
+  show_percentage = FALSE,
+  text_size       = 3
+) +
+  labs(title = "Multi-dataset overlap for candidate APN biomarker identification") +
+  theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+
+ggsave(
+  filename = paste0(Outdir, "Figure9B_FourWay_Venn.pdf"),
+  plot     = Fig9B_Venn,
+  width = 6, height = 5
+)
+Fig9B_Venn
+```
+
+---
+
+## Figure 9C: UpSet plot
+
+```{r fig9c-upset, fig.width=9, fig.height=5}
+input_for_upset <- fromList(CandiateDeggene_list)
+
+pdf(paste0(Outdir, "Figure9C_UpSet_CandidateBiomarkers.pdf"), height = 5, width = 9)
+upset(
+  input_for_upset,
+  sets            = names(CandiateDeggene_list),
+  set_size.show   = TRUE,
+  order.by        = "freq",
+  keep.order      = TRUE,
+  mb.ratio        = c(0.6, 0.4),
+  text.scale      = c(1.3, 1.2, 1.1, 1.0, 1.2, 1.0),
+  mainbar.y.label = "Intersection Size",
+  sets.x.label    = "Set Size",
+  point.size      = 3,
+  line.size       = 1
+)
+dev.off()
+
+# Inline preview
+upset(
+  input_for_upset,
+  sets            = names(CandiateDeggene_list),
+  set_size.show   = TRUE,
+  order.by        = "freq",
+  keep.order      = TRUE,
+  mb.ratio        = c(0.6, 0.4),
+  text.scale      = c(1.3, 1.2, 1.1, 1.0, 1.2, 1.0),
+  mainbar.y.label = "Intersection Size",
+  sets.x.label    = "Set Size",
+  point.size      = 3,
+  line.size       = 1
+)
+```
+
+---
+
+## Figure 9D: Heatmap of candidate biomarkers across datasets
+
+```{r fig9d-heatmap, fig.width=5, fig.height=8}
+group_levels <- c(
+  "SpatialNiches",
+  "SpatialDay1", "SpatialDay3", "SpatialDay5", "SpatialDay7", "SpatialDay28",
+  "MicroArray_D1", "MicroArray_D3", "MicroArray_D7"
+)
+
+# Use the pre-computed combined FC table, filtered to conserved biomarkers
+FinalExpDEGs_conserved <- FinalExpDEGsOriginal %>%
+  filter(Gene %in% FinalOverallapping) %>%
+  mutate(
+    significance = ifelse(Padj <= 0.001, "***",
+                   ifelse(Padj <= 0.01,  "**",
+                   ifelse(Padj <= 0.05,  "*", ""))),
+    Group = factor(Group, levels = group_levels)
+  )
+
+# Order genes by log2FC in spatial niches (high → low)
+gene_order <- FinalExpDEGs_conserved %>%
+  filter(Group == "SpatialNiches") %>%
+  arrange(desc(log2FoldChange)) %>%
+  pull(Gene)
+# append any genes missing from SpatialNiches group
+gene_order <- c(gene_order, setdiff(FinalOverallapping, gene_order))
+
+FinalExpDEGs_conserved$Gene <- factor(FinalExpDEGs_conserved$Gene, levels = gene_order)
+
+n_genes <- length(gene_order)
+
+Fig9D_Heatmap <- ggplot(FinalExpDEGs_conserved,
+                         aes(x = Group, y = Gene, fill = log2FoldChange)) +
+  geom_tile(color = "white", linewidth = 0.3) +
+  scale_fill_gradient2(
+    low      = "steelblue",
+    mid      = "white",
+    high     = "firebrick",
+    midpoint = 0,
+    name     = "log2FC"
+  ) +
+  geom_text(aes(label = significance), color = "black", size = 2.2, vjust = 0.5) +
+#   # highlight the microarray cohort columns with a box
+#   annotate("rect",
+#            xmin = 6.5, xmax = 9.5,
+#            ymin = 0.5, ymax = n_genes + 0.5,
+#            fill = NA, color = "black", linewidth = 0.7) +
+  theme_minimal() +
+  theme(
+    axis.text.x      = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y      = element_text(size = 7),
+    legend.title     = element_text(size = 8),
+    legend.text      = element_text(size = 7),
+    legend.key.size  = unit(0.4, "cm"),
+    panel.grid       = element_blank(),
+    plot.title       = element_text(hjust = 0.5, size = 9, face = "bold")
+  ) +
+  labs(
+    title = "Candidate APN biomarkers across datasets\n(box = microarray Cohort 1 validation)",
+    x = NULL, y = NULL
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure9D_CandidateBiomarker_Heatmap.pdf"),
+  plot     = Fig9D_Heatmap,
+  width    = 5,
+  height   = max(4, n_genes * 0.28 + 1.5)
+)
+Fig9D_Heatmap
+```
+
+---
+
+## Figure S10: Classical biomarker expression across 17 spatial niches
+
+```{r load-spatial-object}
+Pyelonephritis_Infection <- readRDS(
+  file = paste0(SpatialIndir, "Pyelonephritis_Infection_Deconvoluted.RDS"))
+Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+
+# Set Annotation identity with ordered niche levels
+niche_levels <- paste0("N", 1:17)
+Idents(Pyelonephritis_Infection) <- factor(
+  Pyelonephritis_Infection@meta.data$Annotation,
+  levels = niche_levels[niche_levels %in% unique(Pyelonephritis_Infection@meta.data$Annotation)]
+)
+```
+
+```{r fig-s10a-classical-dotplot, fig.width=20, fig.height=5}
+# Classical biomarker genes grouped by functional category
+classical_biomarkers <- list(
+  `Pro-inflam TFs`      = c("Nfkb1", "Rela", "Irf7", "Stat1", "Stat2", "Spi1", "Cebpb", "Irf1", "Atf3"),
+  Cytokines             = c("Il6", "Il1b", "Il1a", "Tnf", "Tgfb1", "Osm", "Il18", "Il11", "Il10", "Csf1"),
+  Chemokines            = c("Ccl2", "Ccl3", "Ccl4", "Ccl5", "Ccl6", "Ccl7", "Ccl9",
+                            "Cxcl1", "Cxcl3", "Cxcl5", "Cxcl10"),
+  `Core pro-fibrotic`   = c("Fn1", "Col1a1", "Col1a2", "Col3a1", "Timp1", "Tgfbi", "Serpine1"),
+  `ECM & fibroblast`    = c("Adamts2", "Adamts4", "Col5a1", "Dcn", "Lox", "Mmp7", "Mmp9", "Qsox1"),
+  `ROS & detox`         = c("Cybb", "Ncf1", "Ncf2", "Sod2", "Gpx1", "Nox4"),
+  Necroptosis           = c("Gsdmd", "Mlkl", "Zbp1", "Ripk3", "Casp1")
+)
+
+# Flatten in category order, keeping only genes present in object
+classical_genes_ordered <- unlist(classical_biomarkers)
+classical_genes_present <- classical_genes_ordered[
+  classical_genes_ordered %in% rownames(Pyelonephritis_Infection)]
+
+# Build category annotation for x-axis grouping
+cat_labels <- unlist(mapply(function(cat, genes) {
+  present <- genes[genes %in% rownames(Pyelonephritis_Infection)]
+  rep(cat, length(present))
+}, names(classical_biomarkers), classical_biomarkers, SIMPLIFY = FALSE))
+
+Classical_markers <- c(
+  "Nfkb1","Rela", "Irf7","Stat1", "Stat2", "Spi1", "Cebpb", "Irf1", "Atf3",
+  "Il6", "Il1b", "Il1a", "Tnf",  "Osm", "Il18",  "Csf1",
+  "Ccl2", "Ccl3", "Ccl4", "Ccl5", "Ccl6", "Ccl7", "Ccl9","Cxcl1", "Cxcl3", "Cxcl5", "Cxcl10",
+  "Tgfb1","Fn1", "Col1a1", "Col1a2", "Col3a1", "Timp1", "Serpine1",
+  "Adamts2", "Adamts4", "Col5a1", "Dcn", "Lox", "Mmp7", "Mmp9", "Qsox1",
+  "Cybb","Hmox1", "Nfe2l2", "Cat", "Sod1", "Sod2",  "Nox4",
+  "Gsdmd", "Mlkl", "Zbp1", "Ripk3", "Casp1"
+  # AKI markers
+     
+)
+
+Classical_markers <- c("Nfkb1","Rela",
+ "Tnf","Tnfrsf1a","Tnfrsf1b", "Il6","Il1b", 
+ "Nlrp3","Ccl6","Ccl2","Cxcl10","Cxcl12",
+ "Tgfb1","Smad3",
+ "Col1a1","Col3a1","Col4a1","Fn1","Acta2","Timp1","Timp2","Mmp2","Mmp7","Mmp9",
+ "Cybb","Hmox1","Nfe2l2","Cat","Nox4","Sod1","Sod3",
+ "Hmgb1","Ripk3","Ripk1","Mlkl")
+
+length(Classical_AKICKD_markers)
+FigS10A_DotPlot <- DotPlot(
+  Pyelonephritis_Infection,
+  features  = Classical_markers,
+  cols      = "RdBu",
+  dot.scale = 4
+) +
+#   RotatedAxis() +
+#   geom_vline(
+#     xintercept = cumsum(sapply(classical_biomarkers, function(g)
+#       sum(g %in% rownames(Pyelonephritis_Infection))))[
+#         seq_len(length(classical_biomarkers) - 1)] + 0.5,
+#     color = "grey40", linewidth = 0.4, linetype = "dashed"
+#   ) +
+  guides(
+    colour = guide_colorbar(title = "Avg Exp"),
+    size   = guide_legend(title  = "% Exp")
+  ) +
+  #labs(title = "Classical biomarker expression across 17 spatial niches", x = NULL, y = "Niche") +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
+    axis.text.x     = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y     = element_text(size = 7),
+    legend.title    = element_text(size = 7),
+    legend.text     = element_text(size = 6),
+    legend.key.size = unit(8, "pt")
+  )
+
+ggsave(
+  filename = paste0(Outdir, "FigureS10A_Classical_Biomarker_DotPlot.pdf"),
+  plot     = FigS10A_DotPlot,
+  width    = 8.5,
+  height   = 3.5
+)
+
+
+Classical_AKICKD_markers <- c(
+    "Lcn2","Havcr1","S100a8","S100a9", "Clu","Vcam1","C3","Il18","Il1b","Tnf","Vim","Col1a1","Fn1","Tgfb1","Serpinf1"
+)
+
+FigS10A_AKICKD_DotPlot <- DotPlot(
+  Pyelonephritis_Infection,
+  features  = Classical_AKICKD_markers,
+  cols      = "RdBu",
+  dot.scale = 4
+) +
+#   RotatedAxis() +
+#   geom_vline(
+#     xintercept = cumsum(sapply(classical_biomarkers, function(g)
+#       sum(g %in% rownames(Pyelonephritis_Infection))))[
+#         seq_len(length(classical_biomarkers) - 1)] + 0.5,
+#     color = "grey40", linewidth = 0.4, linetype = "dashed"
+#   ) +
+  guides(
+    colour = guide_colorbar(title = "Avg Exp"),
+    size   = guide_legend(title  = "% Exp")
+  ) +
+  #labs(title = "Classical biomarker expression across 17 spatial niches", x = NULL, y = "Niche") +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
+    axis.text.x     = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y     = element_text(size = 7),
+    legend.title    = element_text(size = 7),
+    legend.text     = element_text(size = 6),
+    legend.key.size = unit(8, "pt")
+  )
+
+ggsave(
+  filename = paste0(Outdir, "FigureS10A_ClassicalAKICKD_Biomarker_DotPlot.pdf"),
+  plot     = FigS10A_AKICKD_DotPlot,
+  width    = 4.5,
+  height   = 3.5
+)
+FigS10A_DotPlot
+```
+
+```{r fig-s10b-spatial-classical, fig.width=18, fig.height=3}
+# Curated top representatives per category for spatial feature plots
+top_classical_for_spatial <- c(
+  "Nfkb1","Rela", "Irf7",
+  "Il6", "Tnf", "Il1b",
+  "Ccl2", "Ccl7", "Cxcl1",
+  "Fn1", "Timp1",
+  "Mmp9", "Dcn",
+  "Cybb", "Col3a1",
+  "S100a8","S100a9",
+  "Arg1","Lcn2",
+  "Gsdmd","Rnase6",
+  "Icam1","Vcam1",
+  "Padi4"
+)
+top_classical_present <- top_classical_for_spatial[
+  top_classical_for_spatial %in% rownames(Pyelonephritis_Infection)]
+
+DefaultAssay(Pyelonephritis_Infection) <- "RNA"
+
+for (gene in top_classical_present) {
+  tryCatch({
+
+    #gene= "Lcn2"
+    gene_max <- ceiling(max(Pyelonephritis_Infection@assays$SCT@data[gene, ]))
+    gene_min <- floor(min(Pyelonephritis_Infection@assays$SCT@data[gene, ]))
+    p <- SpatialFeaturePlot(
+      Pyelonephritis_Infection,
+      features       = gene,
+      images         = selectedslices,
+      pt.size.factor = 1600,
+      crop           = TRUE
+    ) &
+      ggplot2::scale_fill_gradientn(
+        colours = myPalette(4),
+        limits  = c(gene_min, gene_max+1)
+        #limits  = c(gene_min-0.5, gene_max)
+      )
+    ggsave(
+      filename = paste0(Outdir, "FigureS10B_Spatial_", gene, ".pdf"),
+      plot     = p,
+      height   = 3, width   = 15
+    )
+  }, error = function(e) message("Skipping ", gene, ": ", e$message))
+}
+```
+
+---
+
+## Figure S11: Identified biomarkers – spatial distribution and cellular source
+
+```{r fig-s11d-spatial-conserved, fig.width=18, fig.height=3}
+FinalOverallapping_present <- FinalOverallapping[
+  FinalOverallapping %in% rownames(Pyelonephritis_Infection)]
+cat("Conserved biomarkers present in spatial object:", length(FinalOverallapping_present), "\n")
+
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+
+for (gene in FinalOverallapping_present) {
+  tryCatch({
+    gene_max <- ceiling(max(Pyelonephritis_Infection@assays$SCT@data[gene, ]))
+    p <- SpatialFeaturePlot(
+      Pyelonephritis_Infection,
+      features       = gene,
+      images         = selectedslices,
+      pt.size.factor = 1600,
+      crop           = TRUE
+    ) &
+      ggplot2::scale_fill_gradientn(
+        colours = myPalette(4),
+        limits  = c(0, max(gene_max, 1))
+      )
+    ggsave(
+      filename = paste0(Outdir, "FigureS11D_Spatial_", gene, ".pdf"),
+      plot     = p,
+      height   = 3, width   = 18
+    )
+  }, error = function(e) message("Skipping ", gene, ": ", e$message))
+}
+```
+
+```{r fig-s11e-cellular-source, fig.width=12, fig.height=5}
+SingleCellObj <- readRDS(paste0(SCIndir, "Pyelonephritis_singlecell_v012626.RDS"))
+
+FinalOverallapping_sc <- FinalOverallapping[FinalOverallapping %in% rownames(SingleCellObj)]
+cat("Conserved biomarkers present in single-cell object:", length(FinalOverallapping_sc), "\n")
+
+FigS11E_CellSource <- DotPlot(
+  SingleCellObj,
+  features  = FinalOverallapping_sc,
+  cols      = "RdBu",
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  guides(
+    colour = guide_colorbar(title = "Avg Exp"),
+    size   = guide_legend(title  = "% Exp")
+  ) +
+  labs(
+    title = "Cellular source of candidate APN biomarkers (MAAP single-cell)",
+    x = NULL, y = "Cell type"
+  ) +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
+    axis.text.x     = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y     = element_text(size = 7),
+    legend.title    = element_text(size = 7),
+    legend.text     = element_text(size = 6),
+    legend.key.size = unit(8, "pt")
+  )
+
+ggsave(
+  filename = paste0(Outdir, "FigureS11E_CellSource_Biomarker_DotPlot.pdf"),
+  plot     = FigS11E_CellSource,
+  width    = max(8, length(FinalOverallapping_sc) * 0.4 + 3),
+  height   = 5
+)
+FigS11E_CellSource
+```

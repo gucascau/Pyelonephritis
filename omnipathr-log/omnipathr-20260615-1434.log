@@ -109,3 +109,4 @@
 [2026-06-15 14:36:24] [TRACE]   [OmnipathR] 163950 rows before translation, 12858 uniprot IDs in column `uniprot`.
 [2026-06-15 14:36:24] [TRACE]   [OmnipathR] 163950 rows after translation; translated 12858 `uniprot` IDs in column `uniprot` to 12772 `genesymbol` IDs in column `genesymbol`.
 [2026-06-15 14:41:27] [TRACE]   [OmnipathR] Removing database `Orthologous Matrix (OMA) gene pairs` (not used in the past 300 seconds)
+[2026-06-15 17:36:27] [TRACE]   [OmnipathR] Removing database `Ensembl and OMA organism names` (not used in the past 10800 seconds)

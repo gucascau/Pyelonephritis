@@ -360,6 +360,8 @@ injury_inflam_markers <- c(
 injury_inflam_markers <- injury_inflam_markers[injury_inflam_markers %in% rownames(PTcells)]
 
 
+injury_inflam_markers <- c("Atp1b1","Clu","Lcn2","Slc34a1","Slc13a3","Slc22a6","Slc22a8","Slc22a12","Ldha","Hsp90ab1","Hspd1","Hsp90aa1","Dab2","Lrp2","Ggt1","Aqp1","Ldhd","Havcr1","Slc1a1","Nrg1","Slc6a19","Slc9a3","Ehd1","Plin2")
+
 Fig5F_DotPlot <- DotPlot(
   PTcells,
   features  = injury_inflam_markers,
@@ -368,7 +370,7 @@ Fig5F_DotPlot <- DotPlot(
 ) +
   RotatedAxis() +
   labs(
-    title = "Injury and inflammatory markers across PT clusters (cluster 4 = Inflammatory PT)",
+    #title = "Injury and inflammatory markers across PT clusters (cluster 4 = Inflammatory PT)",
     x     = NULL,
     y     = "Cluster"
   ) +
@@ -377,15 +379,15 @@ Fig5F_DotPlot <- DotPlot(
     size   = guide_legend(title  = "PerExp")
   ) +
   theme(
-    plot.title  = element_text(hjust = 0.5, size = 9, face = "bold"),
+    #plot.title  = element_text(hjust = 0.5, size = 9, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
     axis.text.y = element_text(size = 8)
   )
 
 ggsave(
-  filename = paste0(Outdir, "Figure5F_PT_InjuryInflam_DotPlot.pdf"),
+  filename = paste0(Outdir, "Figure5F_PT_UsedMarkers_DotPlot.pdf"),
   plot     = Fig5F_DotPlot,
-  width    = 8.5, height = 4
+  width    = 8, height = 3
 )
 Fig5F_DotPlot
 ```
@@ -578,6 +580,8 @@ AllMarkers_pt <- FindAllMarkers(
   #only.pos        = TRUE
 )
 
+saveRDS(AllMarkers_pt, paste0(Outdir, "Figure5I_PT_DEGs.rds"))
+
 write.csv(
   AllMarkers_pt,
   file      = paste0(Outdir, "Figure5I_PT_DEGs.csv"),
@@ -609,10 +613,36 @@ write.csv(
   file      = paste0(Outdir, "Figure5I_PT_GO_BP.csv"),
   row.names = FALSE
 )
-
+GO_pt <- readRDS(paste0(Outdir, "Figure5I_PT_GO_BP.rds"))
 
 
 selected_go_pt <- c(
+
+# Oxidative Stress Adaptation
+
+  "response to oxidative stress",
+  "cellular response to oxidative stress",
+  "response to reactive oxygen species",
+  "cellular response to hydrogen peroxide",
+  "response to hypoxia",
+  "NADPH regeneration",
+
+# Mitochondrial Fitness
+  "cellular respiration",
+  "aerobic respiration",
+  "oxidative phosphorylation",
+  "electron transport chain",
+
+# Metabolic Reprogramming
+  "canonical glycolysis",
+  "glycolytic process",
+  "glycogen metabolic process",
+  "regulation of glycogen catabolic process",
+  "fatty acid metabolic process",
+  "ATP metabolic process",
+  "glucose metabolic process",
+  "pyruvate metabolic process",
+
 # PT Identity / Homeostasis
   "organic anion transport",
   "organic acid transport",
@@ -620,66 +650,45 @@ selected_go_pt <- c(
   "sodium ion transport",
   "potassium ion transport",
   "fatty acid transport",
-  "fatty acid metabolic process",
   "small molecule catabolic process",
-  "steroid metabolic process",
+  "steroid metabolic process"
 
-# Mitochondrial Fitness
-  "cellular respiration",
-  "aerobic respiration",
-  "oxidative phosphorylation",
-  "electron transport chain",
-  "ATP metabolic process",
 
-# Oxidative Stress Adaptation
-  "NADPH regeneration",
-  "response to oxidative stress",
-  "cellular response to oxidative stress",
-  "response to reactive oxygen species",
-  "cellular response to hydrogen peroxide",
-  "response to hypoxia",
+# # Inflammation
+#   "regulation of inflammatory response",
+#   "cytokine production involved in immune response",
+#   "tumor necrosis factor superfamily cytokine production",
+#   "neutrophil chemotaxis",
+#   "leukocyte migration",
 
-# Metabolic Reprogramming
-  "canonical glycolysis",
-  "glycolytic process",
-  "glycogen metabolic process",
-  "regulation of glycogen catabolic process",
+# # Regenerative Repair
+#   "DNA replication",
+#   "mitotic cell cycle",
+#   "cell division",
+#   "cell cycle G1/S phase transition",
+#   "cell cycle G2/M phase transition",
+#   "mitotic nuclear division",
 
-# Inflammation
-  "regulation of inflammatory response",
-  "cytokine production involved in immune response",
-  "tumor necrosis factor superfamily cytokine production",
-  "neutrophil chemotaxis",
-  "leukocyte migration",
+# # Plasticity / Dedifferentiation
+#   "regulation of epithelial cell proliferation",
+#   "regulation of epithelial cell differentiation",
+#   "epithelial cell development",
+#   "mesenchymal cell differentiation",
+#   "epithelial to mesenchymal transition",
 
-# Regenerative Repair
-  "DNA replication",
-  "mitotic cell cycle",
-  "cell division",
-  "cell cycle G1/S phase transition",
-  "cell cycle G2/M phase transition",
-  "mitotic nuclear division",
+# # Fibrosis / Matrix Remodeling
+#   "extracellular matrix organization",
+#   "extracellular structure organization",
+#   "collagen fibril organization",
+#   "wound healing",
+#   "transforming growth factor beta receptor signaling pathway",
 
-# Plasticity / Dedifferentiation
-  "regulation of epithelial cell proliferation",
-  "regulation of epithelial cell differentiation",
-  "epithelial cell development",
-  "mesenchymal cell differentiation",
-  "epithelial to mesenchymal transition",
-
-# Fibrosis / Matrix Remodeling
-  "extracellular matrix organization",
-  "extracellular structure organization",
-  "collagen fibril organization",
-  "wound healing",
-  "transforming growth factor beta receptor signaling pathway",
-
-# Senescence/Cell death
-  "cellular senescence",
-  "replicative senescence",
-  "response to DNA damage stimulus",
-  "regulation of apoptotic signaling pathway",
-  "defense response to bacterium"
+# # Senescence/Cell death
+#   "cellular senescence",
+#   "replicative senescence",
+#   "response to DNA damage stimulus",
+#   "regulation of apoptotic signaling pathway",
+#   "defense response to bacterium"
 )
 # clusterProfiler's dotplot() re-orders internally and ignores factor levels.
 # Build directly from the data with ggplot2 for exact control.
@@ -701,23 +710,75 @@ Fig5I_GO <- ggplot(df_go, aes(x = Description, y = Cluster,
   geom_point() +
   scale_color_gradient(low = "#E31A1C", high = "steelblue", name = "p.adjust") +
   scale_size_continuous(range = c(1, 6), name = "GeneRatio") +
+  scale_x_discrete(expand = expansion(add = 0.5)) +        # padding left/right of first/last term
   labs(title = "GO Biological Process - PT subsets", x = NULL, y = NULL) +
   theme_bw() +
   theme(
     plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-    axis.text.y = element_text(size = 8, hjust = 1)
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8),
+    axis.text.y = element_text(size = 8, hjust = 1),
+    plot.margin = margin(t = 5, r = 10, b = 80, l = 10)    # extra bottom space for rotated labels
   )
 
 ggsave(
-  filename = paste0(Outdir, "Figure5I_PT_GO_Dotplot.pdf"),
+  filename = paste0(Outdir, "Figure5I_PT_GO_Dotplot_finalused.pdf"),
   plot     = Fig5I_GO,
-  width    = 9, height = 5
+  width    =10, height = 5
 )
 Fig5I_GO
 ```
 
 ---
+
+
+## Supplementary Figure E: the distribution of fibrosis markers across PT clusters
+```{r}
+
+EarlyTubuleInjuryMarkers <- c("Havcr1", "Lcn2", "Clu","Igfbp7", "Cst3","Spp1","Dab2","Sox9","Nrg1")
+MalaptiveRepairMarkers <- c("Vcam1","Dcdc2a","Ccl2","Sema5a","Vim" ,"Icam1", "Prom1")
+FibrosisMarkers <- c("Fn1", "C3","Agt","Col1a1", "Col3a1", "Tgfb1", "Ctgf")
+
+
+all_Fibrosis_markers <- c(
+  EarlyTubuleInjuryMarkers,
+  MalaptiveRepairMarkers,
+  FibrosisMarkers
+)
+all_Fibrosis_markers <- unique(all_Fibrosis_markers[all_Fibrosis_markers %in% rownames(PTcells)])
+
+FigS5E_DotPlot <- DotPlot(
+  PTcells,
+  features  = all_Fibrosis_markers,
+  cols      = c("RdBu"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    title = "PT injury and fibrosis markers",
+    x     = NULL,
+    y     = "Cluster"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title       = element_text(hjust = 0.5, size = 9, face = "bold"),
+    axis.text.x      = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y      = element_text(size = 8),
+    legend.title     = element_text(size = 7),
+    legend.text      = element_text(size = 6),
+    legend.key.size  = unit(8, "pt")
+  )
+
+ggsave(
+  filename = paste0(Outdir, "FigS5E_DotPlot.pdf"),
+  plot     = FigS5E_DotPlot,
+  width    = 5, height = 3.5
+)
+FigS5E_DotPlot
+
+```
 
 ## Figure 5J: Monocle3 pseudotime trajectory of PT cells
 
