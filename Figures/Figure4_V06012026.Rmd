@@ -836,7 +836,7 @@ NovelMarkers<- AllMarkers_cd %>%
   filter(p_val_adj <= 0.05, avg_log2FC >= 0.25) %>%
   group_by(cluster) %>%
   filter(!gene %in% canonical_cd) %>% # ignore the canonical markers that we have already plotted in Figure 4D
-  slice_max(order_by = avg_log2FC, n = 10) %>%
+  slice_max(order_by = avg_log2FC, n = 5) %>%
   ungroup() %>%
   arrange(cluster, desc(avg_log2FC)) %>%
   dplyr::select(cluster, gene, avg_log2FC, p_val_adj)
@@ -844,7 +844,7 @@ NovelMarkers<- AllMarkers_cd %>%
 # generate the Supplmentary figure 1 table with the novel markers
 FigS5ANovelMarkerDotPlots<- DotPlot(
   CDcells,
-  features  = NovelMarkers$gene,
+  features  = NovelMarkers$gene %>%unique(),
   #cols      = c("lightgrey", "#E31A1C"),
   dot.scale = 6
 ) +
@@ -873,7 +873,39 @@ ggsave(
 
 ```
 
-# Generate 
+# Generate the dotplot for chemokine and cytokine expression across CD subsets and timepoints (Figure S5E)
 ```{r}
+# add the chaemotactic factors
+Chaemotacticfactors <- c("Ccl3","Ccl4","Ccl5","Cxcl2","Cxcl5","Cxcl12","Cx3cl1","C3","Tgfb1","Tgfb2","Pdgfa","Pdgfb","Vegfa","Egf","Hmgb1")
+
+# generate the Supplmentary figure 5E table with the markers
+FigS5EChaemotacticFactorDotPlots<- DotPlot(
+  CDcells,
+  features  = Chaemotacticfactors,
+  cols = "RdBu",
+  dot.scale = 6
+) +
+  RotatedAxis() +
+  labs(
+    #title = "Novel CD subset markers",
+    x     = NULL,
+    y     = "CD subset"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+    axis.text.y = element_text(size = 8)
+  )
+
+# save the figure
+ggsave(
+  filename = paste0(Outdir, "FigureS5E_CD_NovelMarkers_DotPlot.pdf"),
+  plot     = FigS5EChaemotacticFactorDotPlots,
+  width    = 6, height = 3.5
+)
 
 ```
