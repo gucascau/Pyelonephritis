@@ -4,7 +4,7 @@ author: "Xin Wang"
 date: "2026-06-01"
 output: html_document
 description: 
-  (B) UMAP of CD subsets (ICA, ICB, PC, DegCD).
+  (B) UMAP of CD subsets (ICA, ICB, PC, hIC-PC).
   (C) Proportion of CD subsets across timepoints (0, 3, 7, 28 dpi).
   (D) DotPlot of canonical CD subset markers.
   (E) UMAPs of CD cells split by timepoint.
@@ -15,7 +15,7 @@ description:
   (L) GO Biological Process enrichment dotplot for each CD subset.
 
 # suppplementary Fig 5: 
-  (A) Dot plot with novel markers identified for ICs, PCs, and DegCDs. 
+  (A) Dot plot with novel markers identified for ICs, PCs, and hIC-PCs.
   (B) Feature plots split by timepoint, colored by Atp6v1g3 (IC), Aqp6 (ICA), Slc26a4 (ICB), Aqp2 (PC). 
   (C) CytoTRACE differentiation state analysis across CD subsets and timepoints.
   (D) Monocle3 pseudotime trajectory of CD cells.
@@ -68,12 +68,15 @@ dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
 ## Load data
 
 ```{r load-data}
-# Single-cell CD object (ICA / ICB / PC / DegCD annotated)
+# Single-cell CD object (ICA / ICB / PC / hIC-PC annotated)
 CDcells <- readRDS(paste0(SCIndir, "ICPCcells_DegCD_v02142025.RDS"))
 CDcells <- UpdateSeuratObject(CDcells)
 
+# Rename "DegCD" annotation to "hIC-PC"
+CDcells@meta.data$ICPCAnnot[CDcells@meta.data$ICPCAnnot == "DegCD"] <- "hIC-PC"
+
 # Ordered CD subset levels
-subset_order    <- c("ICA", "ICB", "PC", "DegCD")
+subset_order    <- c("ICA", "ICB", "PC", "hIC-PC")
 timepoint_order <- c("0DPI", "3DPI", "7DPI", "28DPI")
 
 # Set identity to CD subset annotation
@@ -602,7 +605,7 @@ ClusterGenes_cd <- list(
   ICA   = AllMarkers_cd %>% filter(cluster == "ICA",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
   ICB   = AllMarkers_cd %>% filter(cluster == "ICB",   p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
   PC    = AllMarkers_cd %>% filter(cluster == "PC",    p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene),
-  DegCD = AllMarkers_cd %>% filter(cluster == "DegCD", p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene)
+  `hIC-PC` = AllMarkers_cd %>% filter(cluster == "hIC-PC", p_val_adj <= 0.05, avg_log2FC >= 0.25) %>% pull(gene)
 )
 # Remove empty groups
 ClusterGenes_cd <- ClusterGenes_cd[sapply(ClusterGenes_cd, length) > 0]

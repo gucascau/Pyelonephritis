@@ -91,7 +91,7 @@ cat("Requested slices:", paste(selected_slices, collapse = ", "), "\n")
 
 pt_size_map <- c(
   slice1 = 1800, slice3 = 1800, slice4 = 1600,
-  slice7 = 1600, slice8 = 1800, slice9 = 1800
+  slice7 = 1500, slice8 = 1800, slice9 = 1800
 )
 
 fig1c_panels <- lapply(available_images, function(sl) {
@@ -103,9 +103,9 @@ fig1c_panels <- lapply(available_images, function(sl) {
     pt.size.factor = pt_sz,
     crop           = TRUE,
     label          = TRUE,
-    label.size     = 6,
-    label.color    = "black",
-    label.box      = FALSE,
+    label.size     = 4,
+    #label.color    = "black",
+    label.box      = TRUE,
   )
   p + theme(legend.position = "none") + coord_cartesian()
 })
@@ -116,7 +116,7 @@ Fig1cSpatialDimPlot <- cowplot::plot_grid(plotlist = fig1c_panels, nrow = 1)
 ggsave(
   filename = paste0(Outdir, "Figure1C_SpatialDimPlot.pdf"),
   plot     = Fig1cSpatialDimPlot,
-  width    = 24,
+  width    = 22,
   height   = 4
 )
 
