@@ -873,7 +873,7 @@ ggsave(
 
 ```
 
-# Generate the dotplot for chemokine and cytokine expression across CD subsets and timepoints (Figure S5E)
+# Generate the dotplot for chemokine and cytokine expression across CD subsets and timepoints (Figure S5E, S5E)
 ```{r}
 # add the chaemotactic factors
 Chaemotacticfactors <- c("Ccl3","Ccl4","Ccl5","Cxcl2","Cxcl5","Cxcl12","Cx3cl1","C3","Tgfb1","Tgfb2","Pdgfa","Pdgfb","Vegfa","Egf","Hmgb1")
@@ -909,3 +909,49 @@ ggsave(
 )
 
 ```
+
+# Generate the dotplot for Inflammatory marker expression across CD subsets and timepoints (Figure S5E, S5E)
+```{r}
+Idents(CDcells) <- factor(CDcells@meta.data$SubsetTimepoint, levels = combined_order)
+
+inflammatory_markers <- c(
+  # Cytokines
+  "Il1b", "Il6", "Il18", "Tnf", "Ifng", "Tgfb1", "Il10",
+  # Chemokines
+  "Cxcl1", "Cxcl2", "Cxcl5", "Cxcl10", "Ccl2", "Ccl5",
+  # NF-kB / signaling
+  "Nfkb1", "Rela", "Nlrp3",
+  # Injury / inflammation
+  "C3", "Nos2"
+)
+
+FigS5F_DotPlot <- DotPlot(
+  CDcells,
+  features  = inflammatory_markers,
+ #cols      = c("lightgrey", "#E31A1C"),
+  cols      = c("RdBu"),
+  dot.scale = 5
+) +
+  RotatedAxis() +
+  labs(
+    #title = "Inflammatory markers by CD subset × timepoint",
+    x     = NULL,
+    y     = "Subset × Timepoint"
+  ) +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    #plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 7)
+  )
+
+ggsave(
+  filename = paste0(Outdir, "Figure5SF_CD_Inflammatory_DotPlot.pdf"),
+  plot     = FigS5F_DotPlot,
+  width    = 5, height = 4
+)
+```
+

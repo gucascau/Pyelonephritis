@@ -129,6 +129,15 @@ SingleCellObj<- readRDS(paste0(SingleCellDir, "Pyelonephritis_singlecell_v012626
 
 ConservedBiomarkers<- read.csv(paste0(Indir,"ConservedMarkers/","ConservedBiomarkers.csv"))
 
+# Urinary specific markers
+PathwayName <- "Biomarkers in Secreted not Urine"
+ConservedInSecretedNotUrineBiomarkers <- read.csv(paste0(Indir,"ConservedInUrineNotSecreted/","BiomarkersinUrinenotSecreted.csv"))
+
+
+PathwayName <- "Biomarkers in Urine not Secreted"
+ConservedInUrineNotSecretedBiomarkers <- read.csv(paste0(Indir,"ConservedInSecretedNotUrine/","BiomarkersinSecretednotUrine.csv"))
+
+
 
 ```
 
@@ -146,12 +155,15 @@ ggsave(filename = "ConservedBiomarkerDotPlot_CellularSource.pdf", plot = Conserv
 
 # Generate the feature plots for each genes
 
+ConservedInSecretedNotUrineDotPlot<- DotPlot(SingleCellObj, features = ConservedInSecretedNotUrineBiomarkers$x,  cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() 
 
+ggsave(filename = file.path(Indir,"ConservedInSecretedNotUrine","ConservedInSecretedNotUrineDotPlot_CellularSource.pdf"), plot = ConservedInSecretedNotUrineDotPlot, height = 5, width = 18)
 
+ConservedInUrineNotSecretedDotPlot<- DotPlot(SingleCellObj, features = ConservedInUrineNotSecretedBiomarkers$x,  cols="RdBu")  + guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + RotatedAxis() 
 
-
-
-
+ggsave(filename = file.path(Indir,"ConservedInUrineNotSecreted","ConservedInUrineNotSecretedDotPlot_CellularSource.pdf"), plot = ConservedInUrineNotSecretedDotPlot, height = 5, width = 35)
 
 
 DotPlot(SingleCellObj, features = Fibrosis_candidatesGenes, cols = RColorBrewer::brewer.pal(80, "RdBu")) +RotatedAxis()

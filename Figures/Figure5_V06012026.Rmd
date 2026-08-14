@@ -649,9 +649,9 @@ selected_go_pt <- c(
   "carboxylic acid transport",
   "sodium ion transport",
   "potassium ion transport",
-  "fatty acid transport",
-  "small molecule catabolic process",
-  "steroid metabolic process"
+  "fatty acid transport"
+  # "small molecule catabolic process",
+  # "steroid metabolic process"
 
 
 # # Inflammation
@@ -705,25 +705,26 @@ df_go <- as.data.frame(GO_pt) %>%
   )
 
 # x = Cluster (bottom), y = Description (left) -> GO terms appear on the left side
-Fig5I_GO <- ggplot(df_go, aes(x = Description, y = Cluster,
-                               size = GeneRatio, color = p.adjust)) +
+Fig5I_GO <- ggplot(df_go, aes(x = Description, y = Cluster, size = GeneRatio, color = p.adjust)) +
   geom_point() +
   scale_color_gradient(low = "#E31A1C", high = "steelblue", name = "p.adjust") +
   scale_size_continuous(range = c(1, 6), name = "GeneRatio") +
-  scale_x_discrete(expand = expansion(add = 0.5)) +        # padding left/right of first/last term
+  scale_x_discrete(expand = expansion(add = 0.6)) +
+  coord_cartesian(clip = "off") +   # <- allow rotated text to draw outside panel
   labs(title = "GO Biological Process - PT subsets", x = NULL, y = NULL) +
   theme_bw() +
   theme(
-    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8),
     axis.text.y = element_text(size = 8, hjust = 1),
-    plot.margin = margin(t = 5, r = 10, b = 80, l = 10)    # extra bottom space for rotated labels
+    plot.margin = margin(t = 5, r = 10, b = 10, l = 50)  # <- bumped from 10 to 40
   )
+
 
 ggsave(
   filename = paste0(Outdir, "Figure5I_PT_GO_Dotplot_finalused.pdf"),
   plot     = Fig5I_GO,
-  width    =10, height = 5
+  width    =8.5, height = 4.5
 )
 Fig5I_GO
 ```

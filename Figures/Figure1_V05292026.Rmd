@@ -103,29 +103,16 @@ fig1c_panels <- lapply(available_images, function(sl) {
     pt.size.factor = pt_sz,
     crop           = TRUE,
     label          = TRUE,
-    label.size     = 3,
+    label.size     = 6,
+    label.color    = "black",
+    label.box      = FALSE,
   )
   p + theme(legend.position = "none") + coord_cartesian()
 })
 
-# Extract a shared legend from the first panel (with legend visible)
-legend_plot <- SpatialDimPlot(
-  Pyelonephritis_Infection,
-  images         = available_images[1],
-  pt.size.factor = 1800,
-  crop           = TRUE,
-  label          = FALSE,
-) + theme(legend.position = "right")
-shared_legend <- cowplot::get_legend(legend_plot)
-
 # cowplot::plot_grid forces every panel into equal-sized slots regardless
 # of the coord_fixed() that SpatialDimPlot sets internally
-panels_row <- cowplot::plot_grid(plotlist = fig1c_panels, nrow = 1)
-
-Fig1cSpatialDimPlot <- cowplot::plot_grid(
-  panels_row, shared_legend,
-  nrow = 1, rel_widths = c(length(fig1c_panels), 0.8)
-)
+Fig1cSpatialDimPlot <- cowplot::plot_grid(plotlist = fig1c_panels, nrow = 1)
 ggsave(
   filename = paste0(Outdir, "Figure1C_SpatialDimPlot.pdf"),
   plot     = Fig1cSpatialDimPlot,
