@@ -61,6 +61,10 @@ timepoint_order <- c("0DPI", "3DPI", "7DPI", "28DPI")
 cluster_order <- as.character(0:6)
 Idents(PTcells) <- factor(PTcells@meta.data$seurat_clusters, levels = cluster_order)
 
+# Fixed color per cluster, keyed by label so it stays consistent across plots
+# regardless of the factor level order used (e.g. cluster_order vs rev(cluster_order))
+cluster_colors <- setNames(scales::hue_pal()(length(cluster_order)), cluster_order)
+
 cat("Cluster counts:\n")
 print(table(PTcells@meta.data$seurat_clusters))
 cat("Timepoints:\n")
@@ -114,9 +118,10 @@ Fig5A_UMAP <- DimPlot(
   repel   = TRUE,
   pt.size = 0.5
 ) +
-  labs(title = "Proximal tubule subpopulations") +
+  scale_color_manual(values = cluster_colors) +
+  # labs(title = "Proximal tubule subpopulations") +
   theme(
-    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    #plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
     legend.text = element_text(size = 9)
   )
 
@@ -228,9 +233,10 @@ Fig5D_UMAPSplit <- DimPlot(
   label    = TRUE,
   repel    = TRUE,
   pt.size  = 0.3,
-  ncol     = 4
+  # ncol     = 4
 ) +
-  labs(title = "PT subsets split by timepoint") +
+  scale_color_manual(values = cluster_colors) +
+  #labs(title = "PT subsets split by timepoint") +
   theme(
     plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
     legend.text = element_text(size = 8)

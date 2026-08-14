@@ -1,0 +1,247 @@
+---
+title: "Figure 8 – Lymphoid cell composition and marker analysis across timepoints"
+author: "Xin Wang"
+date: "2026-08-14"
+output: html_document
+description: >
+  (A) UMAP of lymphoid cells annotated as T-RCM, CD8+ T cells, Th1, Treg, Th17,
+      gamma-delta T-17 cells, ILC-like cells, iNK cells, cNK cells, and B cells.
+  (B) Dot plot of canonical marker genes for each lymphoid subset.
+  (C) UMAP of lymphoid cells split by timepoint (0, 3, 7, 28 dpi), no labels.
+  (D) Frequencies of each lymphoid subset across timepoints.
+
+Input:
+  Single-cell: LymphoidCells/Biomarkers/UpdatedBiomarkers_V2/LymphoidcellsUpdated_WithAnn_Nocls6.rds
+
+Output: Results/Figures/Figure8/
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(cowplot)
+library(RColorBrewer)
+library(scales)
+```
+
+## Directories
+
+```{r directories}
+SCIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/LymphoidCells/Biomarkers/UpdatedBiomarkers_V2/"
+Outdir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure8/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Load data
+
+```{r load-data}
+Lymphoidcells <- readRDS(paste0(SCIndir, "LymphoidcellsUpdated_WithAnn_Nocls6.rds"))
+DefaultAssay(Lymphoidcells) <- "RNA"
+
+timepoint_order <- c("0DPI", "3DPI", "7DPI", "28DPI")
+Lymphoidcells$orig.ident <- factor(Lymphoidcells$orig.ident, levels = timepoint_order)
+
+# Subset annotation order (internal labels, as produced by the subclustering script)
+subset_order_raw <- c(
+  "T-RCM", "Cd8", "Th1", "Treg", "Th17",
+  "gamma-delta T-17 cells", "ILC-like cells", "iNK cells", "cNK cells", "B cells"
+)
+
+# Display labels for plotting
+subset_display <- c(
+  "T-RCM"                  = "T-RCM",
+  "Cd8"                    = "CD8+ T cells",
+  "Th1"                    = "Th1",
+  "Treg"                   = "Treg",
+  "Th17"                   = "Th17",
+  "gamma-delta T-17 cells" = "gd T-17 cells",
+  "ILC-like cells"         = "ILC-like cells",
+  "iNK cells"               = "iNK cells",
+  "cNK cells"               = "cNK cells",
+  "B cells"                 = "B cells"
+)
+subset_order <- unname(subset_display[subset_order_raw])
+
+Lymphoidcells$LymphoidSubset <- factor(
+  unname(subset_display[as.character(Lymphoidcells$FinalLymphoidCellAnnot)]),
+  levels = subset_order
+)
+Idents(Lymphoidcells) <- Lymphoidcells$LymphoidSubset
+
+subset_colors <- setNames(scales::hue_pal()(length(subset_order)), subset_order)
+
+cat("Subset counts:\n")
+print(table(Lymphoidcells$LymphoidSubset))
+cat("Timepoints:\n")
+print(table(Lymphoidcells$orig.ident))
+```
+
+---
+
+## Figure 8A: UMAP of lymphoid subsets
+
+```{r fig8a-umap-clusters, fig.width=6, fig.height=4.5}
+Fig8A_UMAP <- DimPlot(
+  Lymphoidcells,
+  group.by = "LymphoidSubset",
+  label    = TRUE,
+  repel    = TRUE,
+  pt.size  = 0.5
+) +
+  scale_color_manual(values = subset_colors) +
+  labs(title = NULL) +
+  theme(legend.position = "none")
+
+ggsave(
+  filename = paste0(Outdir, "Figure8A_Lymphoid_UMAP_Subsets.pdf"),
+  plot     = Fig8A_UMAP,
+  width    = 4.5, height = 4
+)
+Fig8A_UMAP
+```
+
+---
+
+## Figure 8B: Dot plot of canonical marker genes for each lymphoid subset
+
+```{r fig8b-dotplot-markers, fig.width=12, fig.height=4.5}
+Idents(Lymphoidcells) <- factor(Lymphoidcells$LymphoidSubset, levels = rev(subset_order))
+DefaultAssay(Lymphoidcells) <- "RNA"
+
+# Marker order preserved exactly as used in the subclustering script
+FinalLymphoidBiomarkers <- c(
+  "Cd3e", "Sell", "Ccr7", "Tcf7",
+  "Cd8a", "Cd8b1", "Cd4",
+  "Ifng", "Tbx21",
+  "Foxp3",
+  "Il17f", "Il17a", "Rorc",
+  "Trdc", "Trgc1",
+  "Il7r", "Il1rl1",
+  "Ncr1", "Klrb1c", "Klrk1", "Gzmb", "Prf1", "Cd7", "Xcl1",
+  "Cd79a", "Cd19", "Ms4a1"
+)
+FinalLymphoidBiomarkers <- FinalLymphoidBiomarkers[FinalLymphoidBiomarkers %in% rownames(Lymphoidcells)]
+
+Fig8B_DotPlot <- DotPlot(
+  Lymphoidcells,
+  features = FinalLymphoidBiomarkers,
+  cols     = "RdBu",
+  col.min  = -1,
+  col.max  = 2
+) +
+  RotatedAxis() +
+  labs(x = NULL, y = NULL) +
+  guides(
+    colour = guide_colorbar(title = "AverExp"),
+    size   = guide_legend(title  = "PercExp")
+  ) 
+
+ggsave(
+  filename = paste0(Outdir, "Figure8B_Lymphoid_MarkerDotPlot.pdf"),
+  plot     = Fig8B_DotPlot,
+  width    = 7, height = 3
+)
+Fig8B_DotPlot
+```
+
+---
+
+## Figure 8C: UMAP of lymphoid subsets split by timepoint
+
+```{r fig8c-umap-split, fig.width=14, fig.height=4}
+Idents(Lymphoidcells) <- factor(Lymphoidcells$LymphoidSubset, levels = subset_order)
+
+Fig8C_UMAPSplit <- DimPlot(
+  Lymphoidcells,
+  split.by = "orig.ident",
+  label    = FALSE,
+  pt.size  = 0.3
+) +
+  scale_color_manual(values = subset_colors) +
+  labs(title = NULL) +
+  theme(legend.text = element_text(size = 8))
+
+ggsave(
+  filename = paste0(Outdir, "Figure8C_Lymphoid_UMAP_SplitByTimepoint.pdf"),
+  plot     = Fig8C_UMAPSplit,
+  width    = 14, height = 4
+)
+Fig8C_UMAPSplit
+```
+
+---
+
+## Figure 8D: Frequencies of each lymphoid subset across timepoints
+
+```{r fig8d-frequency, fig.width=7, fig.height=4}
+freq_df <- table(Lymphoidcells$orig.ident, Lymphoidcells$LymphoidSubset) %>%
+  as.data.frame() %>%
+  dplyr::rename(Timepoint = Var1, Subset = Var2) %>%
+  group_by(Timepoint) %>%
+  mutate(pct = prop.table(Freq)) %>%
+  ungroup() %>%
+  mutate(
+    Timepoint = factor(Timepoint, levels = timepoint_order),
+    Subset    = factor(Subset,    levels = subset_order)
+  )
+
+Fig8D_Freq <- ggplot(freq_df, aes(x = Subset, y = pct, fill = Timepoint)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Lymphoid subset", y = "Frequency", fill = "Timepoint") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9))
+
+ggsave(
+  filename = paste0(Outdir, "Figure8D_Lymphoid_Frequency_Timepoint.pdf"),
+  plot     = Fig8D_Freq,
+  width    = 7, height = 4
+)
+Fig8D_Freq
+
+
+# generate the proportion of these cells in the immune cells
+FinalLymphoidCellNumbers <-
+  Lymphoidcells@meta.data %>% dplyr::select(orig.ident, FinalLymphoidCellAnnot) %>% table() %>% as.data.frame()
+factor(FinalLymphoidCellNumbers$orig.ident)
+# set up the level of orig.ident
+FinalLymphoidCellNumbers$orig.ident <-
+  ordered (
+    factor(FinalLymphoidCellNumbers$orig.ident),
+    levels = c("0DPI", "3DPI", "7DPI", "28DPI")
+  )
+
+FinalLymphoidCellProportion <-
+  FinalLymphoidCellNumbers %>% mutate(
+    Proprotion = case_when (
+      orig.ident == "0DPI" ~ Freq / 566,
+      orig.ident == "3DPI" ~ Freq / 1618,
+      orig.ident == "7DPI" ~ Freq / 2660,
+      orig.ident == "28DPI" ~ Freq / 11902,
+    )
+  )
+
+LymphoidCellProportionFigure <-
+  ggplot(data = FinalLymphoidCellProportion,
+         aes(x = FinalLymphoidCellAnnot, y = Proprotion, fill = orig.ident)) +
+  geom_bar(stat = "identity", position = position_dodge()) +  labs(x = "Cell Type", y = "Frequency", fill = "Timepoint") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  "Figure8D_Lymphoid_Frequency_Timepoint.pdf",
+  plot = LymphoidCellProportionFigure,
+  height = 3.5,
+  width = 6
+)
+
+
+```
