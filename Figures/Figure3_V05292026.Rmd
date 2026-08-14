@@ -75,8 +75,8 @@ timepoint_labels <- c("Day 0", "Day 1", "Day 3", "Day 5", "Day 7", "Day 28")
 names(timepoint_labels) <- selected_slices
 
 pt_size_map <- c(
-  slice1 = 1800, slice3 = 1800, slice4 = 1600,
-  slice7 = 1600, slice8 = 1800, slice9 = 1800
+  slice1 = 2400, slice3 = 2400, slice4 = 2000,
+  slice7 = 2000, slice8 = 2400, slice9 = 2400
 )
 
 # All N8 spot barcodes across the entire object
@@ -93,7 +93,7 @@ fig3a_panels <- lapply(selected_slices, function(sl) {
     Pyelonephritis_Infection,
     images          = sl,
     cells.highlight = n8_cells,
-    cols.highlight  = c("yellow", NA),  # N8 = yellow, others = invisible
+    cols.highlight  = c("cyan", NA),  # N8 = green, others = invisible
     pt.size.factor  = pt_sz,
     crop            = TRUE,
     label           = FALSE
@@ -106,12 +106,12 @@ fig3a_panels <- lapply(selected_slices, function(sl) {
     )
 })
 
-Fig3aSpatial <- cowplot::plot_grid(plotlist = fig3a_panels, nrow = 1)
+Fig3aSpatial <- cowplot::plot_grid(plotlist = fig3a_panels, nrow = 2, align = "hv")
 
 ggsave(
   filename = paste0(Outdir, "Figure3A_N8_SpatialLocation.pdf"),
   plot     = Fig3aSpatial,
-  width    = 20,
+  width    = 5,
   height   = 4
 )
 
@@ -135,20 +135,18 @@ timepoint_order <- timepoint_order[timepoint_order %in% levels(factor(Idents(N8_
 Idents(N8_obj)  <- factor(Idents(N8_obj), levels = timepoint_order)
 
 # Urothelial differentiation hierarchy: basal → intermediate → superficial
-proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Ccna2", "Cdk1", "Cdc20")
+proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Cdk1")
 differentiation_markers <- c(
   # Basal / progenitor (least differentiated)
-  "Krt5", "Krt14", "Tp63", "Cd44",
+  "Krt5", "Krt14", "Trp63", "Cd44",
   # Intermediate
   "Krt7", "Krt8", "Krt18", "Krt19",
   # Superficial / umbrella cells (fully differentiated)
   "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
   # Transcription factors driving urothelial differentiation
-  "Foxa1", "Gata3", "Pparg",
-  # Tight junction / barrier function
-  "Cldn3", "Cldn4", "Cldn7"
+  "Foxa1", "Gata3", "Pparg"
 )
-markers_all <- c(proliferation_markers, differentiation_markers)
+markers_all <- c(differentiation_markers,proliferation_markers)
 
 DefaultAssay(N8_obj) <- "SCT"
 
@@ -161,16 +159,16 @@ Fig3bDotPlot <- DotPlot(
   #coord_flip() +
   RotatedAxis() +
   labs(
-    title = "N8 differentiation and proliferation markers by timepoint",
+    #title = "N8 differentiation and proliferation markers by timepoint",
     x     = NULL,
-    y     = "Timepoint"
+    y     = NULL
   ) +
   guides(
     colour = guide_colorbar(title = "AveExp"),
     size   = guide_legend(title  = "PerExp")
   ) +
   theme(
-    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    # plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
     axis.text.y = element_text(size = 8)
   )
@@ -178,8 +176,8 @@ Fig3bDotPlot <- DotPlot(
 ggsave(
   filename = paste0(Outdir, "Figure3B_N8_DotPlot_Timepoints.pdf"),
   plot     = Fig3bDotPlot,
-  width    = 8,
-  height   = 4
+  width    = 6.5,
+  height   = 3.5
 )
 ```
 
@@ -232,7 +230,7 @@ Fig3GProgenyHeatmap <- pheatmap(
   cluster_rows   = FALSE,
   color          = my_color,
   breaks         = my_breaks,
-  main           = "PROGENy pathway activity – N8 across timepoints",
+  #main           = "PROGENy pathway activity – N8 across timepoints",
   angle_col      = 45,
   border_color   = NA,
   treeheight_col = 0,
@@ -245,9 +243,9 @@ dev.off()
 ```
 
 
-## Figure 3I: AMP expression in N8 across timepoints
+## Figure 3K: AMP expression in N8 across timepoints
 
-```{r fig3n-amp-n8-dotplot, fig.width=8, fig.height=4}
+```{r fig3k-amp-n8-dotplot, fig.width=8, fig.height=4}
 # Reuse N8_obj with timepoint identities already set from Figure 3B
 Idents(N8_obj) <- factor(Idents(N8_obj), levels = timepoint_order)
 DefaultAssay(N8_obj) <- "SCT"
@@ -263,7 +261,7 @@ amp_genes_n8 <- c(
 )
 amp_genes_n8 <- amp_genes_n8[amp_genes_n8 %in% rownames(N8_obj)]
 
-Fig3I_AMP_DotPlot <- DotPlot(
+Fig3K_AMP_DotPlot <- DotPlot(
   N8_obj,
   features  = amp_genes_n8,
   cols      = c("lightgrey", "#E31A1C"),
@@ -286,31 +284,31 @@ Fig3I_AMP_DotPlot <- DotPlot(
   )
 
 ggsave(
-  filename = paste0(Outdir, "Figure3I_N8_AMP_DotPlot_Timepoints.pdf"),
-  plot     = Fig3N_AMP_DotPlot,
+  filename = paste0(Outdir, "Figure3K_N8_AMP_DotPlot_Timepoints.pdf"),
+  plot     = Fig3K_AMP_DotPlot,
   width    = 8, height = 4
 )
 
 
-Fig3I_AMP_DoHeatmap <- DoHeatmap(
+Fig3K_AMP_DoHeatmap <- DoHeatmap(
   N8_obj,
   features  = amp_genes,
   assay     = "SCT",
   slot      = "data",
   disp.min  = 0,
-  disp.max  = 4
-) +
-  # scale_fill_gradientn(
-  #   colours = c("royalblue", "white", "firebrick3"),
-  #   limits  = c(0, 4),
-  #   na.value = "white"
-  # ) +
-  #labs(title = "AMP – URO vs aURO") +
-  theme(
-    plot.title  = element_text(hjust = 0.5, size = 8, face = "bold"),
-    axis.text.x = element_text(size = 8),
-    axis.text.y = element_text(size = 8)
-  )
+  disp.max  = 4)
+# ) +
+#   # scale_fill_gradientn(
+#   #   colours = c("royalblue", "white", "firebrick3"),
+#   #   limits  = c(0, 4),
+#   #   na.value = "white"
+#   # ) +
+#   #labs(title = "AMP – URO vs aURO") +
+#   theme(
+#     #plot.title  = element_text(hjust = 0.5, size = 8, face = "bold"),
+#     axis.text.x = element_text(size = 8),
+#     axis.text.y = element_text(size = 8)
+#   )
 
 #   RotatedAxis() +
 #   labs(
@@ -329,15 +327,15 @@ Fig3I_AMP_DoHeatmap <- DoHeatmap(
 #   )
 
 ggsave(
-  filename = paste0(Outdir, "Figure3I_N8_AMP_Heatmap_Timepoints.pdf"),
-  plot     = Fig3I_AMP_DoHeatmaps,
-  width    = 6, height = 8
+  filename = paste0(Outdir, "Figure3K_N8_AMP_Heatmap_Timepoints.pdf"),
+  plot     = Fig3K_AMP_DoHeatmap,
+  width    = 4.5, height = 5
 )
 
-Fig3I_AMP_DoHeatmap
+Fig3K_AMP_DoHeatmap
 ```
 
-# Figure 3K – N8 spatial distribution and inflammatory cytokine and chemokein expression across timepoints
+# Figure 3I – N8 spatial distribution and inflammatory cytokine and chemokein expression across timepoints
 ```{r}
 # Pro-inflammatory cytokines (mouse)
 # we selected the expressed
@@ -378,7 +376,7 @@ inflammatory_genes <- c(
 )
 # Generate the DotPlot for the Spatail N8
 
-Fig3KDotPlot <- DotPlot(
+Fig3IDotPlot <- DotPlot(
   N8_obj,
   features = inflammatory_genes,
   cols     = c("lightgrey", "#E31A1C"),
@@ -387,9 +385,9 @@ Fig3KDotPlot <- DotPlot(
   #coord_flip() +
   RotatedAxis() +
   labs(
-    title = "Inflammatory cytokine and chemokine expression in N8 across timepoints",
+    #title = "Inflammatory cytokine and chemokine expression in N8 across timepoints",
     x     = NULL,
-    y     = "Timepoint"
+    y     = NULL
   ) +
   guides(
     colour = guide_colorbar(title = "AveExp"),
@@ -402,8 +400,8 @@ Fig3KDotPlot <- DotPlot(
   )
 
 ggsave(
-  filename = paste0(Outdir, "Figure3K_N8_InflamCytoChemoDotPlot_Timepoints.pdf"),
-  plot     = Fig3KDotPlot,
+  filename = paste0(Outdir, "Figure3I_N8_InflamCytoChemoDotPlot_Timepoints.pdf"),
+  plot     = Fig3IDotPlot,
   width    = 6,
   height   = 4
 )
@@ -498,29 +496,22 @@ combined_order <- combined_order[combined_order %in% unique(UROcells@meta.data$T
 Idents(UROcells) <- factor(UROcells@meta.data$TimepointPop, levels = combined_order)
 
 # we use the 
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
+# Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
 # Urothelial differentiation hierarchy: basal → intermediate → superficial
-proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Ccna2", "Cdk1", "Cdc20")
+# Urothelial differentiation hierarchy: basal → intermediate → superficial
+proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Cdk1")
 differentiation_markers <- c(
   # Basal / progenitor (least differentiated)
-  "Krt5", "Krt14", "Tp63", "Cd44",
+  "Krt5", "Krt14", "Trp63", "Cd44",
   # Intermediate
   "Krt7", "Krt8", "Krt18", "Krt19",
   # Superficial / umbrella cells (fully differentiated)
   "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
   # Transcription factors driving urothelial differentiation
-  "Foxa1", "Gata3", "Pparg",
-  # Tight junction / barrier function
-  "Cldn3", "Cldn4", "Cldn7"
+  "Foxa1", "Gata3", "Pparg"
 )
-# urothelium_markers <- c(
-#   "Krt5", "Krt14", "Tp63", "Cd44",           # Basal
-#   "Krt7", "Krt8", "Krt18", "Krt19",           # Intermediate
-#   "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",# Superficial
-#   "Foxa1", "Gata3",                            # TF
-#   "Cldn3", "Cldn4", "Cldn7"                    # Tight junction
-# )
-markers_all <- c(proliferation_markers, differentiation_markers)
+
+markers_all <- c(differentiation_markers,proliferation_markers)
 DefaultAssay(UROcells) <- "RNA"
 
 Fig3E_DotPlot <- DotPlot(
@@ -531,24 +522,18 @@ Fig3E_DotPlot <- DotPlot(
 ) +
   RotatedAxis() +
   labs(
-    title = "Urothelium markers – URO vs aURO across timepoints",
+    #title = "Urothelium markers – URO vs aURO across timepoints",
     x     = NULL,
-    y     = "Timepoint × Population"
+    y     = NULL
   ) +
   guides(
     colour = guide_colorbar(title = "AveExp"),
     size   = guide_legend(title  = "PerExp")
-  ) +
-  theme(
-    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-    axis.text.y = element_text(size = 8)
-  )
-
+  ) 
 ggsave(
   filename = paste0(Outdir, "Figure3E_URO_aURO_MarkerDotPlot.pdf"),
   plot     = Fig3E_DotPlot,
-  width    = 8, height = 3
+  width    = 8, height = 3.5
 )
 
 ggsave(
@@ -564,7 +549,7 @@ Fig3E_DotPlot
 
 ```{r fig3c-progeny-heatmap, fig.width=4, fig.height=5}
 # Reset identity to URO annotation for pathway scoring
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$TimepointPop, levels = combined_order)
 DefaultAssay(UROcells) <- "RNA"
 
 net_uro <- decoupleR::get_progeny(organism = "mouse", top = 500)
@@ -641,42 +626,43 @@ print(Fig3F_Progeny)
 dev.off()
 ```
 
-## Figure 3H: AMP and stress-response gene expression heatmap
+## Figure 3J: AMP and stress-response gene expression heatmap
 
-```{r fig3h-amp-heatmap, fig.width=6, fig.height=6}
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
+```{r fig3j-amp-heatmap, fig.width=6, fig.height=6}
+Idents(UROcells) <- factor(UROcells@meta.data$TimepointPop, levels = combined_order)
 DefaultAssay(UROcells) <- "RNA"
 
-amp_genes <- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4","Umod", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
+amp_genes <- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
 # Keep only genes present in the object
 amp_genes <- amp_genes[amp_genes %in% rownames(UROcells)]
 
 # I want to use the Doheatmap
-Fig3H_AMPDoheatmap<-DoHeatmap(
+Fig3J_AMPDoheatmap<-DoHeatmap(
   UROcells,
-  features  = amp_genes,
+  features  = amp_genes_n8,
   assay     = "RNA",
   slot      = "data",
   disp.min  = 0,
   disp.max  = 4
-) +
+) 
+# +
   # scale_fill_gradientn(
-  #   colours = c("royalblue", "white", "firebrick3"),
-  #   limits  = c(0, 4),
-  #   na.value = "white"
-  # ) +
-  #labs(title = "AMP – URO vs aURO") +
-  theme(
-    plot.title  = element_text(hjust = 0.5, size = 8, face = "bold"),
-    axis.text.x = element_text(size = 8),
-    axis.text.y = element_text(size = 8)
-  )
+  # #   colours = c("royalblue", "white", "firebrick3"),
+  # #   limits  = c(0, 4),
+  # #   na.value = "white"
+  # # ) +
+  # #labs(title = "AMP – URO vs aURO") +
+  # theme(
+  #  # plot.title  = element_text(hjust = 0.5, size = 6, face = "bold"),
+  #   axis.text.x = element_text(size = 8),
+  #   axis.text.y = element_text(size = 8)
+  # )
 
 # save the figure
 ggsave(
-  filename = paste0(Outdir, "Figure3H_URO_aURO_AMP_DoHeatmap.pdf"),
-  plot     = Fig3H_AMPDoheatmap,
-  width    = 6, height = 7
+  filename = paste0(Outdir, "Figure3J_URO_aURO_AMP_DoHeatmap.pdf"),
+  plot     = Fig3J_AMPDoheatmap,
+  width    = 4.5, height = 5
 )
 
 # Average expression per population
@@ -686,10 +672,10 @@ avg_mat_scaled <- t(scale(t(as.matrix(avg_mat))))
 amp_color  <- colorRampPalette(c("royalblue", "white", "firebrick3"))(100)
 amp_breaks <- c(seq(-2, 0, length.out = 51), seq(0.05, 2, length.out = 50))
 
-Fig3H_AMP <- pheatmap(
+Fig3K_AMP <- pheatmap(
   avg_mat_scaled,
-  fontsize       = 8,
-  fontsize_row   = 7,
+  fontsize       = 6,
+  fontsize_row   = 6,
   show_rownames  = TRUE,
   cluster_cols   = FALSE,
   cluster_rows   = TRUE,
@@ -701,8 +687,8 @@ Fig3H_AMP <- pheatmap(
   treeheight_row = 10
 )
 
-pdf(file = paste0(Outdir, "Figure3H_URO_aURO_AMP_Heatmap.pdf"), width = 3.5, height = 7)
-print(Fig3H_AMP)
+pdf(file = paste0(Outdir, "Figure3K_URO_aURO_AMP_Heatmap.pdf"), width = 3.5, height = 7)
+print(Fig3K_AMP)
 dev.off()
 ```
 
@@ -791,9 +777,8 @@ Fig3L_GO
 ## Figure 3J: Chemokine and cytokine expression in URO vs aURO
 
 ```{r fig3j-cytokine-chemokine-dotplot, fig.width=10, fig.height=4}
-Idents(UROcells) <- factor(UROcells@meta.data$UROAnnotation, levels = c("hURO", "aURO"))
+Idents(UROcells) <- factor(UROcells@meta.data$TimepointPop, levels = combined_order)
 DefaultAssay(UROcells) <- "RNA"
-
 # chemokines_sc <- c(
 #   "Ccl2", "Ccl3", "Ccl4", "Ccl5", "Ccl7", "Ccl9", "Ccl20",
 #   "Cxcl1", "Cxcl2", "Cxcl3", "Cxcl5", "Cxcl9", "Cxcl10", "Cxcl12",
@@ -832,18 +817,18 @@ Fig3J_DotPlot <- DotPlot(
 ) +
   RotatedAxis() +
   labs(
-    title = "Cytokine and chemokine expression – hURO vs aURO",
+    #title = "Cytokine and chemokine expression – hURO vs aURO",
     x     = NULL,
-    y     = "Population"
+    y     = NULL
   ) +
   guides(
     colour = guide_colorbar(title = "AveExp"),
     size   = guide_legend(title  = "PerExp")
   ) +
   theme(
-    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+   # plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-    axis.text.y = element_text(size = 9)
+    axis.text.y = element_text(size = 9, size = 8)
   )
 
 ggsave(
