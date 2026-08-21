@@ -156,6 +156,29 @@ Fig2A_UMAP
 ```
 
 ---
+## Figure S4A: UMAP of integrated scRNA-seq atlas, annotated by major cell type sepreately for each timepoint
+
+```{r figS4A-umap, fig.width=6, fig.height=5}
+FigS4A_UMAP <- DimPlot(
+  SCcells,
+  #reduction = "umap.harmony",
+  split.by = "DataSet",
+  label     = TRUE,
+  repel     = TRUE,
+  pt.size   = 0.2
+) +
+  # scale_color_manual(values = pal) +
+  # labs(title = "Integrated kidney scRNA-seq atlas") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.position = "none"
+  )
+
+ggsave(paste0(Outdir, "FigureS4A_scRNA_UMAP.pdf"), plot = FigS4A_UMAP, width = 15, height = 4)
+FigS4A_UMAP
+```
+
+---
 
 ## Figure 2B: Dot plot of canonical cell-type marker genes
 
@@ -289,6 +312,15 @@ crop_bbox <- function(slide_obj, row_min, row_max, col_min, col_max) {
 
 # Cell-type proportion matrix (ordered columns) for a (sub)object
 celltype_matrix <- function(obj) {
+  missing_cols <- setdiff(CelltypeOrder, colnames(obj@meta.data))
+  if (length(missing_cols) > 0) {
+    stop(
+      "celltype_matrix(): CelltypeOrder has columns not present in obj@meta.data: ",
+      paste(missing_cols, collapse = ", "),
+      ". If you just edited CelltypeOrder or the DegCD->hIC-PC rename, ",
+      "re-run the load-data and shared-setup chunks before this one."
+    )
+  }
   mat <- obj@meta.data[, CelltypeOrder] %>% as.data.frame()
   colnames(mat) <- ordered(colnames(mat), levels = CelltypeOrder)
   mat[, CelltypeOrder]
@@ -297,9 +329,9 @@ celltype_matrix <- function(obj) {
 # H&E-only panel: the tissue image with spots hidden (alpha = 0)
 plot_HE_only <- function(obj, slice_name, title = NULL) {
   SpatialDimPlot(obj, images = slice_name, group.by = NULL, alpha = 0) +
-    labs(title = title) +
+    # labs(title = title) +
     theme(
-      plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
+      # plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
       legend.position = "none"
     )
 }
@@ -316,25 +348,27 @@ plot_scatterpie <- function(obj, slice_name, title = NULL) {
 
   base <- SpatialDimPlot(obj, images = slice_name, group.by = NULL, alpha = 1)
 
-  base +
+  basefinal<- base +
     geom_scatterpie(
       data = df,
-      aes(x = imagecol, y = imagerow, r = 2.5),
+      aes(x = imagecol, y = imagerow, r = 2.8),
       cols      = colnames(mat),
       color     = NA,
       linewidth = 0,
-      alpha     = 0.9
+      alpha     = 1.2
     ) +
     scale_fill_manual(values = pal, breaks = names(pal)) +
     scale_y_reverse() +
     coord_fixed() +
     theme_void() +
     theme(legend.position = "none") +
-    labs(title = title) +
+    # labs(title = title) +
     theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+  return(basefinal)
 }
 
 # Cell type frequency barplot within a (sub)object
+
 plot_freq_barplot <- function(obj, title = NULL) {
   mat <- celltype_matrix(obj)
   celltype_sums <- colSums(mat)
@@ -342,21 +376,22 @@ plot_freq_barplot <- function(obj, title = NULL) {
   df <- data.frame(CellType = names(freq), Frequency = freq)
   df$CellType <- ordered(df$CellType, levels = rev(CelltypeOrder))
 
-  ggplot(df, aes(x = CellType, y = Frequency, fill = CellType)) +
+  p <- ggplot(df, aes(x = CellType, y = Frequency, fill = CellType)) +
     geom_bar(stat = "identity") +
     scale_fill_manual(values = pal) +
     scale_y_continuous(labels = percent_format()) +
-    labs(title = title) +
+    labs(title = title, x = "Cell type proportion") +
     theme_bw() +
     theme(
       plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
       axis.text.x     = element_text(angle = 45, hjust = 1),
       legend.position = "none",
       panel.grid      = element_blank(),
-      axis.title.x    = element_blank(),
+      # axis.title.x    = element_blank(),
       axis.title.y    = element_blank()
     ) +
     coord_flip()
+  p
 }
 ```
 
@@ -368,29 +403,18 @@ plot_freq_barplot <- function(obj, title = NULL) {
 DaysForOverview <- c(0, 1, 3, 5, 7, 28)
 
 Fig2D_panels <- lapply(DaysForOverview, function(d) {
+  # d=0
   cfg   <- RegionConfig %>% filter(Day == d)
   slide <- subset_to_slide(unique(cfg$OrigIdent))
   slice_name <- unique(cfg$Slice)
 
   p <- plot_scatterpie(slide, slice_name, title = paste0(d, " dpi"))
-
-  # overlay a black box for each region defined for this day
-  for (i in seq_len(nrow(cfg))) {
-    p <- p + annotate(
-      "rect",
-      xmin = ifelse(is.na(cfg$ColMin[i]), -Inf, cfg$ColMin[i]),
-      xmax = ifelse(is.na(cfg$ColMax[i]),  Inf, cfg$ColMax[i]),
-      ymin = ifelse(is.na(cfg$RowMin[i]), -Inf, cfg$RowMin[i]),
-      ymax = ifelse(is.na(cfg$RowMax[i]),  Inf, cfg$RowMax[i]),
-      color = "black", fill = NA, linewidth = 0.6
-    )
-  }
   p
 })
 
-Fig2D <- cowplot::plot_grid(plotlist = Fig2D_panels, nrow = 2, ncol = 3)
+Fig2D <- cowplot::plot_grid(plotlist = Fig2D_panels, nrow = 1, ncol = 6)
 ggsave(paste0(Outdir, "Figure2D_Spatial_Overview_ScatterpieWithBoxes.pdf"),
-       plot = Fig2D, width = 15, height = 9)
+       plot = Fig2D, width = 15, height = 4)
 Fig2D
 ```
 
@@ -413,23 +437,69 @@ for (d in DaysForZoom) {
     reg_cfg   <- cfg[i, ]
     reg_crop  <- crop_bbox(slide, reg_cfg$RowMin, reg_cfg$RowMax, reg_cfg$ColMin, reg_cfg$ColMax)
 
+    # match freq_panel's panel aspect ratio (height / width) to the
+    # coord_fixed() spatial panels, so all three render at the same height
+    crop_coords  <- GetTissueCoordinates(reg_crop)
+
     he_panel   <- plot_HE_only(reg_crop, slice_name, title = paste0(reg_cfg$Region, " – H&E"))
     pie_panel  <- plot_scatterpie(reg_crop, slice_name, title = paste0(reg_cfg$Region, " – deconvolution"))
     freq_panel <- plot_freq_barplot(reg_crop, title = paste0(reg_cfg$Region, " – composition"))
 
-    cowplot::plot_grid(he_panel, pie_panel, freq_panel, nrow = 1, rel_widths = c(1, 1, 1))
+    cowplot::plot_grid(he_panel, pie_panel, freq_panel, nrow = 1, rel_widths = c(1, 1, 0.7))
   })
 
-  panel <- cowplot::plot_grid(plotlist = region_rows, ncol = 1)
+  panel <- cowplot::plot_grid(plotlist = region_rows, nrow = 1, ncol = 2, rel_widths = c(1, 0.9))
   panel_name <- PanelLabels[[as.character(d)]]
   ZoomPanels[[panel_name]] <- panel
 
   ggsave(paste0(Outdir, panel_name, "_", d, "dpi_CortexMedulla_Papilla.pdf"),
-         plot = panel, width = 12, height = 6)
+         plot = panel, width = 15, height = 5)
 }
 
 ZoomPanels[["Figure2E"]]
 ZoomPanels[["Figure2F"]]
 ZoomPanels[["Figure2G"]]
 ZoomPanels[["Figure2H"]]
+```
+
+
+\
+## Figure S4B-C: Paired H&E / scatterpie / composition for cortex-medulla and papilla
+
+```{r figS4b-c-regions, fig.width=12, fig.height=6}
+DaysForZoom  <- c(1,3)
+PanelLabels  <- setNames(c("FigureS4B", "FigureS4C"), DaysForZoom)
+
+ZoomPanels <- list()
+
+for (d in DaysForZoom) {
+  cfg   <- RegionConfig %>% filter(Day == d)
+  slide <- subset_to_slide(unique(cfg$OrigIdent))
+  slice_name <- unique(cfg$Slice)
+
+  region_rows <- lapply(seq_len(nrow(cfg)), function(i) {
+    reg_cfg   <- cfg[i, ]
+    reg_crop  <- crop_bbox(slide, reg_cfg$RowMin, reg_cfg$RowMax, reg_cfg$ColMin, reg_cfg$ColMax)
+
+    # match freq_panel's panel aspect ratio (height / width) to the
+    # coord_fixed() spatial panels, so all three render at the same height
+    crop_coords  <- GetTissueCoordinates(reg_crop)
+
+    he_panel   <- plot_HE_only(reg_crop, slice_name, title = paste0(reg_cfg$Region, " – H&E"))
+    pie_panel  <- plot_scatterpie(reg_crop, slice_name, title = paste0(reg_cfg$Region, " – deconvolution"))
+    freq_panel <- plot_freq_barplot(reg_crop, title = paste0(reg_cfg$Region, " – composition"))
+
+    cowplot::plot_grid(he_panel, pie_panel, freq_panel, nrow = 1, rel_widths = c(1, 1, 0.7))
+  })
+
+  panel <- cowplot::plot_grid(plotlist = region_rows, nrow = 1, ncol = 2, rel_widths = c(1, 0.9))
+  panel_name <- PanelLabels[[as.character(d)]]
+  ZoomPanels[[panel_name]] <- panel
+
+  ggsave(paste0(Outdir, panel_name, "_", d, "dpi_CortexMedulla_Papilla.pdf"),
+         plot = panel, width = 15, height = 5)
+}
+
+ZoomPanels[["FigureS4B"]]
+ZoomPanels[["FigureS4C"]]
 ```
