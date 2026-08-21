@@ -1,0 +1,425 @@
+---
+title: "Figure 2 – Integrated kidney scRNA-seq atlas and spatial deconvolution overview"
+author: "Xin Wang"
+date: "2026-08-21"
+output: html_document
+description: >
+  (A) UMAP of integrated kidney scRNA-seq datasets (0, 3, 7, and 28 dpi) annotated
+      by major cell type, including proximal tubule segments (PT-S1/S2, PT-S3),
+      distal nephron populations (DCT-TAL, TAL, CNT, DTL), collecting duct
+      populations (PC, ICA, ICB, DegCD), urothelial cells (URO), endothelial cells
+      (END), fibroblasts (FIB), and immune populations (NEU, MAC, B, T, NK, PL).
+  (B) Dot plot of canonical marker genes used for cell-type annotation.
+  (C) Stacked bar chart of cell-type composition across timepoints (0, 3, 7, 28 dpi).
+  (D) RCTD-based spatial deconvolution scatterpie plots projecting cell-type
+      composition onto representative tissue sections at uninfected (0), 1, 3, 5,
+      7, and 28 dpi; black boxes indicate the cortical/medullary and papillary
+      regions enlarged in E-H.
+  (E-H) Representative paired H&E images (left), spatial deconvolution scatterpie
+      (middle), and quantitative cell-type composition (right) for the renal
+      cortex/medulla and renal papilla at 0 (E), 5 (F), 7 (G), and 28 dpi (H),
+      illustrating the progressive loss of resident epithelial signatures and
+      expansion of immune cell infiltrates during APN.
+
+Input:
+  Single-cell: Integrated_EpiStroImmCells_v020426/PIPSeq_EpithelialStromaImmMergeObjs_v02052026.rds
+  Spatial:     Deconvolution_Six_V01262026/Pyelonephritis_Infection_Decovoluted_v01262026.rds
+
+Output: Results/Figures/Figure2/
+
+Note: the "renal papilla" regions in E-H reuse the pixel bounding boxes that the
+per-day scripts in Spatial/InterestingInfectedRegions/Updated_V01272026/ call
+"Pelvic" regions. Double check that this is the intended anatomical region before
+using these figures -- rename `RegionLabels` below if a different box is meant.
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Libraries
+
+```{r libraries}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(cowplot)
+library(RColorBrewer)
+library(tidyr)
+library(tibble)
+library(scales)
+library(SPOTlight)
+library(scatterpie)
+```
+
+## Directories
+
+```{r directories}
+SCIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Integrated_EpiStroImmCells_v020426/"
+Spindir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
+Outdir  <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Figures/Figure2/"
+dir.create(Outdir, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Load data
+
+```{r load-data}
+SCcells <- readRDS(paste0(SCIndir, "PIPSeq_Final_UsedForScanpy_v08212026.RDS"))
+SCcells@meta.data %>% head()
+DimPlot(SCcells, group.by = "AnnotationL1", label = TRUE, repel = TRUE)
+
+
+Pyelonephritis_Infection <- readRDS(paste0(Spindir, "Pyelonephritis_Infection_Decovoluted_v01262026.rds"))
+Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
+Allimages <- names(Pyelonephritis_Infection@images)
+
+cat("scRNA cell type counts:\n")
+print(table(SCcells$AnnotationL1))
+cat("scRNA timepoints:\n")
+print(table(SCcells$DataSet))
+
+
+```
+
+## Shared setup: cell type order, colors, timepoints
+
+```{r shared-setup}
+# Major cell type order shared by every panel in this figure -- keep this in
+# sync with the deconvolution reference used across the other spatial scripts.
+CelltypeOrder <- c("PT-S1S2","PT-S3","DCT-TAL","TAL","CNT","DTL","PC","ICA","ICB","hIC-PC",
+                    "URO","END","FIB","PL","NEU","MAC","T","B","NK")
+CelltypeOrder <- CelltypeOrder[CelltypeOrder %in% unique(SCcells$AnnotationL1)]
+
+timepoint_order <- c("0DPI", "3DPI", "7DPI", "28DPI")
+timepoint_order <- timepoint_order[timepoint_order %in% unique(SCcells$DataSet)]
+
+# Same palette used throughout the spatial deconvolution scripts, so cell type
+# colors match between the scRNA panels (A-C) and the spatial panels (D-H).
+paletteMartin <- c(
+  "#0166d8", # PT-S1S2
+  "#ec102f", # PT-S3
+  "#3aa609", # DCT-TAL
+  "#6524ff", # TAL
+  "#f8d147", # CNT
+  "#33FFFF", # DTL
+  "#fd6ca0", # PC
+  "#476ba5", # ICA
+  "#fea27a", # ICB
+  "#add465", # hIC-PC
+  "#86ec5a", # URO
+  "#FF0099", # END
+  "#5cfdc4", # FIB
+  "#feafda", # PL
+  "#000000", # NEU
+  "#FFFF00", # MAC
+  "#fd5925", # T
+  "#166d2a", # B
+  "#a90aa1"  # NK
+)
+pal <- setNames(colorRampPalette(paletteMartin)(length(CelltypeOrder)), CelltypeOrder)
+
+Idents(SCcells) <- factor(SCcells$AnnotationL1, levels = CelltypeOrder)
+```
+
+---
+
+## Figure 2A: UMAP of integrated scRNA-seq atlas, annotated by major cell type
+
+```{r fig2a-umap, fig.width=6, fig.height=5}
+Fig2A_UMAP <- DimPlot(
+  SCcells,
+  #reduction = "umap.harmony",
+  label     = TRUE,
+  repel     = TRUE,
+  pt.size   = 0.2
+) +
+  # scale_color_manual(values = pal) +
+  # labs(title = "Integrated kidney scRNA-seq atlas") +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    legend.position = "none"
+  )
+
+ggsave(paste0(Outdir, "Figure2A_scRNA_UMAP.pdf"), plot = Fig2A_UMAP, width = 4.5, height = 4)
+Fig2A_UMAP
+```
+
+---
+
+## Figure 2B: Dot plot of canonical cell-type marker genes
+
+```{r fig2b-dotplot, fig.width=14, fig.height=6}
+DefaultAssay(SCcells) <- "RNA"
+
+Finalcelltypemarkers <- c(
+  "Lrp2","Slc34a1","Slc13a3",                     # Proximal tubule cells (PT)
+  "Cyp4a14","Slc22a6", "Slc7a12",                 # Proximal tubule cells (PT), S1/S, S3
+  "Slc12a3","Pvalb","Wnk1",                       # Distal connecting tubule (DCT)
+  "Umod","Slc12a1","Cldn10",                      # Thick ascending limb cells (TAL)
+  "Klk1","Slc8a1","Calb1",                        # Connecting tubule (CNT)
+  "Slc14a2","Fst","Bst1",                         # Descending thin limb cells (DTL)
+  "Aqp2","Hsd11b2","Scnn1g",                      # Principal cells (PC)
+  "Atp6v1g3",                                     # Intercalated cells 
+  "Aqp6","Slc26a7",                               # Intercalated cells (A)
+  "Slc26a4","Hmx2",                               # Intercalated cells (B)
+  "Krt5","Upk1b","Krt14",                         # Urothelium
+  "Cdh5","Igfbp3","Pecam1",                       # Endothelium
+  "Col3a1","Fbn1","Col1a1",                       # Fibroblast
+  "Ireb2","Alas2",                                # Plasmacytoid dendritic cells (PL)
+  "S100a8","S100a9","Il1b",                       # Neutrophil
+  "C1qa","C1qb","Aif1",                           # Macrophage
+  "Cxcr6","Cd247","Cd3e",                         # T cells
+  "Igkc",                                         # B cells
+  "Ccl5","Nkg7"                                   # NK cells
+)
+Finalcelltypemarkers <- Finalcelltypemarkers[Finalcelltypemarkers %in% rownames(SCcells)]
+
+Fig2B_DotPlot <- DotPlot(
+  SCcells,
+  features  = Finalcelltypemarkers,
+  cols      = "RdBu",
+  dot.scale = 4
+) +
+  RotatedAxis() +
+  # labs(title = "Canonical cell-type marker genes", x = NULL, y = "Cell type") +
+  guides(
+    colour = guide_colorbar(title = "AveExp"),
+    size   = guide_legend(title  = "PerExp")
+  ) +
+  theme(
+    plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8)
+  )
+
+ggsave(paste0(Outdir, "Figure2B_scRNA_MarkerDotPlot.pdf"), plot = Fig2B_DotPlot, width = 9, height = 4)
+Fig2B_DotPlot
+```
+
+---
+
+## Figure 2C: Cell-type composition across timepoints
+
+```{r fig2c-composition, fig.width=5, fig.height=4}
+prop_df <- table(SCcells$DataSet, SCcells$AnnotationL1) %>%
+  as.data.frame() %>%
+  dplyr::rename(Timepoint = Var1, CellType = Var2) %>%
+  filter(Timepoint %in% timepoint_order, CellType %in% CelltypeOrder) %>%
+  group_by(Timepoint) %>%
+  mutate(pct = prop.table(Freq)) %>%
+  ungroup() %>%
+  mutate(
+    Timepoint = factor(Timepoint, levels = timepoint_order),
+    CellType  = factor(CellType,  levels = CelltypeOrder)
+  )
+
+Fig2C_Prop <- ggplot(prop_df, aes(x = Timepoint, y = pct, fill = CellType)) +
+  geom_bar(position = "stack", stat = "identity") +
+  # scale_fill_manual(values = pal) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Timepoint", y = "Proportion") +
+  theme_classic() +
+  theme(
+   # plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9)
+  )
+
+ggsave(paste0(Outdir, "Figure2C_scRNA_Composition.pdf"), plot = Fig2C_Prop, width = 4.5, height = 5.5)
+Fig2C_Prop
+```
+
+---
+
+## Helper functions shared by panels D-H
+
+```{r region-helpers}
+# One row per day x region -- the pixel bounding boxes are the ones already
+# used in Spatial/InterestingInfectedRegions/Updated_V01272026/ for each day's
+# "CortexMedulla" and "Pelvic" (labeled "Papilla" here) region scripts.
+RegionConfig <- tribble(
+  ~Day, ~OrigIdent,     ~Slice,   ~Region,          ~RowMin, ~RowMax, ~ColMin, ~ColMax,
+  0,    "PyeloD0_1",    "slice1", "CortexMedulla",  160,     300,     320,     450,
+  0,    "PyeloD0_1",    "slice1", "Papilla",        295,     420,     260,     350,
+  1,    "PyeloD1_2",    "slice3", "CortexMedulla",  340,     NA,      230,     350,
+  1,    "PyeloD1_2",    "slice3", "Papilla",        250,     320,     250,     310,
+  3,    "PyeloD3_1",    "slice4", "CortexMedulla",  150,     280,     230,     350,
+  3,    "PyeloD3_1",    "slice4", "Papilla",        250,     340,     250,     350,
+  5,    "PyeloD5_2",    "slice7", "CortexMedulla",  200,     330,     280,     390,
+  5,    "PyeloD5_2",    "slice7", "Papilla",        230,     400,     230,     280,
+  7,    "PyeloD7_1",    "slice8", "CortexMedulla",  130,     270,     NA,      270,
+  7,    "PyeloD7_1",    "slice8", "Papilla",        310,     450,     220,     330,
+  28,   "PyeloD28_1",   "slice9", "CortexMedulla",  150,     320,     300,     550,
+  28,   "PyeloD28_1",   "slice9", "Papilla",        350,     500,     210,     300
+)
+
+# Subset the deconvoluted object to one timepoint's slide, keeping only that
+# slide's image.
+subset_to_slide <- function(orig_ident) {
+  slide <- subset(Pyelonephritis_Infection, orig.ident == orig_ident)
+  keep_image  <- names(slide@images)
+  drop_images <- Allimages[Allimages != keep_image]
+  slide@images[drop_images] <- NULL
+  slide
+}
+
+# Crop a slide object to a pixel bounding box. Slice-agnostic: filters on the
+# generic imagerow/imagecol columns from GetTissueCoordinates() rather than a
+# slice-specific "<slice>_imagerow" column name.
+crop_bbox <- function(slide_obj, row_min, row_max, col_min, col_max) {
+  coords <- GetTissueCoordinates(slide_obj)
+  coords$barcode <- rownames(coords)
+  keep <- rep(TRUE, nrow(coords))
+  if (!is.na(row_min)) keep <- keep & (coords$imagerow > row_min)
+  if (!is.na(row_max)) keep <- keep & (coords$imagerow < row_max)
+  if (!is.na(col_min)) keep <- keep & (coords$imagecol > col_min)
+  if (!is.na(col_max)) keep <- keep & (coords$imagecol < col_max)
+  subset(slide_obj, cells = coords$barcode[keep])
+}
+
+# Cell-type proportion matrix (ordered columns) for a (sub)object
+celltype_matrix <- function(obj) {
+  mat <- obj@meta.data[, CelltypeOrder] %>% as.data.frame()
+  colnames(mat) <- ordered(colnames(mat), levels = CelltypeOrder)
+  mat[, CelltypeOrder]
+}
+
+# H&E-only panel: the tissue image with spots hidden (alpha = 0)
+plot_HE_only <- function(obj, slice_name, title = NULL) {
+  SpatialDimPlot(obj, images = slice_name, group.by = NULL, alpha = 0) +
+    labs(title = title) +
+    theme(
+      plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
+      legend.position = "none"
+    )
+}
+
+# Scatterpie panel overlaid on the tissue image
+plot_scatterpie <- function(obj, slice_name, title = NULL) {
+  mat    <- celltype_matrix(obj)
+  coords <- GetTissueCoordinates(obj)
+  coords$barcode <- rownames(coords)
+  common <- intersect(rownames(mat), coords$barcode)
+  mat    <- mat[common, ]
+  coords <- coords[common, ]
+  df <- cbind(coords[, c("imagecol", "imagerow")], mat)
+
+  base <- SpatialDimPlot(obj, images = slice_name, group.by = NULL, alpha = 1)
+
+  base +
+    geom_scatterpie(
+      data = df,
+      aes(x = imagecol, y = imagerow, r = 2.5),
+      cols      = colnames(mat),
+      color     = NA,
+      linewidth = 0,
+      alpha     = 0.9
+    ) +
+    scale_fill_manual(values = pal, breaks = names(pal)) +
+    scale_y_reverse() +
+    coord_fixed() +
+    theme_void() +
+    theme(legend.position = "none") +
+    labs(title = title) +
+    theme(plot.title = element_text(hjust = 0.5, size = 9, face = "bold"))
+}
+
+# Cell type frequency barplot within a (sub)object
+plot_freq_barplot <- function(obj, title = NULL) {
+  mat <- celltype_matrix(obj)
+  celltype_sums <- colSums(mat)
+  freq <- celltype_sums / sum(celltype_sums)
+  df <- data.frame(CellType = names(freq), Frequency = freq)
+  df$CellType <- ordered(df$CellType, levels = rev(CelltypeOrder))
+
+  ggplot(df, aes(x = CellType, y = Frequency, fill = CellType)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = pal) +
+    scale_y_continuous(labels = percent_format()) +
+    labs(title = title) +
+    theme_bw() +
+    theme(
+      plot.title      = element_text(hjust = 0.5, size = 9, face = "bold"),
+      axis.text.x     = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      panel.grid      = element_blank(),
+      axis.title.x    = element_blank(),
+      axis.title.y    = element_blank()
+    ) +
+    coord_flip()
+}
+```
+
+---
+
+## Figure 2D: Spatial deconvolution overview across timepoints, with region boxes
+
+```{r fig2d-overview, fig.width=15, fig.height=9}
+DaysForOverview <- c(0, 1, 3, 5, 7, 28)
+
+Fig2D_panels <- lapply(DaysForOverview, function(d) {
+  cfg   <- RegionConfig %>% filter(Day == d)
+  slide <- subset_to_slide(unique(cfg$OrigIdent))
+  slice_name <- unique(cfg$Slice)
+
+  p <- plot_scatterpie(slide, slice_name, title = paste0(d, " dpi"))
+
+  # overlay a black box for each region defined for this day
+  for (i in seq_len(nrow(cfg))) {
+    p <- p + annotate(
+      "rect",
+      xmin = ifelse(is.na(cfg$ColMin[i]), -Inf, cfg$ColMin[i]),
+      xmax = ifelse(is.na(cfg$ColMax[i]),  Inf, cfg$ColMax[i]),
+      ymin = ifelse(is.na(cfg$RowMin[i]), -Inf, cfg$RowMin[i]),
+      ymax = ifelse(is.na(cfg$RowMax[i]),  Inf, cfg$RowMax[i]),
+      color = "black", fill = NA, linewidth = 0.6
+    )
+  }
+  p
+})
+
+Fig2D <- cowplot::plot_grid(plotlist = Fig2D_panels, nrow = 2, ncol = 3)
+ggsave(paste0(Outdir, "Figure2D_Spatial_Overview_ScatterpieWithBoxes.pdf"),
+       plot = Fig2D, width = 15, height = 9)
+Fig2D
+```
+
+---
+
+## Figure 2E-H: Paired H&E / scatterpie / composition for cortex-medulla and papilla
+
+```{r fig2e-h-regions, fig.width=12, fig.height=6}
+DaysForZoom  <- c(0, 5, 7, 28)
+PanelLabels  <- setNames(c("Figure2E", "Figure2F", "Figure2G", "Figure2H"), DaysForZoom)
+
+ZoomPanels <- list()
+
+for (d in DaysForZoom) {
+  cfg   <- RegionConfig %>% filter(Day == d)
+  slide <- subset_to_slide(unique(cfg$OrigIdent))
+  slice_name <- unique(cfg$Slice)
+
+  region_rows <- lapply(seq_len(nrow(cfg)), function(i) {
+    reg_cfg   <- cfg[i, ]
+    reg_crop  <- crop_bbox(slide, reg_cfg$RowMin, reg_cfg$RowMax, reg_cfg$ColMin, reg_cfg$ColMax)
+
+    he_panel   <- plot_HE_only(reg_crop, slice_name, title = paste0(reg_cfg$Region, " – H&E"))
+    pie_panel  <- plot_scatterpie(reg_crop, slice_name, title = paste0(reg_cfg$Region, " – deconvolution"))
+    freq_panel <- plot_freq_barplot(reg_crop, title = paste0(reg_cfg$Region, " – composition"))
+
+    cowplot::plot_grid(he_panel, pie_panel, freq_panel, nrow = 1, rel_widths = c(1, 1, 1))
+  })
+
+  panel <- cowplot::plot_grid(plotlist = region_rows, ncol = 1)
+  panel_name <- PanelLabels[[as.character(d)]]
+  ZoomPanels[[panel_name]] <- panel
+
+  ggsave(paste0(Outdir, panel_name, "_", d, "dpi_CortexMedulla_Papilla.pdf"),
+         plot = panel, width = 12, height = 6)
+}
+
+ZoomPanels[["Figure2E"]]
+ZoomPanels[["Figure2F"]]
+ZoomPanels[["Figure2G"]]
+ZoomPanels[["Figure2H"]]
+```

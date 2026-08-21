@@ -1,0 +1,483 @@
+---
+title: "Spatial_Region_Deconvolution_CellChat_Template"
+output: html_document
+Author: Xin Wang
+Email: xin.wang@nationwidechildrens.org
+Copyright (c) 2026 Kidney and Urology Tract Center
+Nationwide Children's Hospital
+date: "2026-08-21"
+Description:
+#   Parameterized version of the per-day / per-region scripts in this folder
+#   (e.g. Spatial_Day0_InterestingPelvicRegions_..., Spatial_Day7_InterestingCortexMedullaRegions_...).
+#   Instead of copy-pasting the whole pipeline for every date x region combination,
+#   set the USER PARAMETERS block below once and re-run the notebook.
+
+#     Function:
+#           1). Subset the deconvoluted spatial object to one timepoint and one
+#               user-defined tissue region (pixel bounding box)
+#           2). Generate the cell type composition within that region
+#               (frequency barplot, correlation matrix, interaction heatmap, scatterpie)
+#           3). Generate spatial biomarker feature plots for canonical cell type markers
+#               within the region
+#           4). Perform cell-cell communication analysis within the region using CellChat
+
+#     Reference: https://nbisweden.github.io/workshop-scRNAseq/labs/compiled/seurat/seurat_07_spatial.html
+---
+
+# load the library packages
+```{r}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(Matrix)
+library(tidyverse)
+library(SeuratObject)
+library(harmony)
+library(SPOTlight)
+library(SingleCellExperiment)
+library(cowplot)
+library(reshape2)
+library(Hmisc)
+library(stats)
+library(corrplot)
+library(RColorBrewer)
+library(L1pack)
+library(reshape)
+library(tidyHeatmap)
+library(ComplexHeatmap)
+library(circlize)
+library(magick)
+library(pheatmap)
+library(scatterpie)
+library(jsonlite)
+library(future)
+library(CellChat)
+```
+
+# ==================================================================
+# USER PARAMETERS  --  edit this block for a new date / region, then
+# re-run the whole notebook. Nothing below this block should need editing.
+# ==================================================================
+```{r}
+set.seed(200000)
+
+# ---- input / output roots (shared across all dates & regions) ----
+Spindir <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/Deconvolution_Six_V01262026/"
+DeconvolutedFile <- "Pyelonephritis_Infection_Decovoluted_v01262026.rds"
+
+OutdirRoot <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Results/NichesDEGs_V01262026/"
+
+# scalefactors_json.json used to convert spatial coordinates from pixels to
+# micrometers for CellChat. Point this at the Space Ranger output for the
+# slide selected below if it differs from the shared default.
+ScalefactorsJSON <- "/Users/XXW004/Documents/Projects/RuizRosado/SpatialTranscriptomic/Datasets/VisiumRun1/acute_pyelo/seurat/scalefactors_json.json"
+
+# ---- date / slide selection ----
+# orig.ident value for the timepoint, e.g.:
+#   Day 0  -> "PyeloD0_1"   (slice1)
+#   Day 1  -> "PyeloD1_2"   (slice3)
+#   Day 3  -> "PyeloD3_1"   (slice4)
+#   Day 5  -> "PyeloD5_2"   (slice7)
+#   Day 7  -> "PyeloD7_1"   (slice8)
+#   Day 28 -> "PyeloD28_1"  (slice9)
+SelectedOrigIdent <- "PyeloD0_1"
+SelectedSlice      <- "slice1"
+
+# ---- region selection ----
+# Short label used for output folder / filenames, e.g. "D0_Pelvic", "D7_CortexMedulla"
+RegionLabel <- "D0_Pelvic"
+
+# Pixel bounding box (image row / col from GetTissueCoordinates) defining the
+# region of interest. Set a bound to NA to leave that side unrestricted.
+RegionRowMin <- 295
+RegionRowMax <- 420
+RegionColMin <- 260
+RegionColMax <- 350
+
+# Optional: after cropping to the bounding box, keep only these Seurat cluster
+# identities (set to NULL to keep everything inside the box)
+RegionIdents <- NULL   # e.g. c("N8", "N10", "N11", "N13")
+
+# ---- CellChat options ----
+# Ligand-receptor category to test: "Secreted Signaling", "Cell-Cell Contact", or "ECM-Receptor"
+CellChatSignalingType <- "Secreted Signaling"
+
+# Pathway highlighted in the single-pathway network plot
+CellChatShowPathway <- c("TNF")
+
+# Candidate pathways summarized in the contribution / bubble plots
+CellChatCandidatePathways <- c("CXCL", "CCL", "TNF", "IL1", "IL2", "IL4", "IL6", "IL12", "IL16")
+
+# Source cell type for the signaling bubble plot (must match a value in
+# CelltypeOrder below). Set to NULL to show all sources.
+CellChatSourceCellType <- NULL
+
+# ==================================================================
+# derived paths -- built automatically from RegionLabel, no need to edit
+# ==================================================================
+Outdir       <- paste0(OutdirRoot, RegionLabel, "/")
+CDecodir     <- paste0(Outdir, "Deconvolution/")
+CBiomadir    <- paste0(Outdir, "CellTypesBiomarkers/")
+CNichComdir  <- paste0(Outdir, "NicheCommunicate/")
+
+dir.create(Outdir,      showWarnings = FALSE, recursive = TRUE)
+dir.create(CDecodir,    showWarnings = FALSE, recursive = TRUE)
+dir.create(CBiomadir,   showWarnings = FALSE, recursive = TRUE)
+dir.create(CNichComdir, showWarnings = FALSE, recursive = TRUE)
+
+getwd()
+Outdir
+```
+
+# read the deconvoluted object
+```{r}
+Pyelonephritis_Infection <- readRDS(file = paste0(Spindir, DeconvolutedFile))
+Allimages <- names(Pyelonephritis_Infection@images)
+
+Pyelonephritis_Infection
+SpatialDimPlot(Pyelonephritis_Infection, pt.size.factor = 1500)
+Idents(Pyelonephritis_Infection)
+DimPlot(Pyelonephritis_Infection)
+```
+
+# ##############################
+# Subset to the selected date, then crop to the selected region
+# ##############################
+```{r}
+setwd(Outdir)
+DefaultAssay(Pyelonephritis_Infection) <- "Spatial"
+
+# restrict to the selected timepoint's slide
+Pyelonephritis_InfectionSlide <- subset(Pyelonephritis_Infection, orig.ident == SelectedOrigIdent)
+
+SelectedImageName <- names(Pyelonephritis_InfectionSlide@images)
+SelectedImageName
+OtherImages <- Allimages[Allimages != SelectedImageName]
+Pyelonephritis_InfectionSlide@images[OtherImages] <- NULL
+
+SpatialDimPlot(Pyelonephritis_InfectionSlide, pt.size.factor = 1500)
+
+# crop to the region bounding box -- generic across slices, since it filters
+# on the barcode coordinates returned by GetTissueCoordinates() rather than
+# on a slice-specific "<slice>_imagerow" column name
+coords <- GetTissueCoordinates(Pyelonephritis_InfectionSlide)
+coords$barcode <- rownames(coords)
+
+keep <- rep(TRUE, nrow(coords))
+if (!is.na(RegionRowMin)) keep <- keep & (coords$imagerow > RegionRowMin)
+if (!is.na(RegionRowMax)) keep <- keep & (coords$imagerow < RegionRowMax)
+if (!is.na(RegionColMin)) keep <- keep & (coords$imagecol > RegionColMin)
+if (!is.na(RegionColMax)) keep <- keep & (coords$imagecol < RegionColMax)
+
+RegionSubset <- subset(Pyelonephritis_InfectionSlide, cells = coords$barcode[keep])
+
+if (!is.null(RegionIdents)) {
+  RegionSubset <- subset(RegionSubset, idents = RegionIdents)
+}
+
+RegionSpatialDim <- SpatialDimPlot(RegionSubset, label = TRUE, pt.size.factor = 3500)
+RegionSpatialDim
+ggsave(paste0("Spatial_", RegionLabel, "_SpatialDimplot.pdf"),
+       plot = RegionSpatialDim, height = 3, width = 4)
+
+RegionDim <- DimPlot(RegionSubset, label = TRUE)
+RegionDim
+ggsave(paste0("Spatial_", RegionLabel, "_Dimplot.pdf"),
+       plot = RegionDim, height = 3, width = 4)
+
+# deconvolution cell type order + shared color palette
+CelltypeOrder <- c("PT-S1S2","PT-S3","DCT-TAL","TAL","CNT","DTL","PC","ICA","ICB","DegCD",
+                    "URO","END","FIB","PL","NEU","MAC","T","B","NK")
+
+paletteMartin <- c(
+  "#0166d8", # PT-S1S2
+  "#ec102f", # PT-S3
+  "#3aa609", # DCT-TAL
+  "#6524ff", # TAL
+  "#f8d147", # CNT
+  "#33FFFF", # DTL
+  "#fd6ca0", # PC
+  "#476ba5", # ICA
+  "#fea27a", # ICB
+  "#add465", # DegCD
+  "#86ec5a", # URO
+  "#FF0099", # END
+  "#5cfdc4", # FIB
+  "#feafda", # PL
+  "#000000", # NEU
+  "#FFFF00", # MAC
+  "#fd5925", # T
+  "#166d2a", # B
+  "#a90aa1"  # NK
+)
+pal <- colorRampPalette(paletteMartin)(length(CelltypeOrder))
+names(pal) <- CelltypeOrder
+
+summary(GetTissueCoordinates(RegionSubset))
+```
+
+# #############################
+# Cell type frequency barplot within the region
+# #############################
+```{r}
+setwd(CDecodir)
+
+RegionMat <- RegionSubset@meta.data[, CelltypeOrder] %>% as.data.frame()
+colnames(RegionMat) <- ordered(colnames(RegionMat), levels = CelltypeOrder)
+
+celltype_sums <- colSums(RegionMat)
+celltype_freq <- celltype_sums / sum(celltype_sums)
+
+FreqDf <- data.frame(CellType = names(celltype_freq), Frequency = celltype_freq)
+FreqDf$CellType <- ordered(FreqDf$CellType, levels = rev(CelltypeOrder))
+
+RegionFrequencyPlot <- ggplot(FreqDf, aes(x = CellType, y = Frequency, fill = CellType)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = pal) +
+  theme_bw() +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none",
+        panel.grid = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  coord_flip()
+
+RegionFrequencyPlot
+ggsave(paste0("SelectedRegion_", RegionLabel, "_Frequency.pdf"),
+       plot = RegionFrequencyPlot, height = 5, width = 2.5)
+```
+
+# ##########################################
+# Deconvolution details: correlation, interactions, piechart
+#   Method 1: plotCorrelationMatrix / plotInteractions / plotSpatialScatterpie
+# ##########################################
+```{r}
+setwd(CDecodir)
+
+RegionCorrelationMatrix <- plotCorrelationMatrix(as.matrix(RegionMat))
+RegionCorrelationMatrix
+RegionInteractions <- plotInteractions(as.matrix(RegionMat), "heatmap")
+RegionInteractions
+
+ggsave(paste0("SpatialScatterPie_", RegionLabel, "_CorrelationMatrix.pdf"),
+       plot = RegionCorrelationMatrix, height = 6, width = 6)
+ggsave(paste0("SpatialScatterPie_", RegionLabel, "_HeatmapColocalization.pdf"),
+       plot = RegionInteractions, height = 6, width = 6)
+
+coordsRegion <- GetTissueCoordinates(RegionSubset)
+DefaultAssay(RegionSubset) <- "Spatial"
+speXY <- coordsRegion[, c("imagerow", "imagecol")]
+
+SpatialScatterPie <- plotSpatialScatterpie(
+  x = speXY,
+  y = RegionMat,
+  cell_types = colnames(RegionMat),
+  scatterpie_alpha = 1,
+  pie_scale = 0.8
+) +
+  scale_y_reverse() +
+  scale_fill_manual(values = pal, breaks = names(pal)) +
+  theme(text = element_text(size = 14)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+SpatialScatterPie
+ggsave(paste0("SelectedRegion_", RegionLabel, "_SpatialScatterPie.pdf"),
+       plot = SpatialScatterPie, height = 3, width = 4.5)
+```
+
+# ##########################################
+# Deconvolution details: piechart
+#   Method 2: geom_scatterpie overlaid on the tissue image
+# ##########################################
+```{r}
+setwd(CDecodir)
+
+matRegion <- RegionSubset@meta.data[, CelltypeOrder]
+coordsPie <- GetTissueCoordinates(RegionSubset)
+coordsPie$barcode <- rownames(coordsPie)
+
+common <- intersect(rownames(matRegion), coordsPie$barcode)
+matRegion <- matRegion[common, ]
+coordsPie <- coordsPie[common, ]
+
+dfPie <- cbind(coordsPie[, c("imagecol", "imagerow")], matRegion)
+
+p <- SpatialDimPlot(
+  RegionSubset,
+  images   = SelectedSlice,
+  group.by = NULL,
+  alpha    = 1
+)
+
+ScatterpiePlot <- p +
+  geom_scatterpie(
+    data = dfPie,
+    aes(x = imagecol, y = imagerow, r = 2.8),
+    cols      = colnames(matRegion),
+    color     = NA,
+    linewidth = 0,
+    alpha     = 0.9
+  ) +
+  scale_fill_manual(values = pal, breaks = names(pal)) +
+  scale_y_reverse() +
+  coord_fixed() +
+  theme_void()
+
+ScatterpiePlot
+ggsave(paste0("SelectedRegion_", RegionLabel, "_ScatterpiePlot.pdf"),
+       plot = ScatterpiePlot, height = 6, width = 6)
+```
+
+# ##############################
+# Biomarker spatial feature plots within the region
+# ##############################
+```{r}
+setwd(CBiomadir)
+DefaultAssay(RegionSubset) <- "SCT"
+
+Finalcelltypemarkers <- c(
+  "Lrp2","Slc34a1","Slc13a3",                     # Proximal tubule cells (PT)
+  "Slc12a3","Pvalb","Wnk1",                       # Distal connecting tubule (DCT)
+  "Umod","Slc12a1","Cldn10",                      # Thick ascending limb cells (TAL)
+  "Klk1","Slc8a1","Calb1",                        # Connecting tubule (CNT)
+  "Slc14a2","Fst","Bst1",                         # Descending thin limb cells (DTL)
+  "Aqp2","Hsd11b2","Scnn1g",                      # Principal cells (PC)
+  "Atp6v1g3","Aqp6","Slc26a7",                    # Intercalated cells
+  "Krt5","Upk1b","Krt14",                         # Urothelium
+  "Cdh5","Igfbp3","Pecam1",                       # Endothelium
+  "Col3a1","Fbn1","Lum","Col1a1",                 # Fibroblast
+  "Ireb2","Alas2",                                # Plasmacytoid dendritic cells
+  "S100a8","S100a9","Il1b",                       # Neutrophil
+  "C1qa","C1qb","Aif1",                           # Macrophage
+  "Cxcr6","Cd247","Cd3e",                         # T cells
+  "Igkc",                                         # B cells
+  "Ccl5","Nkg7",                                  # NK/Cd8 cells
+  "Cx3cr1","Ccr2","H2-Ab1",                       # reactivate
+  "Nos2","Ifngr1","Il17a","Cd80","Cd86","Fcgr1","Fcgr3","Fcgr2b",  # Macrophage 1
+  "Arg1","Il13","Cd163","Mrc1","Cd68"             # Macrophage 2
+)
+Finalcelltypemarkers <- Finalcelltypemarkers[Finalcelltypemarkers %in% rownames(RegionSubset)]
+
+for (i in Finalcelltypemarkers) {
+  CellTypeMarkerSpatialFeature <- SpatialFeaturePlot(
+    RegionSubset, features = i, pt.size.factor = 6000, crop = TRUE
+  )
+  ggsave(
+    filename = paste0(RegionLabel, "_", i, "_SpatialFeatureMarkerDotPlot.pdf"),
+    plot     = CellTypeMarkerSpatialFeature,
+    height   = 5, width = 25
+  )
+}
+```
+
+# ##############################
+# Cell-cell communication within the region using CellChat
+# ##############################
+```{r}
+setwd(CNichComdir)
+
+SpatialDimPlot(RegionSubset, pt.size.factor = 1500)
+
+# Prepare input data for CellChat analysis
+data.input <- Seurat::GetAssayData(RegionSubset, slot = "data", assay = "SCT")
+
+meta <- data.frame(
+  labels  = Seurat::Idents(RegionSubset),
+  samples = "sample1",
+  row.names = names(Seurat::Idents(RegionSubset))
+)
+meta$samples <- factor(meta$samples)
+unique(meta$labels)
+
+# Spatial locations of spots (full-resolution image coordinates)
+spatial.locs <- Seurat::GetTissueCoordinates(RegionSubset, scale = NULL, cols = c("imagerow", "imagecol"))
+
+# Pixel -> micrometer conversion factor (10X Visium: theoretical spot size 65um)
+scalefactors <- jsonlite::fromJSON(txt = ScalefactorsJSON)
+spot.size <- 65
+conversion.factor <- spot.size / scalefactors$spot_diameter_fullres
+spatial.factors <- data.frame(ratio = conversion.factor, tol = spot.size / 2)
+
+d.spatial <- computeCellDistance(coordinates = spatial.locs, ratio = spatial.factors$ratio, tol = spatial.factors$tol)
+min(d.spatial[d.spatial != 0])  # should approximate 100um for 10X Visium
+
+cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels",
+                            datatype = "spatial", coordinates = spatial.locs, spatial.factors = spatial.factors)
+cellchat
+
+CellChatDB <- CellChatDB.mouse
+CellChatDB.use <- subsetDB(CellChatDB, search = CellChatSignalingType, key = "annotation")
+cellchat@DB <- CellChatDB.use
+
+cellchat <- subsetData(cellchat)
+future::plan("multisession", workers = 4)
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat, variable.both = FALSE)
+
+cellchat <- computeCommunProb(cellchat, type = "truncatedMean", trim = 0.1,
+                               distance.use = TRUE, interaction.range = 250, scale.distance = 0.01,
+                               contact.dependent = TRUE, contact.range = 100)
+
+cellchat <- filterCommunication(cellchat, min.cells = 2)
+cellchat <- computeCommunProbPathway(cellchat)
+cellchat <- aggregateNet(cellchat)
+
+groupSize <- as.numeric(table(cellchat@idents))
+par(mfrow = c(1, 2), xpd = TRUE)
+netVisual_circle(cellchat@net$count, vertex.weight = rowSums(cellchat@net$count),
+                  weight.scale = TRUE, label.edge = FALSE, title.name = "Number of interactions")
+
+pdf(file = paste0("Spatial_", RegionLabel, "_netVisual_circle_strength.pdf"), height = 5, width = 4)
+netVisual_circle(cellchat@net$weight, vertex.weight = rowSums(cellchat@net$weight),
+                  weight.scale = TRUE, label.edge = FALSE, title.name = "Interaction weights/strength")
+dev.off()
+
+pdf(file = paste0("Spatial_", RegionLabel, "_NetVisual_interaction_counts.pdf"), height = 5, width = 4)
+netVisual_heatmap(cellchat, measure = "count", color.heatmap = "Blues")
+dev.off()
+CellChat::netVisual_heatmap(cellchat, measure = "weight", color.heatmap = "Blues")
+
+AllPotentialPathways <- cellchat@netP$pathways
+AllPotentialPathways
+
+par(mfrow = c(1, 1), xpd = TRUE)
+pdf(file = paste0("Spatial_", RegionLabel, "_", paste(CellChatShowPathway, collapse = "_"), "_SignalingNetVisual.pdf"), height = 7, width = 5)
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+netAnalysis_signalingRole_network(cellchat, signaling = CellChatShowPathway, width = 8, height = 2.5, font.size = 10)
+dev.off()
+
+pdf(file = paste0("Spatial_", RegionLabel, "_CandidatePathways_ContributionNetVisual.pdf"), height = 6, width = 4)
+netAnalysis_contribution(cellchat, signaling = CellChatCandidatePathways)
+dev.off()
+
+saveRDS(cellchat, file = paste0("cellchat_Spatial_", RegionLabel, ".rds"))
+
+# resolve the requested source cell type to its identity index, if any
+sourcesUse <- NULL
+if (!is.null(CellChatSourceCellType)) {
+  sourcesUse <- which(levels(cellchat@idents) == CellChatSourceCellType)
+  if (length(sourcesUse) == 0) {
+    warning("CellChatSourceCellType '", CellChatSourceCellType, "' not found among: ",
+            paste(levels(cellchat@idents), collapse = ", "))
+    sourcesUse <- NULL
+  }
+}
+
+pdf(file = paste0("Spatial_", RegionLabel, "_CandidatePathways_netVisual_bubble.pdf"), height = 4.5, width = 4)
+if (is.null(sourcesUse)) {
+  netVisual_bubble(cellchat, signaling = CellChatCandidatePathways, remove.isolate = FALSE)
+} else {
+  netVisual_bubble(cellchat, sources.use = sourcesUse, signaling = CellChatCandidatePathways, remove.isolate = FALSE)
+}
+dev.off()
+
+pdf(file = paste0("Spatial_", RegionLabel, "_TnfSpatialFeature.pdf"), height = 4.5, width = 4)
+spatialFeaturePlot(cellchat, features = c("Tnf", "Tnfrsf1a"), point.size = 1.2, color.heatmap = "Reds", direction = 1)
+dev.off()
+
+pdf(file = paste0("Spatial_", RegionLabel, "_Il1bSpatialFeature.pdf"), height = 4.5, width = 4)
+spatialFeaturePlot(cellchat, features = c("Il1b", "Il1r1"), point.size = 1.2, color.heatmap = "Reds", direction = 1)
+dev.off()
+```
