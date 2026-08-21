@@ -74,11 +74,21 @@ Pyelonephritis_Infection <- readRDS(paste0(Spindir, "Pyelonephritis_Infection_De
 Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
 Allimages <- names(Pyelonephritis_Infection@images)
 
+# the spatial deconvolution meta.data still has the proportion column named
+# "DegCD" (that reference hasn't been rebuilt/renamed) -- rename it so a single
+# CelltypeOrder (using "hIC-PC") works for both the scRNA and spatial objects
+colnames(Pyelonephritis_Infection@meta.data)[colnames(Pyelonephritis_Infection@meta.data) == "DegCD"] <- "hIC-PC"
+
 cat("scRNA cell type counts:\n")
 print(table(SCcells$AnnotationL1))
 cat("scRNA timepoints:\n")
 print(table(SCcells$DataSet))
 
+cat("Spatial slides:\n")
+print(Allimages)
+
+cat("Spatial decovolution:\n")
+print(head(Pyelonephritis_Infection@meta.data))
 
 ```
 

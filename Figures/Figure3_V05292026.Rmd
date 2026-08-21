@@ -137,12 +137,13 @@ Idents(N8_obj)  <- factor(Idents(N8_obj), levels = timepoint_order)
 # Urothelial differentiation hierarchy: basal → intermediate → superficial
 proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Cdk1")
 differentiation_markers <- c(
+  # Superficial / umbrella cells (fully differentiated)
+  "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
   # Basal / progenitor (least differentiated)
   "Krt5", "Krt14", "Trp63", "Cd44",
   # Intermediate
   "Krt7", "Krt8", "Krt18", "Krt19",
-  # Superficial / umbrella cells (fully differentiated)
-  "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
+
   # Transcription factors driving urothelial differentiation
   "Foxa1", "Gata3", "Pparg"
 )
@@ -250,15 +251,18 @@ dev.off()
 Idents(N8_obj) <- factor(Idents(N8_obj), levels = timepoint_order)
 DefaultAssay(N8_obj) <- "SCT"
 
-amp_genes_n8 <- c(
-  "Camp", "Defa1", "Defa2", "Defb1", "Defb2", "Defb3", "Defb4",
-  "Defb14", "Defb24", "Reg3g", "Reg3b",
-  "S100a7", "S100a8", "S100a9",
-  "Ltf", "Lyz1", "Ctsg", "Ctsb", "Lcn2", "Pi3",
-  "Hamp", "Sftpa1", "Sftpd", "Pla2g2a",
-  "Mpo", "Elane", "Rnase2", "Rnase4",
-  "Umod", "Mbd1", "Mbd2", "Ear2", "Ear11", "Ear6"
-)
+# amp_genes_n8 <- c(
+#   "Camp", "Defa1", "Defa2", "Defb1", "Defb2", "Defb3", "Defb4",
+#   "Defb14", "Defb24", "Reg3g", "Reg3b",
+#   "S100a7", "S100a8", "S100a9",
+#   "Ltf", "Lyz1", "Ctsg", "Ctsb", "Lcn2", "Pi3",
+#   "Hamp", "Sftpa1", "Sftpd", "Pla2g2a",
+#   "Mpo", "Elane", "Rnase2", "Rnase4",
+#   "Mbd1", "Mbd2", "Ear2", "Ear11", "Ear6"
+# )
+
+amp_genes_n8 <- c("Camp","Defa1","Defa2","Defb1","Defb2","Defb3","Defb4","Defb14","Defb24","Reg3g","Reg3b","S100a7","S100a8","S100a9","Ltf","Lyz1","Ctsg","Ctsb","Lcn2","Pi3","Hamp","Sftpa1","Sftpd","Pla2g2a","Mpo","Elane","Hist1h2aa","Hist1h2bb","Rnase2","Rnase4", "Mbd1", "Mbd2","Ear2", "Ear11", "Ear6")
+
 amp_genes_n8 <- amp_genes_n8[amp_genes_n8 %in% rownames(N8_obj)]
 
 Fig3K_AMP_DotPlot <- DotPlot(
@@ -292,7 +296,7 @@ ggsave(
 
 Fig3K_AMP_DoHeatmap <- DoHeatmap(
   N8_obj,
-  features  = amp_genes,
+  features  = amp_genes_n8,
   assay     = "SCT",
   slot      = "data",
   disp.min  = 0,
@@ -501,12 +505,13 @@ Idents(UROcells) <- factor(UROcells@meta.data$TimepointPop, levels = combined_or
 # Urothelial differentiation hierarchy: basal → intermediate → superficial
 proliferation_markers   <- c("Mki67", "Top2a", "Pcna", "Cdk1")
 differentiation_markers <- c(
+    # Superficial / umbrella cells (fully differentiated)
+  "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
   # Basal / progenitor (least differentiated)
   "Krt5", "Krt14", "Trp63", "Cd44",
   # Intermediate
   "Krt7", "Krt8", "Krt18", "Krt19",
-  # Superficial / umbrella cells (fully differentiated)
-  "Upk1a", "Upk1b", "Upk2", "Upk3a", "Upk3b",
+
   # Transcription factors driving urothelial differentiation
   "Foxa1", "Gata3", "Pparg"
 )
@@ -639,7 +644,7 @@ amp_genes <- amp_genes[amp_genes %in% rownames(UROcells)]
 # I want to use the Doheatmap
 Fig3J_AMPDoheatmap<-DoHeatmap(
   UROcells,
-  features  = amp_genes_n8,
+  features  = amp_genes,
   assay     = "RNA",
   slot      = "data",
   disp.min  = 0,
