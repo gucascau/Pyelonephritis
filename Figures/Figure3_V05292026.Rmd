@@ -589,11 +589,16 @@ uro_acts_mat <- df_uro %>%
   column_to_rownames("cluster") %>%
   as.matrix()
 
+# Same pathway order as Figure 3G
 PathwayOrder_uro <- c(
+  # Inflammatory signaling
   "TNFa", "NFkB", "JAK-STAT",
+  # Cell death / stress
   "Trail", "p53", "Hypoxia",
-  "EGFR", "MAPK", "PI3K", "VEGF",
-  "WNT", "TGFb", "Estrogen"
+  # Developmental / morphogenic
+  "TGFb", "WNT", "Estrogen",
+  # Growth factor / proliferation
+  "EGFR", "MAPK", "PI3K", "VEGF"
 )
 PathwayOrder_uro <- PathwayOrder_uro[PathwayOrder_uro %in% colnames(uro_acts_mat)]
 
@@ -613,7 +618,7 @@ Fig3F_Progeny <- pheatmap(
   fontsize_row   = 8,
   show_rownames  = TRUE,
   cluster_cols   = FALSE,
-  cluster_rows   = TRUE,
+  cluster_rows   = FALSE,
   color          = uro_color,
   breaks         = uro_breaks,
   main           = "PROGENy – URO vs aURO",
@@ -814,12 +819,25 @@ cytokines_sc <- c(
 chemokines_sc <- chemokines_sc[chemokines_sc %in% rownames(UROcells)]
 cytokines_sc  <- cytokines_sc[cytokines_sc   %in% rownames(UROcells)]
 
+# Cytokines/chemokines are detected in a small fraction of cells, so cap the
+# percent-expressed scale (values above pct_cap are drawn at max size) and set
+# a minimum dot size so low-percentage dots stay visible.
+pct_cap <- 30
+
 Fig3J_DotPlot <- DotPlot(
   UROcells,
   features  = c(cytokines_sc, chemokines_sc),
   cols      = c("lightgrey", "#E31A1C"),
-  dot.scale = 6
+  dot.scale = 6,
+  scale.max = pct_cap   # pct.exp above pct_cap is set to pct_cap
 ) +
+  scale_size(
+    name   = "PerExp",
+    range  = c(0.5, 7),
+    limits = c(0, pct_cap),
+    breaks = seq(0, pct_cap, by = 10),
+    labels = c(seq(0, pct_cap - 10, by = 10), paste0(pct_cap, "+"))
+  ) +
   RotatedAxis() +
   labs(
     #title = "Cytokine and chemokine expression – hURO vs aURO",
@@ -833,7 +851,7 @@ Fig3J_DotPlot <- DotPlot(
   theme(
    # plot.title  = element_text(hjust = 0.5, size = 10, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-    axis.text.y = element_text(size = 9, size = 8)
+    axis.text.y = element_text(size = 8)
   )
 
 ggsave(

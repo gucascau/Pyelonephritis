@@ -65,7 +65,7 @@ Pyelonephritis_Infection <- UpdateSeuratObject(Pyelonephritis_Infection)
 
 # Set identity to niche annotation
 Idents(Pyelonephritis_Infection) <- Pyelonephritis_Infection@meta.data$Annotation
-
+Pyelonephritis_Infection@meta.data%>% head()
 # Verify niche labels
 levels(as.factor(Pyelonephritis_Infection@meta.data$Annotation))
 ```
@@ -134,6 +134,23 @@ ggsave (
   width    = 5,
   height   = 4
 )
+
+# Figure S3A: UMAP visualization of the 17 molecular niches
+FigS3A_UMAP<- DimPlot(
+  Pyelonephritis_Infection,
+  reduction = "umap",
+  split.by = "group",
+  #cols      = niche_colors,
+  label     = TRUE,
+  repel     = TRUE) +theme(legend.position = "none") 
+
+ggsave (
+  filename = paste0(Outdir, "FigureS3A_UMAP.pdf"),
+  plot     = FigS3A_UMAP,
+  width    = 16,
+  height   = 4
+)
+
 
 # Figure 1E: Highlighting infection-associated niches (IANs) in the UMAP. Based on the spatial distribution and temporal dynamics,
 # we only select N12, N13, N14, N15, N16, and N17 as infection-associated niches (IANs)

@@ -7,7 +7,7 @@ description:
   (B) UMAP of CD subsets (ICA, ICB, PC, hIC-PC).
   (C) Proportion of CD subsets across timepoints (0, 3, 7, 28 dpi).
   (D) DotPlot of canonical CD subset markers.
-  (E) UMAPs of CD cells split by timepoint.
+  (E) UMAPs of CD cells split by timepoint; spatial feature plots of deconvoluted PC, ICA, ICB, and hIC-PC proportions across timepoints.
   (G) Spatial feature plots of representative CD markers (Atp6v1g3, Slc4a1, Slc26a4, Aqp2) across timepoints.
   (H–I) DotPlots of subset-by-timepoint expression for additional CD markers.
   (J) PROGENy pathway activity heatmap across CD subsets and timepoints.
@@ -240,7 +240,186 @@ pt_size_map <- c(
   slice7 = 1600, slice8 = 1800, slice9 = 1800
 )
 
+# The deconvolution proportions are stored as meta.data columns; the reference
+# still calls the degenerating CD population "DegCD" -- rename it to "hIC-PC"
+# so it matches the single-cell annotation (subset_order).
+colnames(Pyelonephritis_Infection@meta.data)[colnames(Pyelonephritis_Infection@meta.data) == "DegCD"] <- "hIC-PC"
 
+```
+
+---
+
+## Figure 4E (spatial): Deconvoluted CD subset proportions across timepoints
+
+```{r fig4e-spatial-deconv, fig.width=15, fig.height=3}
+deconv_palette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+
+deconv_cd <- subset_order[subset_order %in% colnames(Pyelonephritis_Infection@meta.data)]
+missing_cd <- setdiff(subset_order, deconv_cd)
+if (length(missing_cd) > 0) {
+  warning("Deconvolution columns not found in spatial meta.data: ",
+          paste(missing_cd, collapse = ", "))
+}
+
+for (ct in deconv_cd) {
+  # Shared color limits across all timepoints for this cell type
+  ct_max <- max(Pyelonephritis_Infection@meta.data[[ct]], na.rm = TRUE)
+
+  Fig4E_Deconv <- SpatialFeaturePlot(
+    Pyelonephritis_Infection,
+    features       = ct,
+    images         = spatial_slices,
+    pt.size.factor = 1600,
+    crop           = TRUE
+  ) &
+    ggplot2::scale_fill_gradientn(
+      colours = deconv_palette(4),
+      limits  = c(0, ct_max),
+      name    = ct
+    )
+
+  # Label each panel with its timepoint (panels follow the order of spatial_slices)
+  for (i in seq_along(spatial_slices)) {
+    Fig4E_Deconv[[i]] <- Fig4E_Deconv[[i]] +
+      ggtitle(timepoint_labels[[spatial_slices[i]]]) +
+      theme(plot.title = element_text(hjust = 0.5, size = 10))
+  }
+
+  ggsave(
+    filename = paste0(Outdir, "Figure4E_Spatial_Deconvolution_", ct, ".pdf"),
+    plot     = Fig4E_Deconv,
+    height   = 3,
+    width    = 15
+  )
+  print(Fig4E_Deconv)
+}
+```
+
+---
+
+## Figure 4E (markers): hIC-PC marker score across timepoints
+
+The CD-only DEGs (hIC-PC vs ICA/ICB/PC) are dominated by proximal-tubule genes
+(Aldob, Pck1, Miox, Slc34a1, ...), which light up the whole cortex on the spatial
+slides. Here we (1) re-select hIC-PC markers against **all** kidney cell types in
+the full atlas, (2) keep only genes whose mean expression in hIC-PC clearly
+exceeds every other cell type (incl. PT), then (3) plot a module score of those
+genes on the spatial slides, with and without masking to CD-containing spots.
+
+```{r fig4e-hicpc-marker-select}
+AtlasIndir <- "/Users/XXW004/Documents/Projects/RuizRosado/PIPseq/Results/Evaluation_V022723/CellEvaluation_Subclustering_V0803/Integrated_EpiStroImmCells_v020426/"
+SCatlas <- readRDS(paste0(AtlasIndir, "PIPSeq_Final_UsedForScanpy_v08212026.RDS"))
+SCatlas <- UpdateSeuratObject(SCatlas)
+SCatlas$AnnotationL1[SCatlas$AnnotationL1 == "DegCD"] <- "hIC-PC"
+
+DefaultAssay(SCatlas) <- "RNA"
+if (inherits(SCatlas[["RNA"]], "Assay5")) SCatlas[["RNA"]] <- JoinLayers(SCatlas[["RNA"]])
+Idents(SCatlas) <- "AnnotationL1"
+
+# (1) hIC-PC vs all other kidney cell types
+hicpc_vs_all <- FindMarkers(
+  SCatlas,
+  ident.1             = "hIC-PC",
+  only.pos            = TRUE,
+  logfc.threshold     = 0.5,
+  min.pct             = 0.2,
+  max.cells.per.ident = 1000   # downsample for speed
+)
+hicpc_vs_all$gene <- rownames(hicpc_vs_all)
+
+# (2) Specificity: mean (non-log) expression in hIC-PC vs the highest other cell type
+cand <- head(hicpc_vs_all$gene[hicpc_vs_all$p_val_adj < 0.05], 300)
+expr <- expm1(GetAssayData(SCatlas, assay = "RNA", layer = "data")[cand, , drop = FALSE])
+grp_cells <- split(colnames(SCatlas), SCatlas$AnnotationL1)
+avg_by_type <- sapply(grp_cells, function(cells) Matrix::rowMeans(expr[, cells, drop = FALSE]))
+
+other_types <- setdiff(colnames(avg_by_type), "hIC-PC")
+hicpc_vs_all$max_other_type <- NA
+hicpc_vs_all$specificity    <- NA
+hicpc_vs_all[cand, "max_other_type"] <- other_types[apply(avg_by_type[, other_types, drop = FALSE], 1, which.max)]
+hicpc_vs_all[cand, "specificity"]    <- avg_by_type[, "hIC-PC"] /
+  apply(avg_by_type[, other_types, drop = FALSE], 1, max)
+
+write.csv(hicpc_vs_all, paste0(Outdir, "Figure4E_hICPC_vs_AllCelltypes_Markers.csv"), row.names = FALSE)
+
+# Thresholds -- relax these if too few genes pass
+min_pct1        <- 0.30   # expressed in >= 30% of hIC-PC cells
+max_pct2        <- 0.15   # expressed in <= 15% of all other cells
+min_specificity <- 1.5    # hIC-PC mean >= 1.5x the next highest cell type
+
+hicpc_markers <- hicpc_vs_all %>%
+  dplyr::filter(!is.na(specificity),
+                pct.1 >= min_pct1, pct.2 <= max_pct2, specificity >= min_specificity) %>%
+  dplyr::arrange(dplyr::desc(avg_log2FC)) %>%
+  head(20)
+
+cat("hIC-PC-specific markers passing filters:", nrow(hicpc_markers), "\n")
+print(hicpc_markers[, c("gene", "avg_log2FC", "pct.1", "pct.2", "specificity", "max_other_type")])
+
+# Check: how the candidates look across ALL kidney cell types
+if (nrow(hicpc_markers) > 0) {
+  Fig4E_hICPC_AtlasDot <- DotPlot(SCatlas, features = hicpc_markers$gene,
+                                  cols = c("lightgrey", "#E31A1C"), dot.scale = 6) +
+    RotatedAxis() + labs(x = NULL, y = NULL)
+  ggsave(paste0(Outdir, "Figure4E_hICPC_Markers_AtlasDotPlot.pdf"),
+         Fig4E_hICPC_AtlasDot, width = 8, height = 5)
+  print(Fig4E_hICPC_AtlasDot)
+}
+```
+
+```{r fig4e-hicpc-marker-spatial, fig.width=15, fig.height=3}
+hicpc_genes <- hicpc_markers$gene[hicpc_markers$gene %in% rownames(Pyelonephritis_Infection[["SCT"]])]
+stopifnot("No hIC-PC markers found in the spatial SCT assay -- relax the thresholds above" = length(hicpc_genes) >= 3)
+
+DefaultAssay(Pyelonephritis_Infection) <- "SCT"
+Pyelonephritis_Infection <- AddModuleScore(
+  Pyelonephritis_Infection,
+  features = list(hicpc_genes),
+  name     = "hICPC_Score",
+  assay    = "SCT"
+)
+
+# Cap at 1st/99th percentile so a few hot spots don't flatten the color scale
+sc <- Pyelonephritis_Infection$hICPC_Score1
+lims <- quantile(sc, c(0.01, 0.99), na.rm = TRUE)
+Pyelonephritis_Infection$hICPC_Score_capped <- pmin(pmax(sc, lims[1]), lims[2])
+
+# Masked version: keep the score only in spots with a CD signal in the deconvolution
+cd_frac_min <- 0.10   # total ICA+ICB+PC+hIC-PC proportion required
+cd_total <- rowSums(Pyelonephritis_Infection@meta.data[, deconv_cd, drop = FALSE])
+Pyelonephritis_Infection$hICPC_Score_CDmasked <- ifelse(
+  cd_total >= cd_frac_min, Pyelonephritis_Infection$hICPC_Score_capped, NA
+)
+
+plot_spatial_score <- function(feature, file_tag) {
+  p <- SpatialFeaturePlot(
+    Pyelonephritis_Infection,
+    features       = feature,
+    images         = spatial_slices,
+    pt.size.factor = 1600,
+    crop           = TRUE
+  ) &
+    ggplot2::scale_fill_gradientn(
+      colours  = deconv_palette(4),
+      limits   = lims,
+      na.value = "grey90",
+      name     = "hIC-PC\nscore"
+    )
+  for (i in seq_along(spatial_slices)) {
+    p[[i]] <- p[[i]] +
+      ggtitle(timepoint_labels[[spatial_slices[i]]]) +
+      theme(plot.title = element_text(hjust = 0.5, size = 10))
+  }
+  ggsave(paste0(Outdir, "Figure4E_Spatial_hICPC_", file_tag, ".pdf"), p, height = 3, width = 15)
+  print(p)
+}
+
+plot_spatial_score("hICPC_Score_capped",   "MarkerScore")
+plot_spatial_score("hICPC_Score_CDmasked", "MarkerScore_CDmasked")
+
+# Agreement with the deconvolution estimate
+cat("Spearman correlation, marker score vs hIC-PC deconvolution proportion:",
+    round(cor(sc, Pyelonephritis_Infection$`hIC-PC`, method = "spearman", use = "complete.obs"), 3), "\n")
 ```
 
 ---
@@ -248,7 +427,7 @@ pt_size_map <- c(
 ## Figure 4F: Spatial feature plots of representative CD markers across timepoints
 
 ```{r fig4f-spatial-features, fig.width=15, fig.height=3}
-spatial_cd_markers <- c("Atp6v1g3", "Slc4a1", "Slc26a4", "Aqp2","Aqp6")
+spatial_cd_markers <- c("Atp6v1g3", "Slc4a1", "Slc26a4", "Aqp2","Aqp6", "Ass1","Ttc36","Pck1")
 myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
 
 for (m in spatial_cd_markers) {
@@ -280,6 +459,123 @@ for (m in spatial_cd_markers) {
     width    = 15
   )
 }
+
+
+```
+
+### Figure 4F (colocalization): Atp6v1g3 / Aqp2 / Ttc36
+
+```{r fig4f-spatial-coloc, fig.width=15, fig.height=3}
+coloc_genes <- c(R = "Atp6v1g3", G = "Aqp2", B = "Ttc36")
+coloc_genes <- coloc_genes[coloc_genes %in% rownames(Pyelonephritis_Infection)]
+stopifnot(length(coloc_genes) == 3)
+
+coloc_expr <- t(as.matrix(Pyelonephritis_Infection@assays$SCT@data[coloc_genes, , drop = FALSE]))
+
+# Scale each gene to 0-1 across all slices (cap at 99th percentile so a few hot spots don't dominate)
+scale01 <- function(x) {
+  cap <- quantile(x, 0.99)
+  if (cap == 0) cap <- max(x)
+  pmin(x / cap, 1)
+}
+coloc_scaled <- apply(coloc_expr, 2, scale01)
+
+# --- (0) SpatialFeaturePlot of each gene (same style as above), stacked into one PDF
+CDMarkerFeatureList <- lapply(coloc_genes, function(m) {
+  Maxvalue <- ceiling(max(Pyelonephritis_Infection@assays$SCT@data[m, ]))
+  Minvalue <- floor(min(Pyelonephritis_Infection@assays$SCT@data[m, ]))
+
+  SpatialFeaturePlot(
+    Pyelonephritis_Infection,
+    features       = m,
+    pt.size.factor = 1600,
+    crop           = TRUE
+  ) &
+    ggplot2::scale_fill_gradientn(
+      colours = myPalette(4),
+      limits  = c(Minvalue, Maxvalue+0.5)
+    )
+})
+Fig4F_CDMarkers <- wrap_plots(CDMarkerFeatureList, ncol = 1)
+
+ggsave(
+  filename = paste0(Outdir, "Figure4F_Spatial_CDMarkers.pdf"),
+  plot     = Fig4F_CDMarkers,
+  height   = 3 * length(coloc_genes),
+  width    = 15
+)
+
+# --- (1) RGB overlay: Atp6v1g3 = red, Aqp2 = green, Ttc36 = blue
+#     overlap -> yellow (Atp6v1g3+Aqp2), magenta (Atp6v1g3+Ttc36), cyan (Aqp2+Ttc36), white (all three)
+coloc_hex <- rgb(
+  round(coloc_scaled[, 1], 2),
+  round(coloc_scaled[, 2], 2),
+  round(coloc_scaled[, 3], 2)
+)
+Pyelonephritis_Infection$Coloc_RGB <- coloc_hex
+rgb_cols <- setNames(unique(coloc_hex), unique(coloc_hex))
+
+Fig4F_RGB <- SpatialDimPlot(
+  Pyelonephritis_Infection,
+  group.by       = "Coloc_RGB",
+  cols           = rgb_cols,
+  pt.size.factor = 1600,
+  image.alpha    = 0,
+  crop           = TRUE
+) &
+  NoLegend() &
+  theme(panel.background = element_rect(fill = "black", colour = NA))
+
+ggsave(
+  filename = paste0(Outdir, "Figure4F_Spatial_Coloc_RGB_",
+                    paste(coloc_genes, collapse = "_"), ".pdf"),
+  plot = Fig4F_RGB, height = 3, width = 15
+)
+Fig4F_RGB
+
+# --- (2) Categorical co-expression map on H&E
+#     a spot is "positive" for a gene if expression > median of its non-zero values
+coloc_thresh <- apply(coloc_expr, 2, function(x) median(x[x > 0]))
+coloc_pos    <- sweep(coloc_expr, 2, coloc_thresh, ">")
+
+coloc_class <- apply(coloc_pos, 1, function(p) {
+  if (!any(p)) "None" else paste(coloc_genes[p], collapse = "+")
+})
+coloc_levels <- c(
+  coloc_genes[1], coloc_genes[2], coloc_genes[3],
+  paste(coloc_genes[c(1, 2)], collapse = "+"),
+  paste(coloc_genes[c(1, 3)], collapse = "+"),
+  paste(coloc_genes[c(2, 3)], collapse = "+"),
+  paste(coloc_genes, collapse = "+"),
+  "None"
+)
+coloc_class_cols <- setNames(
+  c("#E41A1C", "#4DAF4A", "#377EB8", "#FFD700", "#E7298A", "#00CED1", "#000000", "#F0F0F0"),
+  coloc_levels
+)
+Pyelonephritis_Infection$Coloc_Class <- factor(coloc_class, levels = coloc_levels)
+
+Fig4F_Class <- SpatialDimPlot(
+  Pyelonephritis_Infection,
+  group.by       = "Coloc_Class",
+  cols           = coloc_class_cols,
+  pt.size.factor = 1600,
+  crop           = TRUE
+)
+
+ggsave(
+  filename = paste0(Outdir, "Figure4F_Spatial_Coloc_Class_",
+                    paste(coloc_genes, collapse = "_"), ".pdf"),
+  plot = Fig4F_Class, height = 3, width = 15
+)
+Fig4F_Class
+
+# Spot counts per co-expression class and slice (for figure legend / text)
+coloc_counts <- sapply(Images(Pyelonephritis_Infection), function(img) {
+  table(Pyelonephritis_Infection$Coloc_Class[Cells(Pyelonephritis_Infection[[img]])])
+})
+coloc_counts
+write.csv(coloc_counts, paste0(Outdir, "Figure4F_Spatial_Coloc_Class_Counts.csv"))
 ```
 
 ---
@@ -575,6 +871,71 @@ Fig4I_Progeny <- pheatmap(
 pdf(file = paste0(Outdir, "Figure4I_CD_PROGENy_Heatmap.pdf"), width = 8, height = 5)
 print(Fig4I_Progeny)
 dev.off()
+```
+
+### Figure 4I (per subset): PROGENy activity scaled within each CD subset
+
+```{r fig4i-progeny-per-subset, fig.width=12, fig.height=4}
+# Scaling across all CD cells lets PC dominate the color range.
+# Here PROGENy scores are z-scored within each subset, averaged per timepoint,
+# and plotted with a subset-specific symmetric color scale.
+progeny_raw <- as.matrix(GetAssayData(CDcells, assay = "pathwaysmlm_cd", layer = "data"))
+
+subsets_split <- c("ICA", "ICB", "hIC-PC")
+Fig4I_subset_heatmaps <- list()
+
+for (s in subsets_split) {
+  cells_s <- colnames(CDcells)[CDcells@meta.data$ICPCAnnot == s]
+  if (length(cells_s) == 0) next
+
+  # z-score each pathway across cells of this subset only
+  scaled_s <- t(scale(t(progeny_raw[, cells_s, drop = FALSE])))
+  scaled_s[is.na(scaled_s)] <- 0
+
+  tp_s <- factor(CDcells@meta.data[cells_s, "DataSet"], levels = timepoint_order)
+  mean_s <- sapply(levels(droplevels(tp_s)), function(tp) {
+    rowMeans(scaled_s[, tp_s == tp, drop = FALSE])
+  })
+  colnames(mean_s) <- paste(s, colnames(mean_s), sep = "_")
+  mean_s <- mean_s[PathwayOrder_cd, , drop = FALSE]
+
+  # subset-specific symmetric scale around 0
+  lim_s    <- max(abs(mean_s))
+  breaks_s <- seq(-lim_s, lim_s, length.out = palette_length + 1)
+
+  Fig4I_subset_heatmaps[[s]] <- pheatmap(
+    mean_s,
+    fontsize       = 7,
+    fontsize_row   = 8,
+    show_rownames  = TRUE,
+    cluster_cols   = FALSE,
+    cluster_rows   = FALSE,
+    color          = cd_color,
+    breaks         = breaks_s,
+    main           = s,
+    angle_col      = 45,
+    border_color   = NA,
+    silent         = TRUE
+  )
+
+  pdf(file = paste0(Outdir, "Figure4I_CD_PROGENy_Heatmap_", s, ".pdf"), width = 3, height = 4)
+  grid::grid.draw(Fig4I_subset_heatmaps[[s]]$gtable)
+  dev.off()
+}
+
+# Combined panel: ICA | ICB | hIC-PC, each with its own scale
+Fig4I_Progeny_PerSubset <- cowplot::plot_grid(
+  plotlist = lapply(Fig4I_subset_heatmaps, function(h) h$gtable),
+  nrow = 1
+)
+
+ggsave(
+  filename = paste0(Outdir, "Figure4I_CD_PROGENy_Heatmap_PerSubset.pdf"),
+  plot     = Fig4I_Progeny_PerSubset,
+  width    = 3 * length(Fig4I_subset_heatmaps),
+  height   = 4
+)
+Fig4I_Progeny_PerSubset
 ```
 
 ---

@@ -216,6 +216,13 @@ allen_reference@meta.data <- allen_reference@meta.data %>% mutate(cell_type_raw 
   
 ))
 
+Idents(allen_reference) <- allen_reference@meta.data$cell_type_raw
+
+CombinedDimPlotRishil<- DimPlot(allen_reference, label = F)
+ggsave("CombinedDimPlotRishil.pdf",plot=CombinedDimPlotRishil, height = 3, width = 4.5)
+
+CombinedDimPlotRishilSplit<- DimPlot(allen_reference, split.by = "orig.ident", label = F)
+ggsave("CombinedDimPlotRishilSplit.pdf",plot=CombinedDimPlotRishilSplit, height = 4, width = 15)  
 # define the cluster
 
 # set up the annotation
@@ -224,6 +231,18 @@ allen_reference@meta.data <- allen_reference@meta.data %>% mutate(cell_type_raw 
 
 allen_reference<- JoinLayers(allen_reference)
 allen_reference
+
+# Generate the dotplot for the immune cells markers
+ImmuneMarkers <- c("S100a9","Cd14","Cxcl2","Cybb","Cd68","Ccr2","Cxcr6","Cd3g","Trbc2","Nkg7","Ccl5","Cd7","Cd79a","Ms4a1","Cd19")
+# set up the order of immune cells
+CelltypeOrder <- c("Neutrophils", "Macrophage", "T cells", "NK cells", "B cells")
+Idents(allen_reference) <- ordered(factor(Idents(allen_reference)),levels=CelltypeOrder)
+
+# Gene expression dot plot for the immune cells
+ImmuneMarkerDotplot<-DotPlot(allen_reference, features = ImmuneMarkers) + RotatedAxis() +guides(color = guide_colorbar(title = 'AverExp'),
+         size = guide_legend(title = "PercExp")) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("ImmuneMarkerDotplot.pdf",plot=ImmuneMarkerDotplot, height = 3.5, width = 5.5)
+
 ```
 
 
